@@ -279,6 +279,7 @@ export interface LojaCompleta {
   id: string;
   nome: string;
   ativo: boolean;
+  cnpj: string | null;
   cep: string | null;
   rua: string | null;
   numero: string | null;
