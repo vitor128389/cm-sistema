@@ -252,7 +252,7 @@ export default function NotasPage() {
       loja = data as LojaCompleta | null;
     }
 
-    const blob = gerarNotaSimplesPdf(v, loja);
+    const blob = await gerarNotaSimplesPdf(v, loja);
     const nomeArquivo = `pedido-${v.numero_pedido}.pdf`;
     const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
 
