@@ -97,6 +97,9 @@ function AbaLojas() {
   const [lojas, setLojas] = useState<LojaCompleta[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [lojaExcluindoForcado, setLojaExcluindoForcado] = useState<LojaCompleta | null>(null);
+  const [confirmacaoExcluir, setConfirmacaoExcluir] = useState("");
+  const [excluindoForcado, setExcluindoForcado] = useState(false);
   const [form, setForm] = useState({
     nome: "",
     cnpj: "",
@@ -183,15 +186,43 @@ function AbaLojas() {
     carregar();
   }
 
+  async function confirmarExclusaoForcada() {
+    if (!lojaExcluindoForcado || confirmacaoExcluir !== "EXCLUIR") return;
+    setExcluindoForcado(true);
+    const resp = await fetch("/api/admin/excluir-loja-definitivo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lojaId: lojaExcluindoForcado.id, confirmacao: confirmacaoExcluir }),
+    });
+    const resultado = await resp.json();
+    setExcluindoForcado(false);
+    if (!resp.ok) {
+      alert("Erro: " + resultado.error);
+      return;
+    }
+    setLojaExcluindoForcado(null);
+    setConfirmacaoExcluir("");
+    carregar();
+    alert("Loja excluída definitivamente, junto com tudo que estava vinculado a ela.");
+  }
+
   async function excluirLoja(id: string, nome: string) {
-    if (
-      !confirm(
-        `Excluir a loja "${nome}"? Isso apaga o estoque, clientes, caixas e vendas registrados nela. Essa ação não pode ser desfeita.`
-      )
-    )
+    if (!confirm(`Excluir a loja "${nome}"? Se ela tiver clientes, vendas ou caixas vinculados, a exclusão não é permitida (pra não perder esse histórico) — nesse caso ela só é desativada em vez de excluída.`))
       return;
     const { error } = await supabase.from("lojas").delete().eq("id", id);
     if (error) {
+      if (error.code === "23503") {
+        const { error: erroInativar } = await supabase.from("lojas").update({ ativo: false }).eq("id", id);
+        if (erroInativar) {
+          alert("Erro ao desativar a loja: " + erroInativar.message);
+          return;
+        }
+        alert(
+          `"${nome}" tem clientes, vendas ou caixas vinculados, então não pode ser excluída — foi desativada em vez disso, pra preservar o histórico.`
+        );
+        carregar();
+        return;
+      }
       alert("Erro ao excluir: " + error.message);
       return;
     }
@@ -292,8 +323,17 @@ function AbaLojas() {
                   <button className="btn-secundario text-xs px-2 py-1 mr-2" onClick={() => alternarAtivo(l.id, l.ativo)}>
                     {l.ativo ? "Desativar" : "Reativar"}
                   </button>
-                  <button className="text-xs text-red-700" onClick={() => excluirLoja(l.id, l.nome)}>
+                  <button className="text-xs text-red-700 mr-2" onClick={() => excluirLoja(l.id, l.nome)}>
                     excluir
+                  </button>
+                  <button
+                    className="text-xs text-red-800 font-semibold underline"
+                    onClick={() => {
+                      setLojaExcluindoForcado(l);
+                      setConfirmacaoExcluir("");
+                    }}
+                  >
+                    excluir definitivamente
                   </button>
                 </td>
               </tr>
@@ -301,6 +341,47 @@ function AbaLojas() {
           </tbody>
         </table>
       </div>
+
+      {lojaExcluindoForcado && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+            <p className="font-display text-lg mb-2 text-red-800">Excluir definitivamente</p>
+            <p className="text-sm text-madeira-600 mb-4">
+              Isso apaga <strong>pra sempre</strong> a loja <strong>{lojaExcluindoForcado.nome}</strong> e tudo que
+              está vinculado a ela: vendas, clientes, caixas, estoque, trocas e sangrias. Não tem como desfazer.
+            </p>
+            <p className="text-sm text-madeira-600 mb-2">
+              Pra confirmar, digite a palavra <strong>EXCLUIR</strong> abaixo:
+            </p>
+            <input
+              className="input-base mb-4"
+              value={confirmacaoExcluir}
+              onChange={(e) => setConfirmacaoExcluir(e.target.value)}
+              placeholder="EXCLUIR"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                className="btn-secundario flex-1"
+                onClick={() => {
+                  setLojaExcluindoForcado(null);
+                  setConfirmacaoExcluir("");
+                }}
+                disabled={excluindoForcado}
+              >
+                Cancelar
+              </button>
+              <button
+                className="flex-1 bg-red-700 hover:bg-red-800 text-white font-semibold rounded px-4 py-2 disabled:opacity-40"
+                disabled={confirmacaoExcluir !== "EXCLUIR" || excluindoForcado}
+                onClick={confirmarExclusaoForcada}
+              >
+                {excluindoForcado ? "Excluindo..." : "Excluir para sempre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
