@@ -45,7 +45,6 @@ function enderecoClienteTexto(c: ClienteResumo): string | null {
   const partes = [
     c.endereco && c.numero ? `${c.endereco}, ${c.numero}` : c.endereco,
     c.complemento,
-    c.cidade,
   ].filter(Boolean);
   return partes.length > 0 ? partes.join(" — ") : null;
 }
@@ -130,6 +129,7 @@ function ViaComprovante({
       {cpfFormatado && <p style={{ margin: "0.5px 0" }}>CPF: {cpfFormatado}</p>}
       {cliente.telefone && <p style={{ margin: "0.5px 0" }}>Cel: {cliente.telefone}</p>}
       {enderecoCliente && <p style={{ margin: "0.5px 0" }}>End: {enderecoCliente}</p>}
+      {cliente.cidade && <p style={{ margin: "0.5px 0" }}>Cidade: {cliente.cidade}</p>}
 
       {ehMisto ? (
         <>
