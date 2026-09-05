@@ -480,6 +480,22 @@ function AbaEstoque() {
   }, [lojaAtual]);
 
   const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
+
+  // Categorias que usam opção de tecido (Suede/Linho/Veludo).
+  // Qualquer categoria fora dessa lista (ex: Móveis para Sala) não mostra
+  // os campos de tecido — só o estoque simples. "Camas" é tratada à parte,
+  // com espessura de espuma (5/7/14cm).
+  const CATEGORIAS_COM_TECIDO = [
+    "sofás", "sofas",
+    "poltronas",
+    "cabeceiras",
+    "puffs",
+    "namoradeiras",
+    "painéis", "paineis",
+    "baús", "baus",
+    "recamiers",
+  ];
+
   const produtosFiltrados = categoriaFiltro
     ? produtos.filter((p) => p.categoria === categoriaFiltro)
     : produtos;
@@ -827,86 +843,111 @@ function AbaEstoque() {
             </label>
           </div>
 
-          {(form.categoria === "__nova__" ? form.categoriaNova : form.categoria).trim().toLowerCase() === "camas" ? (
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              {(["5", "7", "14"] as const).map((esp) => (
-                <div key={esp}>
-                  <p className="text-xs font-semibold text-madeira-700 mb-1">{esp}cm</p>
-                  <label className="block mb-2">
-                    <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`preco${esp}` as "preco5"]}
-                      onChange={(e) => setForm({ ...form, [`preco${esp}`]: e.target.value })}
-                    />
-                  </label>
-                  <label className="block mb-2">
-                    <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`custo${esp}` as "custo5"]}
-                      onChange={(e) => setForm({ ...form, [`custo${esp}`]: e.target.value })}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`estoque${esp}` as "estoque5"]}
-                      onChange={(e) => setForm({ ...form, [`estoque${esp}`]: e.target.value })}
-                    />
-                  </label>
+          {(() => {
+            const categoriaAtual = (form.categoria === "__nova__" ? form.categoriaNova : form.categoria)
+              .trim()
+              .toLowerCase();
+            const modoCampos: "camas" | "tecido" | "simples" =
+              categoriaAtual === "camas"
+                ? "camas"
+                : CATEGORIAS_COM_TECIDO.includes(categoriaAtual)
+                ? "tecido"
+                : "simples";
+
+            if (modoCampos === "camas") {
+              return (
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {(["5", "7", "14"] as const).map((esp) => (
+                    <div key={esp}>
+                      <p className="text-xs font-semibold text-madeira-700 mb-1">{esp}cm</p>
+                      <label className="block mb-2">
+                        <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`preco${esp}` as "preco5"]}
+                          onChange={(e) => setForm({ ...form, [`preco${esp}`]: e.target.value })}
+                        />
+                      </label>
+                      <label className="block mb-2">
+                        <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`custo${esp}` as "custo5"]}
+                          onChange={(e) => setForm({ ...form, [`custo${esp}`]: e.target.value })}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`estoque${esp}` as "estoque5"]}
+                          onChange={(e) => setForm({ ...form, [`estoque${esp}`]: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                {(["Suede", "Linho", "Veludo"] as const).map((tec) => (
-                  <div key={tec}>
-                    <p className="text-xs font-semibold text-madeira-700 mb-1">{tec}</p>
-                    <label className="block mb-2">
-                      <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`preco${tec}` as "precoSuede"]}
-                        onChange={(e) => setForm({ ...form, [`preco${tec}`]: e.target.value })}
-                      />
-                    </label>
-                    <label className="block mb-2">
-                      <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`custo${tec}` as "custoSuede"]}
-                        onChange={(e) => setForm({ ...form, [`custo${tec}`]: e.target.value })}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`estoque${tec}` as "estoqueSuede"]}
-                        onChange={(e) => setForm({ ...form, [`estoque${tec}`]: e.target.value })}
-                      />
-                    </label>
+              );
+            }
+
+            if (modoCampos === "tecido") {
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {(["Suede", "Linho", "Veludo"] as const).map((tec) => (
+                      <div key={tec}>
+                        <p className="text-xs font-semibold text-madeira-700 mb-1">{tec}</p>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`preco${tec}` as "precoSuede"]}
+                            onChange={(e) => setForm({ ...form, [`preco${tec}`]: e.target.value })}
+                          />
+                        </label>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`custo${tec}` as "custoSuede"]}
+                            onChange={(e) => setForm({ ...form, [`custo${tec}`]: e.target.value })}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`estoque${tec}` as "estoqueSuede"]}
+                            onChange={(e) => setForm({ ...form, [`estoque${tec}`]: e.target.value })}
+                          />
+                        </label>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <p className="text-xs text-madeira-500 mb-2">
-                Se o produto não tem tecido, deixe os 3 preços em branco e preencha só o estoque simples abaixo.
-              </p>
+                </>
+              );
+            }
+
+            // modoCampos === "simples": categorias como "Móveis para Sala"
+            // não mostram opção de tecido, só o estoque direto.
+            return (
               <label className="block mb-3 max-w-xs">
-                <span className="text-xs text-madeira-600 mb-1 block">Estoque (produto sem tecido)</span>
-                <input className="input-base" type="number" value={form.estoqueSimples} onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })} />
+                <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                <input
+                  className="input-base"
+                  type="number"
+                  value={form.estoqueSimples}
+                  onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })}
+                />
               </label>
-            </>
-          )}
+            );
+          })()}
 
           <button className="btn-primario" onClick={salvarProduto}>
             {editandoId ? "Salvar edição" : "Salvar produto"}
