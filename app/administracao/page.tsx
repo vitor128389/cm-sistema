@@ -29,6 +29,7 @@ const FORM_VAZIO = {
   categoriaNova: "",
   custo: "0",
   estoqueSimples: "0",
+  precoSimples: "",
   precoSuede: "",
   precoLinho: "",
   precoVeludo: "",
@@ -577,6 +578,7 @@ function AbaEstoque() {
       novoForm.estoqueSimples = String(p.quantidade_estoque || 0);
     } else {
       novoForm.estoqueSimples = String(p.quantidade_estoque || 0);
+      novoForm.precoSimples = p.preco_venda > 0 ? String(p.preco_venda) : "";
     }
     setForm(novoForm);
     setMostrarForm(true);
@@ -672,7 +674,8 @@ function AbaEstoque() {
       if (parseFloat(form.precoVeludo) > 0) precos["Veludo"] = parseFloat(form.precoVeludo);
 
       const temTecido = Object.keys(precos).length > 0;
-      const precoVendaBase = temTecido ? Object.values(precos)[0] : 0;
+      const precoSimplesNum = parseFloat(form.precoSimples) || 0;
+      const precoVendaBase = temTecido ? Object.values(precos)[0] : precoSimplesNum;
 
       let produtoId = editandoId;
       if (produtoId) {
@@ -935,17 +938,29 @@ function AbaEstoque() {
             }
 
             // modoCampos === "simples": categorias como "Móveis para Sala"
-            // não mostram opção de tecido, só o estoque direto.
+            // não mostram opção de tecido, mas ainda precisam de preço de
+            // venda e estoque.
             return (
-              <label className="block mb-3 max-w-xs">
-                <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                <input
-                  className="input-base"
-                  type="number"
-                  value={form.estoqueSimples}
-                  onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })}
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-3 mb-3 max-w-md">
+                <label className="block">
+                  <span className="text-xs text-madeira-600 mb-1 block">Preço de venda (R$)</span>
+                  <input
+                    className="input-base"
+                    type="number"
+                    value={form.precoSimples}
+                    onChange={(e) => setForm({ ...form, precoSimples: e.target.value })}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                  <input
+                    className="input-base"
+                    type="number"
+                    value={form.estoqueSimples}
+                    onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })}
+                  />
+                </label>
+              </div>
             );
           })()}
 
