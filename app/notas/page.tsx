@@ -475,7 +475,9 @@ export default function NotasPage() {
                             ? "✓ ENTREGUE"
                             : item.retirada
                             ? "Cliente vai levar"
-                            : "ENCOMENDA"}
+                            : item.tipo_entrega === "encomenda"
+                            ? "ENCOMENDA"
+                            : "AGUARDANDO ENTREGA"}
                         </span>
                         {item.status_entrega !== "entregue" && (
                           <button
