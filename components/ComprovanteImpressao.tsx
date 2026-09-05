@@ -101,7 +101,9 @@ function ViaComprovante({
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const cpfFormatado = formatarCpf(cliente.cpf);
-  const temPrazo = itens.some((i) => i.tipo_entrega === "encomenda") && prazoEntregaMaximo;
+  const temPrazo =
+    itens.some((i) => i.tipo_entrega === "encomenda" || i.status_entrega === "encomenda") &&
+    !!prazoEntregaMaximo;
 
   const itensRetirada = itens.filter((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) > 0);
   const itensEntrega = itens.filter(
