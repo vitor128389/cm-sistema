@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import { useLoja } from "@/contexts/LojaContext";
+import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -244,6 +245,51 @@ export default function NotasPage() {
     window.location.href = linkWhatsApp(telefone, mensagem);
   }
 
+  async function enviarPdfWhatsApp(v: Venda) {
+    let loja: LojaCompleta | null = null;
+    if (v.loja_id) {
+      const { data } = await supabase.from("lojas").select("*").eq("id", v.loja_id).maybeSingle();
+      loja = data as LojaCompleta | null;
+    }
+
+    const blob = gerarNotaSimplesPdf(v, loja);
+    const nomeArquivo = `pedido-${v.numero_pedido}.pdf`;
+    const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
+
+    // No celular, abre o menu de compartilhar do sistema já com o PDF
+    // pronto — o usuário só escolhe o WhatsApp na lista.
+    if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({
+          files: [arquivo],
+          title: `Pedido #${v.numero_pedido}`,
+          text: `Pedido #${v.numero_pedido} — ${v.clientes?.nome || "cliente"}`,
+        });
+        return;
+      } catch {
+        // usuário cancelou o compartilhamento — não faz nada
+        return;
+      }
+    }
+
+    // No computador (sem suporte a compartilhar arquivo): baixa o PDF
+    // e abre o WhatsApp Web/Desktop pra anexar manualmente.
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nomeArquivo;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    const telefone = v.clientes?.telefone;
+    if (telefone) {
+      alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
+      window.location.href = linkWhatsApp(telefone, `Segue o pedido #${v.numero_pedido} em PDF.`);
+    } else {
+      alert("PDF baixado. Esse cliente não tem celular cadastrado pra abrir o WhatsApp direto.");
+    }
+  }
+
   return (
     <div className="p-8">
       <h1 className="font-display text-3xl text-madeira-900">Notas</h1>
@@ -390,6 +436,13 @@ export default function NotasPage() {
                   )}
                   <button className="btn-secundario text-xs px-2 py-1" onClick={() => imprimir(v)}>
                     🖨
+                  </button>
+                  <button
+                    className="text-xs px-2 py-1 rounded bg-green-700 text-white font-medium hover:bg-green-800"
+                    onClick={() => enviarPdfWhatsApp(v)}
+                    title="Gerar PDF da nota e enviar por WhatsApp"
+                  >
+                    📄 PDF WhatsApp
                   </button>
                 </div>
               </div>
