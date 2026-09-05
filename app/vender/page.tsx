@@ -727,6 +727,9 @@ export default function VenderPage() {
       // Cliente vai retirar (parcial ou total) + prazo do mesmo dia (ou sem prazo)
       // = já levou a parte de retirada na hora. Prazo pra outro dia = "vai levar
       // depois", com botão de confirmar quando ele vier buscar (igual encomenda).
+      // O mesmo vale pra entrega em domicílio: prazo pra outro dia = fica
+      // pendente até confirmar que foi entregue; sem prazo (ou prazo hoje) =
+      // já sai como entregue.
       const hojeStr = new Date().toISOString().slice(0, 10);
       const prazoEhHojeOuVazio = !prazoEntregaMaximo || prazoEntregaMaximo === hojeStr;
 
@@ -740,14 +743,17 @@ export default function VenderPage() {
         total: item.valorUnitario * item.quantidade,
         tipo_entrega: item.tipoEntrega,
         status_entrega:
-          item.quantidadeRetirada > 0
+          item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0
             ? prazoEhHojeOuVazio
               ? "entregue"
               : "encomenda"
             : item.tipoEntrega === "encomenda"
             ? "encomenda"
             : null,
-        data_entregue: item.quantidadeRetirada > 0 && prazoEhHojeOuVazio ? new Date().toISOString() : null,
+        data_entregue:
+          (item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0) && prazoEhHojeOuVazio
+            ? new Date().toISOString()
+            : null,
         retirada: item.retirada,
         quantidade_retirada: item.quantidadeRetirada,
         quantidade_entrega: item.quantidadeEntrega,
