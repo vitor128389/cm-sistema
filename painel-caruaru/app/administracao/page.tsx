@@ -980,6 +980,7 @@ function AbaEstoque() {
               <th className="px-4 py-2">Produto</th>
               <th className="px-4 py-2">Categoria</th>
               <th className="px-4 py-2">Custo</th>
+              <th className="px-4 py-2">Preço de venda</th>
               <th className="px-4 py-2">Estoque</th>
               <th className="px-4 py-2">Ações</th>
             </tr>
@@ -990,11 +991,17 @@ function AbaEstoque() {
                 <td className="px-4 py-2">{p.nome}</td>
                 <td className="px-4 py-2">{p.categoria}</td>
                 <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
+                <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
                 <td className="px-4 py-2">
                   {p.produto_variantes.length > 0 ? (
                     p.produto_variantes.map((v) => (
                       <div key={v.id} className="flex items-center gap-2 mb-1">
-                        <span className="text-xs w-10">{v.nome_variante}</span>
+                        <span className="text-xs w-24">
+                          {v.nome_variante}
+                          <span className="block text-madeira-400">
+                            custo {formatarMoeda(v.custo || 0)} · venda {formatarMoeda(v.preco_avista || 0)}
+                          </span>
+                        </span>
                         <input
                           className="input-base py-1 px-2 text-xs w-20"
                           type="number"
