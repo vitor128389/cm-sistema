@@ -211,12 +211,12 @@ function ViaComprovante({
       <div style={{ marginTop: 10 }}>
         {rotulo === "Via da loja" ? (
           <>
-            <p style={{ margin: "6px 0 2px" }}>Assinatura do cliente: ________________________</p>
+            <p style={{ margin: "6px 0 2px" }}>Assinatura do cliente: __________________________________</p>
             <p style={{ margin: "2px 0" }}>Data que recebeu: ___ /___ /______</p>
           </>
         ) : (
           <>
-            <p style={{ margin: "6px 0 2px" }}>Assinatura do entregador: ________________________</p>
+            <p style={{ margin: "6px 0 2px" }}>Assinatura do entregador: __________________________________</p>
             <p style={{ margin: "2px 0" }}>Data da entrega: ___ /___ /______</p>
           </>
         )}
