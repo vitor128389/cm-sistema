@@ -118,43 +118,45 @@ body {
     height: 281mm;
     font-family: sans-serif;
     color: #222;
-    font-size: 0.72rem;
-    line-height: 1.25;
+    font-size: 0.88rem;
+    line-height: 1.32;
   }
   #area-impressao table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.68rem;
+    font-size: 0.84rem;
   }
   #area-impressao th {
     text-align: left;
     border-bottom: 1px solid #222;
-    padding: 2px 3px;
+    padding: 3px 4px;
   }
   #area-impressao td {
-    padding: 2px 3px;
+    padding: 3px 4px;
     border-bottom: 1px solid #eee;
   }
   #area-impressao .imp-numero-pedido {
-    font-size: 0.85rem;
+    font-size: 1.05rem;
     font-weight: 700;
     border: 1px solid #222;
     border-radius: 3px;
-    padding: 2px 7px;
+    padding: 2px 8px;
     display: inline-block;
   }
-  /* cada via ocupa exatamente metade da folha, então a linha de corte
-     fica sempre bem no meio, não importa a quantidade de produtos */
+  /* cada via ocupa exatamente metade da folha (281mm de área útil),
+     com um respiro simétrico de 2mm de cada lado da linha de corte —
+     assim ela cai bem no meio físico da página, e não só no meio do
+     conteúdo, não importa a quantidade de produtos */
   #area-impressao .imp-via {
-    height: 138mm;
+    height: 138.5mm;
     box-sizing: border-box;
     overflow: hidden;
   }
   #area-impressao .imp-via + .imp-via {
-    height: 138mm;
-    margin-top: 5mm;
+    height: 138.5mm;
+    margin-top: 2mm;
     border-top: 1px dashed #999;
-    padding-top: 5mm;
+    padding-top: 2mm;
     box-sizing: border-box;
   }
 }
