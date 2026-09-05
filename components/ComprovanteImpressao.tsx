@@ -115,6 +115,7 @@ function ViaComprovante({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: "1rem" }}>{loja?.nome || "Caruaru Móveis"}</h2>
+          {loja?.cnpj && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>CNPJ: {loja.cnpj}</p>}
           {enderecoLoja && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>{enderecoLoja}</p>}
           {loja?.telefone && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>Tel: {loja.telefone}</p>}
         </div>

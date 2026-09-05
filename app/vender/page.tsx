@@ -978,12 +978,17 @@ export default function VenderPage() {
             {formaRecebimento !== "retirada" && (
               <>
                 <label className="block">
+                  <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
+                  <input className="input-base" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                </label>
+
+                <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Endereço da entrega</span>
                   <input
                     className="input-base"
                     value={endereco}
                     onChange={(e) => setEndereco(e.target.value)}
-                    placeholder="Rua, bairro, cidade"
+                    placeholder="Rua, bairro"
                   />
                 </label>
 
@@ -1018,11 +1023,6 @@ export default function VenderPage() {
                     value={complemento}
                     onChange={(e) => setComplemento(e.target.value)}
                   />
-                </label>
-
-                <label className="block">
-                  <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
-                  <input className="input-base" value={cidade} onChange={(e) => setCidade(e.target.value)} />
                 </label>
               </>
             )}

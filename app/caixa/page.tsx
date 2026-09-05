@@ -457,6 +457,9 @@ export default function CaixaPage() {
           <div className="imp-caixa">
             <div style={{ textAlign: "center", marginBottom: 16 }}>
               <h1 style={{ margin: 0, fontSize: "1.6rem" }}>{lojaInfo?.nome || "Caruaru Móveis"}</h1>
+              {lojaInfo?.cnpj && (
+                <p style={{ margin: "2px 0 0", fontSize: "0.9rem", color: "#555" }}>CNPJ: {lojaInfo.cnpj}</p>
+              )}
               {lojaInfo?.cidade && (
                 <p style={{ margin: "4px 0 0", fontSize: "0.95rem", color: "#555" }}>
                   {[lojaInfo.rua, lojaInfo.cidade && lojaInfo.estado ? `${lojaInfo.cidade}/${lojaInfo.estado}` : ""]

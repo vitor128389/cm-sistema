@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     funcao,
     lojaId,
     novaLojaNome,
+    novaLojaCnpj,
     caixaId,
     novoCaixaNome,
     ativo,
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
     funcao: "admin" | "gerente" | "vendedor" | "producao" | "caixa";
     lojaId?: string | null;
     novaLojaNome?: string | null;
+    novaLojaCnpj?: string | null;
     caixaId?: string | null;
     novoCaixaNome?: string | null;
     ativo?: boolean;
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
   if (funcao !== "admin" && !lojaIdFinal && novaLojaNome?.trim()) {
     const { data: novaLoja, error: erroLoja } = await admin
       .from("lojas")
-      .insert({ nome: novaLojaNome.trim() })
+      .insert({ nome: novaLojaNome.trim(), cnpj: novaLojaCnpj || null })
       .select("id")
       .single();
     if (erroLoja) {

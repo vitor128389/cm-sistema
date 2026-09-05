@@ -99,6 +99,7 @@ function AbaLojas() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState({
     nome: "",
+    cnpj: "",
     cep: "",
     rua: "",
     numero: "",
@@ -119,7 +120,7 @@ function AbaLojas() {
   }, []);
 
   function abrirNovo() {
-    setForm({ nome: "", cep: "", rua: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "", telefone: "" });
+    setForm({ nome: "", cnpj: "", cep: "", rua: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "", telefone: "" });
     setEditandoId(null);
     setMostrarForm(true);
   }
@@ -127,6 +128,7 @@ function AbaLojas() {
   function abrirEdicao(l: LojaCompleta) {
     setForm({
       nome: l.nome,
+      cnpj: l.cnpj || "",
       cep: l.cep || "",
       rua: l.rua || "",
       numero: l.numero || "",
@@ -147,6 +149,7 @@ function AbaLojas() {
     }
     const dados = {
       nome: form.nome.trim(),
+      cnpj: form.cnpj || null,
       cep: form.cep || null,
       rua: form.rua || null,
       numero: form.numero || null,
@@ -220,6 +223,10 @@ function AbaLojas() {
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Telefone</span>
               <input className="input-base" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} placeholder="(79) 99999-9999" />
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">CNPJ</span>
+              <input className="input-base" value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0000-00" />
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">CEP</span>
@@ -940,6 +947,7 @@ function AbaUsuarios() {
   const [funcao, setFuncao] = useState<(typeof FUNCOES)[number]>("vendedor");
   const [lojaId, setLojaId] = useState("");
   const [novaLojaNome, setNovaLojaNome] = useState("");
+  const [novaLojaCnpj, setNovaLojaCnpj] = useState("");
   const [caixaId, setCaixaId] = useState("");
   const [novoCaixaNome, setNovoCaixaNome] = useState("");
   const [ativo, setAtivo] = useState(true);
@@ -1009,6 +1017,7 @@ function AbaUsuarios() {
     setFuncao("vendedor");
     setLojaId(lojas[0]?.id || "");
     setNovaLojaNome("");
+    setNovaLojaCnpj("");
     setCaixaId("");
     setNovoCaixaNome("");
     setAtivo(true);
@@ -1030,6 +1039,7 @@ function AbaUsuarios() {
     setFuncao(u.funcao);
     setLojaId(u.loja_id || "");
     setNovaLojaNome("");
+    setNovaLojaCnpj("");
     setCaixaId(u.caixa_id || "");
     setNovoCaixaNome("");
     setAtivo(u.ativo ?? true);
@@ -1104,6 +1114,7 @@ function AbaUsuarios() {
       funcao,
       lojaId: lojaId || null,
       novaLojaNome: novaLojaNome || null,
+      novaLojaCnpj: novaLojaCnpj || null,
       caixaId: caixaId || null,
       novoCaixaNome: novoCaixaNome || null,
       ativo,
@@ -1253,6 +1264,14 @@ function AbaUsuarios() {
                   }}
                   placeholder="...ou digite o nome de uma loja nova"
                 />
+                {novaLojaNome && (
+                  <input
+                    className="input-base mt-2"
+                    value={novaLojaCnpj}
+                    onChange={(e) => setNovaLojaCnpj(e.target.value)}
+                    placeholder="CNPJ da loja nova (opcional)"
+                  />
+                )}
               </div>
               <div>
                 <label className="block mb-1">

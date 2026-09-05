@@ -186,6 +186,10 @@ export default function ClientesPage() {
               <input className="input-base" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
             </label>
             <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
+              <input className="input-base" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+            </label>
+            <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Endereço</span>
               <input className="input-base" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
             </label>
@@ -196,10 +200,6 @@ export default function ClientesPage() {
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Complemento</span>
               <input className="input-base" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} />
-            </label>
-            <label className="block">
-              <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
-              <input className="input-base" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
             </label>
           </div>
           <button className="btn-primario" onClick={salvarCliente}>
