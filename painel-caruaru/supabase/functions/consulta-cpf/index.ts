@@ -1,3 +1,7 @@
+// @ts-nocheck
+// Esse arquivo roda no Deno (Supabase Edge Functions), não no Next.js/Node —
+// o @ts-nocheck acima evita que o build do Next tente checar os tipos dele
+// (o "Deno" global não existe no ambiente do Next, é normal e esperado).
 // Edge Function: consulta-cpf
 // Recebe { cpf: "12345678900" } e devolve { encontrado: true, nome: "..." } ou { encontrado: false }
 // A chave da CPFHub.io fica guardada como secret no Supabase — nunca aparece no navegador.
