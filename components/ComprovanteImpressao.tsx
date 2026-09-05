@@ -115,18 +115,18 @@ function ViaComprovante({
     <div className="imp-via">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: "1rem" }}>{loja?.nome || "Caruaru Móveis"}</h2>
-          {loja?.cnpj && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>CNPJ: {loja.cnpj}</p>}
-          {enderecoLoja && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>{enderecoLoja}</p>}
-          {loja?.telefone && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>Tel: {loja.telefone}</p>}
+          <h2 style={{ margin: 0, fontSize: "1.2rem" }}>{loja?.nome || "Caruaru Móveis"}</h2>
+          {loja?.cnpj && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>CNPJ: {loja.cnpj}</p>}
+          {enderecoLoja && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>{enderecoLoja}</p>}
+          {loja?.telefone && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>Tel: {loja.telefone}</p>}
         </div>
         <span className="imp-numero-pedido">#{numeroPedido}</span>
       </div>
-      <p style={{ margin: "4px 0 6px", fontSize: "0.68rem", color: "#666" }}>
+      <p style={{ margin: "4px 0 6px", fontSize: "0.82rem", color: "#666" }}>
         {rotulo} {tag ? `· ${tag}` : ""} · {new Date().toLocaleString("pt-BR")}
       </p>
 
-      <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "0 0 2px" }}>Cliente</p>
+      <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "0 0 2px" }}>Cliente</p>
       <p style={{ margin: "0.5px 0" }}>{cliente.nome}</p>
       {cpfFormatado && <p style={{ margin: "0.5px 0" }}>CPF: {cpfFormatado}</p>}
       {cliente.telefone && <p style={{ margin: "0.5px 0" }}>Cel: {cliente.telefone}</p>}
@@ -135,7 +135,7 @@ function ViaComprovante({
 
       {ehMisto ? (
         <>
-          <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "6px 0 2px" }}>RETIRADA NA LOJA</p>
+          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>RETIRADA NA LOJA</p>
           <table>
             <thead>
               <tr>
@@ -150,7 +150,7 @@ function ViaComprovante({
               )}
             </tbody>
           </table>
-          <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "6px 0 2px" }}>ENTREGA</p>
+          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>ENTREGA</p>
           <table>
             <thead>
               <tr>
@@ -168,7 +168,7 @@ function ViaComprovante({
         </>
       ) : (
         <>
-          <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "6px 0 2px" }}>Itens</p>
+          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>Itens</p>
           <table>
             <thead>
               <tr>
@@ -223,7 +223,7 @@ function ViaComprovante({
       </div>
 
       {rotulo === "Via do cliente" && (
-        <div style={{ marginTop: 10, paddingTop: 6, borderTop: "1px dashed #999", fontSize: "0.62rem", color: "#555" }}>
+        <div style={{ marginTop: 10, paddingTop: 6, borderTop: "1px dashed #999", fontSize: "0.75rem", color: "#555" }}>
           <p style={{ margin: "0 0 2px", fontWeight: 700 }}>DEVOLUÇÃO DE VALORES</p>
           <p style={{ margin: 0 }}>
             Em compras presenciais, não devolvemos dinheiro ou diferença de valor por arrependimento ou troca
