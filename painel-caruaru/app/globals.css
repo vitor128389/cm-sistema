@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-fraunces: "Fraunces", serif;
+  --font-inter: "Inter", sans-serif;
+}
+
+body {
+  background-color: #f5f6f4;
+  color: #12280a;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e4e9e1;
+  border-radius: 6px;
+}
+
+.input-base {
+  border: 1px solid #c7d2c1;
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  background: #fffefb;
+  font-size: 0.925rem;
+  width: 100%;
+}
+.input-base:focus {
+  outline: none;
+  border-color: #4f6b43;
+  box-shadow: 0 0 0 3px rgba(32, 68, 17, 0.12);
+}
+
+.btn-primario {
+  background: #204411;
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.btn-primario:hover {
+  background: #17330d;
+}
+
+.btn-secundario {
+  background: transparent;
+  border: 1px solid #204411;
+  color: #204411;
+  border-radius: 4px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.btn-secundario:hover {
+  background: #eaf1e7;
+}
+
+.btn-perigo {
+  background: #c81414;
+  color: #fff;
+  border-radius: 4px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.btn-perigo:hover {
+  background: #a30f0f;
+}
+
+.opcao-btn {
+  border: 1px solid #c7d2c1;
+  border-radius: 4px;
+  padding: 0.6rem 0.5rem;
+  background: #fffefb;
+  color: #204411;
+  font-weight: 500;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+.opcao-btn:hover {
+  border-color: #4f6b43;
+}
+.opcao-btn.ativo {
+  background: #204411;
+  border-color: #204411;
+  color: #fff;
+}
+
+.tag-encomenda {
+  color: #245c19;
+  font-weight: 700;
+  font-size: 0.78em;
+}
+
+#area-impressao {
+  display: none;
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #area-impressao,
+  #area-impressao * {
+    visibility: visible;
+  }
+  #area-impressao {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 281mm;
+    font-family: sans-serif;
+    color: #222;
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+  #area-impressao table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.68rem;
+  }
+  #area-impressao th {
+    text-align: left;
+    border-bottom: 1px solid #222;
+    padding: 2px 3px;
+  }
+  #area-impressao td {
+    padding: 2px 3px;
+    border-bottom: 1px solid #eee;
+  }
+  #area-impressao .imp-numero-pedido {
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid #222;
+    border-radius: 3px;
+    padding: 2px 7px;
+    display: inline-block;
+  }
+  /* cada via ocupa exatamente metade da folha, então a linha de corte
+     fica sempre bem no meio, não importa a quantidade de produtos */
+  #area-impressao .imp-via {
+    height: 138mm;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  #area-impressao .imp-via + .imp-via {
+    height: 138mm;
+    margin-top: 5mm;
+    border-top: 1px dashed #999;
+    padding-top: 5mm;
+    box-sizing: border-box;
+  }
+}
