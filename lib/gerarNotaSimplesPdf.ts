@@ -68,7 +68,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
 
   if (venda.prazo_entrega_maximo) {
     linha(
-      `Prazo máximo de entrega: ${new Date(venda.prazo_entrega_maximo).toLocaleDateString("pt-BR")}`,
+      `Prazo máximo de entrega: ${new Date(`${venda.prazo_entrega_maximo}T00:00:00`).toLocaleDateString("pt-BR")}`,
       { tamanho: 9 }
     );
   }
