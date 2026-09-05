@@ -97,6 +97,9 @@ function AbaLojas() {
   const [lojas, setLojas] = useState<LojaCompleta[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [lojaExcluindoForcado, setLojaExcluindoForcado] = useState<LojaCompleta | null>(null);
+  const [confirmacaoExcluir, setConfirmacaoExcluir] = useState("");
+  const [excluindoForcado, setExcluindoForcado] = useState(false);
   const [form, setForm] = useState({
     nome: "",
     cnpj: "",
@@ -181,6 +184,26 @@ function AbaLojas() {
   async function alternarAtivo(id: string, ativo: boolean) {
     await supabase.from("lojas").update({ ativo: !ativo }).eq("id", id);
     carregar();
+  }
+
+  async function confirmarExclusaoForcada() {
+    if (!lojaExcluindoForcado || confirmacaoExcluir !== "EXCLUIR") return;
+    setExcluindoForcado(true);
+    const resp = await fetch("/api/admin/excluir-loja-definitivo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lojaId: lojaExcluindoForcado.id, confirmacao: confirmacaoExcluir }),
+    });
+    const resultado = await resp.json();
+    setExcluindoForcado(false);
+    if (!resp.ok) {
+      alert("Erro: " + resultado.error);
+      return;
+    }
+    setLojaExcluindoForcado(null);
+    setConfirmacaoExcluir("");
+    carregar();
+    alert("Loja excluída definitivamente, junto com tudo que estava vinculado a ela.");
   }
 
   async function excluirLoja(id: string, nome: string) {
@@ -300,8 +323,17 @@ function AbaLojas() {
                   <button className="btn-secundario text-xs px-2 py-1 mr-2" onClick={() => alternarAtivo(l.id, l.ativo)}>
                     {l.ativo ? "Desativar" : "Reativar"}
                   </button>
-                  <button className="text-xs text-red-700" onClick={() => excluirLoja(l.id, l.nome)}>
+                  <button className="text-xs text-red-700 mr-2" onClick={() => excluirLoja(l.id, l.nome)}>
                     excluir
+                  </button>
+                  <button
+                    className="text-xs text-red-800 font-semibold underline"
+                    onClick={() => {
+                      setLojaExcluindoForcado(l);
+                      setConfirmacaoExcluir("");
+                    }}
+                  >
+                    excluir definitivamente
                   </button>
                 </td>
               </tr>
@@ -309,6 +341,47 @@ function AbaLojas() {
           </tbody>
         </table>
       </div>
+
+      {lojaExcluindoForcado && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+            <p className="font-display text-lg mb-2 text-red-800">Excluir definitivamente</p>
+            <p className="text-sm text-madeira-600 mb-4">
+              Isso apaga <strong>pra sempre</strong> a loja <strong>{lojaExcluindoForcado.nome}</strong> e tudo que
+              está vinculado a ela: vendas, clientes, caixas, estoque, trocas e sangrias. Não tem como desfazer.
+            </p>
+            <p className="text-sm text-madeira-600 mb-2">
+              Pra confirmar, digite a palavra <strong>EXCLUIR</strong> abaixo:
+            </p>
+            <input
+              className="input-base mb-4"
+              value={confirmacaoExcluir}
+              onChange={(e) => setConfirmacaoExcluir(e.target.value)}
+              placeholder="EXCLUIR"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                className="btn-secundario flex-1"
+                onClick={() => {
+                  setLojaExcluindoForcado(null);
+                  setConfirmacaoExcluir("");
+                }}
+                disabled={excluindoForcado}
+              >
+                Cancelar
+              </button>
+              <button
+                className="flex-1 bg-red-700 hover:bg-red-800 text-white font-semibold rounded px-4 py-2 disabled:opacity-40"
+                disabled={confirmacaoExcluir !== "EXCLUIR" || excluindoForcado}
+                onClick={confirmarExclusaoForcada}
+              >
+                {excluindoForcado ? "Excluindo..." : "Excluir para sempre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -407,6 +480,22 @@ function AbaEstoque() {
   }, [lojaAtual]);
 
   const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
+
+  // Categorias que usam opção de tecido (Suede/Linho/Veludo).
+  // Qualquer categoria fora dessa lista (ex: Móveis para Sala) não mostra
+  // os campos de tecido — só o estoque simples. "Camas" é tratada à parte,
+  // com espessura de espuma (5/7/14cm).
+  const CATEGORIAS_COM_TECIDO = [
+    "sofás", "sofas",
+    "poltronas",
+    "cabeceiras",
+    "puffs",
+    "namoradeiras",
+    "painéis", "paineis",
+    "baús", "baus",
+    "recamiers",
+  ];
+
   const produtosFiltrados = categoriaFiltro
     ? produtos.filter((p) => p.categoria === categoriaFiltro)
     : produtos;
@@ -754,86 +843,111 @@ function AbaEstoque() {
             </label>
           </div>
 
-          {(form.categoria === "__nova__" ? form.categoriaNova : form.categoria).trim().toLowerCase() === "camas" ? (
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              {(["5", "7", "14"] as const).map((esp) => (
-                <div key={esp}>
-                  <p className="text-xs font-semibold text-madeira-700 mb-1">{esp}cm</p>
-                  <label className="block mb-2">
-                    <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`preco${esp}` as "preco5"]}
-                      onChange={(e) => setForm({ ...form, [`preco${esp}`]: e.target.value })}
-                    />
-                  </label>
-                  <label className="block mb-2">
-                    <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`custo${esp}` as "custo5"]}
-                      onChange={(e) => setForm({ ...form, [`custo${esp}`]: e.target.value })}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                    <input
-                      className="input-base"
-                      type="number"
-                      value={form[`estoque${esp}` as "estoque5"]}
-                      onChange={(e) => setForm({ ...form, [`estoque${esp}`]: e.target.value })}
-                    />
-                  </label>
+          {(() => {
+            const categoriaAtual = (form.categoria === "__nova__" ? form.categoriaNova : form.categoria)
+              .trim()
+              .toLowerCase();
+            const modoCampos: "camas" | "tecido" | "simples" =
+              categoriaAtual === "camas"
+                ? "camas"
+                : CATEGORIAS_COM_TECIDO.includes(categoriaAtual)
+                ? "tecido"
+                : "simples";
+
+            if (modoCampos === "camas") {
+              return (
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {(["5", "7", "14"] as const).map((esp) => (
+                    <div key={esp}>
+                      <p className="text-xs font-semibold text-madeira-700 mb-1">{esp}cm</p>
+                      <label className="block mb-2">
+                        <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`preco${esp}` as "preco5"]}
+                          onChange={(e) => setForm({ ...form, [`preco${esp}`]: e.target.value })}
+                        />
+                      </label>
+                      <label className="block mb-2">
+                        <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`custo${esp}` as "custo5"]}
+                          onChange={(e) => setForm({ ...form, [`custo${esp}`]: e.target.value })}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                        <input
+                          className="input-base"
+                          type="number"
+                          value={form[`estoque${esp}` as "estoque5"]}
+                          onChange={(e) => setForm({ ...form, [`estoque${esp}`]: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                {(["Suede", "Linho", "Veludo"] as const).map((tec) => (
-                  <div key={tec}>
-                    <p className="text-xs font-semibold text-madeira-700 mb-1">{tec}</p>
-                    <label className="block mb-2">
-                      <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`preco${tec}` as "precoSuede"]}
-                        onChange={(e) => setForm({ ...form, [`preco${tec}`]: e.target.value })}
-                      />
-                    </label>
-                    <label className="block mb-2">
-                      <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`custo${tec}` as "custoSuede"]}
-                        onChange={(e) => setForm({ ...form, [`custo${tec}`]: e.target.value })}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                      <input
-                        className="input-base"
-                        type="number"
-                        value={form[`estoque${tec}` as "estoqueSuede"]}
-                        onChange={(e) => setForm({ ...form, [`estoque${tec}`]: e.target.value })}
-                      />
-                    </label>
+              );
+            }
+
+            if (modoCampos === "tecido") {
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {(["Suede", "Linho", "Veludo"] as const).map((tec) => (
+                      <div key={tec}>
+                        <p className="text-xs font-semibold text-madeira-700 mb-1">{tec}</p>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`preco${tec}` as "precoSuede"]}
+                            onChange={(e) => setForm({ ...form, [`preco${tec}`]: e.target.value })}
+                          />
+                        </label>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`custo${tec}` as "custoSuede"]}
+                            onChange={(e) => setForm({ ...form, [`custo${tec}`]: e.target.value })}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={form[`estoque${tec}` as "estoqueSuede"]}
+                            onChange={(e) => setForm({ ...form, [`estoque${tec}`]: e.target.value })}
+                          />
+                        </label>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <p className="text-xs text-madeira-500 mb-2">
-                Se o produto não tem tecido, deixe os 3 preços em branco e preencha só o estoque simples abaixo.
-              </p>
+                </>
+              );
+            }
+
+            // modoCampos === "simples": categorias como "Móveis para Sala"
+            // não mostram opção de tecido, só o estoque direto.
+            return (
               <label className="block mb-3 max-w-xs">
-                <span className="text-xs text-madeira-600 mb-1 block">Estoque (produto sem tecido)</span>
-                <input className="input-base" type="number" value={form.estoqueSimples} onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })} />
+                <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                <input
+                  className="input-base"
+                  type="number"
+                  value={form.estoqueSimples}
+                  onChange={(e) => setForm({ ...form, estoqueSimples: e.target.value })}
+                />
               </label>
-            </>
-          )}
+            );
+          })()}
 
           <button className="btn-primario" onClick={salvarProduto}>
             {editandoId ? "Salvar edição" : "Salvar produto"}
@@ -866,6 +980,7 @@ function AbaEstoque() {
               <th className="px-4 py-2">Produto</th>
               <th className="px-4 py-2">Categoria</th>
               <th className="px-4 py-2">Custo</th>
+              <th className="px-4 py-2">Preço de venda</th>
               <th className="px-4 py-2">Estoque</th>
               <th className="px-4 py-2">Ações</th>
             </tr>
@@ -876,11 +991,17 @@ function AbaEstoque() {
                 <td className="px-4 py-2">{p.nome}</td>
                 <td className="px-4 py-2">{p.categoria}</td>
                 <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
+                <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
                 <td className="px-4 py-2">
                   {p.produto_variantes.length > 0 ? (
                     p.produto_variantes.map((v) => (
                       <div key={v.id} className="flex items-center gap-2 mb-1">
-                        <span className="text-xs w-10">{v.nome_variante}</span>
+                        <span className="text-xs w-24">
+                          {v.nome_variante}
+                          <span className="block text-madeira-400">
+                            custo {formatarMoeda(v.custo || 0)} · venda {formatarMoeda(v.preco_avista || 0)}
+                          </span>
+                        </span>
                         <input
                           className="input-base py-1 px-2 text-xs w-20"
                           type="number"
