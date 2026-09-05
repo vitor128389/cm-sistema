@@ -33,7 +33,13 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   // apaga o perfil primeiro (senão fica um perfil órfão se o passo seguinte falhar)
-  await admin.from("usuarios").delete().eq("id", usuarioId);
+  const { error: erroPerfil } = await admin.from("usuarios").delete().eq("id", usuarioId);
+  if (erroPerfil) {
+    return NextResponse.json(
+      { error: "Não deu pra excluir o cadastro dessa pessoa: " + erroPerfil.message },
+      { status: 400 }
+    );
+  }
 
   const { error } = await admin.auth.admin.deleteUser(usuarioId);
   if (error) {

@@ -184,14 +184,22 @@ function AbaLojas() {
   }
 
   async function excluirLoja(id: string, nome: string) {
-    if (
-      !confirm(
-        `Excluir a loja "${nome}"? Isso apaga o estoque, clientes, caixas e vendas registrados nela. Essa ação não pode ser desfeita.`
-      )
-    )
+    if (!confirm(`Excluir a loja "${nome}"? Se ela tiver clientes, vendas ou caixas vinculados, a exclusão não é permitida (pra não perder esse histórico) — nesse caso ela só é desativada em vez de excluída.`))
       return;
     const { error } = await supabase.from("lojas").delete().eq("id", id);
     if (error) {
+      if (error.code === "23503") {
+        const { error: erroInativar } = await supabase.from("lojas").update({ ativo: false }).eq("id", id);
+        if (erroInativar) {
+          alert("Erro ao desativar a loja: " + erroInativar.message);
+          return;
+        }
+        alert(
+          `"${nome}" tem clientes, vendas ou caixas vinculados, então não pode ser excluída — foi desativada em vez disso, pra preservar o histórico.`
+        );
+        carregar();
+        return;
+      }
       alert("Erro ao excluir: " + error.message);
       return;
     }
