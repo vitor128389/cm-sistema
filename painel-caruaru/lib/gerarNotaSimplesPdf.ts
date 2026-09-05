@@ -1,11 +1,16 @@
-import { jsPDF } from "jspdf";
 import { formatarMoeda } from "@/lib/format";
 import type { Venda, LojaCompleta } from "@/types";
 
 // Gera um PDF enxuto do pedido — só produto, cliente, endereço (com
 // "Cidade: X" explícito) e total. Sem via da loja/cliente e sem
 // assinatura, pensado pra mandar direto pelo WhatsApp.
-export function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | null): Blob {
+//
+// Importa o jsPDF dinamicamente (só dentro da função, em vez de no topo
+// do arquivo) porque essa biblioteca usa coisas do navegador (window) que
+// não existem durante o build do Next.js no servidor — import estático
+// quebra o build de produção.
+export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | null): Promise<Blob> {
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a5" });
   const margem = 12;
   const largura = doc.internal.pageSize.getWidth() - margem * 2;
