@@ -459,6 +459,7 @@ export default function VenderPage() {
     if (!produtoSelecionado) return false;
     return (
       produtoSelecionado.categoria === "Cabeceiras" ||
+      produtoSelecionado.categoria === "Baús" ||
       PRODUTOS_COM_MODELO.includes(produtoSelecionado.nome)
     );
   }
