@@ -297,7 +297,7 @@ export default function NotasPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <h1 className="font-display text-3xl text-madeira-900">Notas</h1>
       <p className="text-madeira-600 mt-1 mb-6">Histórico de vendas, com número do pedido.</p>
 
@@ -381,7 +381,7 @@ export default function NotasPage() {
         <div className="space-y-3">
           {vendasFiltradas.map((v) => (
             <div key={v.id} className="card p-5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <p className="font-display text-lg text-madeira-900">
                     Pedido #{v.numero_pedido} — {v.clientes?.nome || "Cliente"}
@@ -430,12 +430,12 @@ export default function NotasPage() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="font-display text-lg text-madeira-900">{formatarMoeda(v.total)}</p>
                   {v.clientes?.telefone && (
                     <>
                       <select
-                        className="text-xs border border-madeira-200 rounded px-1.5 py-1"
+                        className="text-xs border border-madeira-200 rounded px-1.5 py-1 max-w-[160px]"
                         value={mensagemSelecionada[v.id] || "agradecimento"}
                         onChange={(e) => setMensagemSelecionada({ ...mensagemSelecionada, [v.id]: e.target.value })}
                       >
@@ -475,7 +475,7 @@ export default function NotasPage() {
               </div>
               <ul className="mt-3 text-sm text-madeira-600 space-y-1">
                 {(v.venda_itens || []).map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-2">
+                  <li key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <span>
                       {item.quantidade}x {item.nome_produto}
                       {item.tipo_entrega === "encomenda" && !item.retirada && (
@@ -538,7 +538,7 @@ export default function NotasPage() {
           <div className="space-y-3">
             {trocasFiltradas.map((t) => (
               <div key={t.id} className="card p-5 border-l-4 border-l-amber-400">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <div>
                     <p className="font-display text-lg text-madeira-900">
                       <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 mr-2">
@@ -567,7 +567,7 @@ export default function NotasPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <p className="font-display text-lg text-madeira-900">
                       {t.diferenca === 0
                         ? "Sem diferença"
@@ -580,7 +580,7 @@ export default function NotasPage() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-3 text-sm text-madeira-600">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 text-sm text-madeira-600">
                   <div>
                     <p className="text-xs font-semibold text-madeira-700 mb-1">Devolvido</p>
                     <ul className="space-y-0.5">
