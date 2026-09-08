@@ -6,7 +6,7 @@ import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { consultarCpf } from "@/lib/consultaCpf";
-import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta } from "@/types";
+import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
 
 type Aba = "lojas" | "caixas" | "estoque" | "usuarios" | "permissoes" | "tecidos" | "relatorio" | "cancelar";
 
@@ -91,7 +91,12 @@ export default function AdministracaoPage() {
       {aba === "permissoes" && <AbaPermissoes />}
       {aba === "tecidos" && <AbaTecidos />}
       {aba === "relatorio" && <AbaRelatorio />}
-      {aba === "cancelar" && <AbaCancelarNota />}
+      {aba === "cancelar" && (
+        <>
+          <AbaCancelarNota />
+          <AbaCancelarTroca />
+        </>
+      )}
     </div>
   );
 }
@@ -2261,6 +2266,245 @@ function AbaCancelarNota() {
                 disabled={cancelando}
               >
                 {cancelando ? "Cancelando..." : "Cancelar nota e devolver ao estoque"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ==================== CANCELAR TROCA ==================== */
+function AbaCancelarTroca() {
+  const [numeroTroca, setNumeroTroca] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const [troca, setTroca] = useState<TrocaGrupo | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [cancelando, setCancelando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function buscar() {
+    setErro("");
+    setTroca(null);
+    if (!numeroTroca.trim()) return;
+    setBuscando(true);
+    const { data, error } = await supabase
+      .from("trocas_grupo")
+      .select(
+        "*, vendas(numero_pedido, clientes(nome)), trocas_devolvidos(*), trocas_novos(*)"
+      )
+      .eq("numero_troca", Number(numeroTroca))
+      .maybeSingle();
+    setBuscando(false);
+    if (error || !data) {
+      setErro("Troca não encontrada.");
+      return;
+    }
+    setTroca(data as unknown as TrocaGrupo);
+  }
+
+  async function cancelar() {
+    if (!troca) return;
+    if (!motivo.trim()) {
+      alert("Digite o motivo do cancelamento.");
+      return;
+    }
+    if (
+      !confirm(
+        `Cancelar a troca #${troca.numero_troca}? O estoque volta ao que era antes da troca. Essa ação não pode ser desfeita.`
+      )
+    )
+      return;
+
+    setCancelando(true);
+    try {
+      const avisos: string[] = [];
+      const devolvidos = (troca.trocas_devolvidos || []) as TrocaItemDevolvido[];
+      const novos = (troca.trocas_novos || []) as TrocaItemNovo[];
+
+      // Os itens "devolvidos" (que voltaram pro estoque na hora da troca)
+      // precisam sair do estoque de novo — só se eram pronta entrega.
+      // A troca não guarda o tipo_entrega original, então busca no item da
+      // venda original.
+      for (const item of devolvidos) {
+        if (!item.produto_id) continue;
+        const { data: itemOriginal } = await supabase
+          .from("venda_itens")
+          .select("tipo_entrega")
+          .eq("id", item.venda_item_original_id)
+          .maybeSingle();
+        if (itemOriginal?.tipo_entrega !== "pronta") continue;
+
+        let varianteId = item.variante_id;
+        if (!varianteId && item.variante) {
+          const { data: variantes } = await supabase
+            .from("produto_variantes")
+            .select("id, nome_variante")
+            .eq("produto_id", item.produto_id);
+          const nomeBase = item.variante.split(" — ")[0];
+          const encontrada = variantes?.find((v) => v.nome_variante === nomeBase);
+          if (encontrada) varianteId = encontrada.id;
+        }
+        await ajustarEstoqueLoja(supabase, troca.loja_id, item.produto_id, varianteId, -item.quantidade);
+      }
+
+      // Os itens "novos" (que saíram do estoque na hora da troca) precisam
+      // voltar — só os que eram pronta entrega.
+      for (const item of novos) {
+        if (item.tipo_entrega !== "pronta") continue;
+        await ajustarEstoqueLoja(supabase, troca.loja_id, item.produto_id, item.variante_id, item.quantidade);
+      }
+
+      // Desmarca os itens originais como "trocado" — voltam a valer como
+      // itens normais da venda original.
+      const idsOriginais = devolvidos.map((d) => d.venda_item_original_id);
+      if (idsOriginais.length > 0) {
+        await supabase.from("venda_itens").update({ trocado: false }).in("id", idsOriginais);
+      }
+
+      // Reverte o caixa — só se o turno da troca ainda estiver aberto.
+      if (troca.turno_caixa_id && troca.diferenca !== 0 && troca.forma_pagamento_diferenca) {
+        const { data: turnoAtual } = await supabase
+          .from("turnos_caixa")
+          .select("status, total_vendido, total_dinheiro, total_pix, total_debito, total_credito, total_devolvido")
+          .eq("id", troca.turno_caixa_id)
+          .maybeSingle();
+        if (turnoAtual && turnoAtual.status === "aberto") {
+          const totaisAtualizados: Record<string, number> = {};
+          const diferencaCobrada = troca.valor_cobrado_diferenca ?? troca.diferenca;
+
+          if (troca.diferenca > 0) {
+            totaisAtualizados.total_vendido = Math.max((turnoAtual.total_vendido || 0) - diferencaCobrada, 0);
+            const campoForma =
+              troca.forma_pagamento_diferenca === "Dinheiro"
+                ? "total_dinheiro"
+                : troca.forma_pagamento_diferenca === "Pix"
+                ? "total_pix"
+                : troca.forma_pagamento_diferenca === "Débito"
+                ? "total_debito"
+                : troca.forma_pagamento_diferenca === "Crédito"
+                ? "total_credito"
+                : null;
+            if (campoForma) {
+              totaisAtualizados[campoForma] = Math.max(
+                ((turnoAtual as Record<string, number>)[campoForma] || 0) - diferencaCobrada,
+                0
+              );
+            }
+          } else {
+            totaisAtualizados.total_devolvido = Math.max(
+              (turnoAtual.total_devolvido || 0) - Math.abs(troca.diferenca),
+              0
+            );
+            if (troca.forma_pagamento_diferenca === "Dinheiro") {
+              totaisAtualizados.total_dinheiro = (turnoAtual.total_dinheiro || 0) - troca.diferenca; // diferenca é negativa, então isso soma de volta
+            }
+          }
+          await supabase.from("turnos_caixa").update(totaisAtualizados).eq("id", troca.turno_caixa_id);
+        } else {
+          avisos.push(
+            "O turno de caixa dessa troca já está fechado — os totais do caixa não foram ajustados automaticamente, ajuste manualmente se precisar."
+          );
+        }
+      }
+
+      const { error: erroCancelar } = await supabase
+        .from("trocas_grupo")
+        .update({
+          cancelada: true,
+          motivo_cancelamento: motivo.trim(),
+          cancelada_em: new Date().toISOString(),
+        })
+        .eq("id", troca.id);
+      if (erroCancelar) throw erroCancelar;
+
+      alert(
+        `Troca #${troca.numero_troca} cancelada. O estoque foi ajustado de volta ao que era antes.` +
+          (avisos.length > 0 ? "\n\nAtenção:\n" + avisos.join("\n") : "")
+      );
+      setTroca(null);
+      setNumeroTroca("");
+      setMotivo("");
+    } catch (e) {
+      alert("Erro ao cancelar: " + (e as Error).message);
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mt-10">
+      <h2 className="font-display text-xl mb-1">Cancelar troca</h2>
+      <p className="text-sm text-madeira-600 mb-4">
+        Cancela uma troca e devolve o estoque exatamente ao que era antes dela (os produtos devolvidos
+        saem de novo, os produtos novos voltam). Pede o motivo do cancelamento.
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          className="input-base max-w-xs"
+          placeholder="Número da troca"
+          value={numeroTroca}
+          onChange={(e) => setNumeroTroca(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && buscar()}
+        />
+        <button className="btn-secundario" onClick={buscar} disabled={buscando}>
+          {buscando ? "Buscando..." : "Buscar"}
+        </button>
+      </div>
+
+      {erro && <p className="text-sm text-red-700 mb-4">{erro}</p>}
+
+      {troca && (
+        <div className="card p-5">
+          <p className="font-display text-lg mb-1">
+            Troca #{troca.numero_troca} — {troca.vendas?.clientes?.nome || "Cliente"}
+          </p>
+          <p className="text-sm text-madeira-500 mb-3">
+            Pedido original #{troca.vendas?.numero_pedido} · Diferença:{" "}
+            {formatarMoeda(troca.valor_cobrado_diferenca ?? troca.diferenca)}
+          </p>
+
+          {troca.cancelada ? (
+            <p className="text-sm font-semibold text-red-700">Essa troca já está cancelada.</p>
+          ) : (
+            <>
+              <div className="mb-4 space-y-1">
+                <p className="text-xs font-semibold text-madeira-600">Voltam pro estoque (devolvidos):</p>
+                {(troca.trocas_devolvidos || []).map((item) => (
+                  <p key={item.id} className="text-sm text-madeira-700">
+                    {item.quantidade}x {item.produto_nome}
+                    {item.variante ? ` — ${item.variante}` : ""}
+                  </p>
+                ))}
+                <p className="text-xs font-semibold text-madeira-600 mt-2">Saem do estoque de novo (novos):</p>
+                {(troca.trocas_novos || []).map((item) => (
+                  <p key={item.id} className="text-sm text-madeira-700">
+                    {item.quantidade}x {item.produto_nome}
+                    {item.variante ? ` — ${item.variante}` : ""}
+                  </p>
+                ))}
+              </div>
+
+              <label className="block mb-4">
+                <span className="text-xs text-madeira-600 mb-1 block">Motivo do cancelamento</span>
+                <textarea
+                  className="input-base"
+                  rows={3}
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ex: troca feita por engano, erro no cadastro..."
+                />
+              </label>
+
+              <button
+                className="btn-primario"
+                style={{ backgroundColor: "#b91c1c" }}
+                onClick={cancelar}
+                disabled={cancelando}
+              >
+                {cancelando ? "Cancelando..." : "Cancelar troca e ajustar o estoque"}
               </button>
             </>
           )}
