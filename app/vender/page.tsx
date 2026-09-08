@@ -730,6 +730,10 @@ export default function VenderPage() {
       // O mesmo vale pra entrega em domicílio: prazo pra outro dia = fica
       // pendente até confirmar que foi entregue; sem prazo (ou prazo hoje) =
       // já sai como entregue.
+      // Exceção: item marcado como "encomenda" sempre fica pendente, mesmo
+      // com prazo pra hoje — o prazo aqui é só uma previsão, não significa
+      // que o produto já está pronto/na loja, então precisa de confirmação
+      // manual (botão ENTREGUE) e não deve ser marcado como entregue sozinho.
       const hojeStr = new Date().toISOString().slice(0, 10);
       const prazoEhHojeOuVazio = !prazoEntregaMaximo || prazoEntregaMaximo === hojeStr;
 
@@ -743,15 +747,17 @@ export default function VenderPage() {
         total: item.valorUnitario * item.quantidade,
         tipo_entrega: item.tipoEntrega,
         status_entrega:
-          item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0
+          item.tipoEntrega === "encomenda"
+            ? "encomenda"
+            : item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0
             ? prazoEhHojeOuVazio
               ? "entregue"
               : "encomenda"
-            : item.tipoEntrega === "encomenda"
-            ? "encomenda"
             : null,
         data_entregue:
-          (item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0) && prazoEhHojeOuVazio
+          item.tipoEntrega !== "encomenda" &&
+          (item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0) &&
+          prazoEhHojeOuVazio
             ? new Date().toISOString()
             : null,
         retirada: item.retirada,
