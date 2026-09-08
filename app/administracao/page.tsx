@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
-import { carregarProdutosComEstoque, salvarEstoqueLoja } from "@/lib/produtos";
+import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { consultarCpf } from "@/lib/consultaCpf";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta } from "@/types";
 
-type Aba = "lojas" | "caixas" | "estoque" | "usuarios" | "permissoes" | "tecidos" | "relatorio";
+type Aba = "lojas" | "caixas" | "estoque" | "usuarios" | "permissoes" | "tecidos" | "relatorio" | "cancelar";
 
 const TELAS = [
   { chave: "vender", label: "Vender" },
@@ -70,6 +70,7 @@ export default function AdministracaoPage() {
             ["permissoes", "Permissões"],
             ["tecidos", "Tecidos e cores"],
             ["relatorio", "Relatório"],
+            ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
           <button
@@ -89,6 +90,7 @@ export default function AdministracaoPage() {
       {aba === "permissoes" && <AbaPermissoes />}
       {aba === "tecidos" && <AbaTecidos />}
       {aba === "relatorio" && <AbaRelatorio />}
+      {aba === "cancelar" && <AbaCancelarNota />}
     </div>
   );
 }
@@ -1866,6 +1868,234 @@ function AbaRelatorio() {
         <p>Total à vista: {formatarMoeda(totalAVista)}</p>
         <p>Total a prazo: {formatarMoeda(totalAPrazo)}</p>
       </div>
+    </div>
+  );
+}
+
+/* ==================== CANCELAR NOTA ==================== */
+interface VendaCancelamento {
+  id: string;
+  numero_pedido: number;
+  loja_id: string;
+  total: number;
+  cancelada: boolean;
+  turno_caixa_id: string | null;
+  forma_pagamento: string;
+  clientes: { nome: string } | null;
+  venda_itens: {
+    id: string;
+    produto_id: string | null;
+    variante_id: string | null;
+    variante: string | null;
+    nome_produto: string;
+    quantidade: number;
+    tipo_entrega: string;
+  }[];
+  venda_pagamentos: { forma_pagamento: string; valor: number }[];
+}
+
+function AbaCancelarNota() {
+  const [numeroPedido, setNumeroPedido] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const [venda, setVenda] = useState<VendaCancelamento | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [cancelando, setCancelando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function buscar() {
+    setErro("");
+    setVenda(null);
+    if (!numeroPedido.trim()) return;
+    setBuscando(true);
+    const { data, error } = await supabase
+      .from("vendas")
+      .select(
+        "id, numero_pedido, loja_id, total, cancelada, turno_caixa_id, forma_pagamento, clientes(nome), venda_itens(id, produto_id, variante_id, variante, nome_produto, quantidade, tipo_entrega), venda_pagamentos(forma_pagamento, valor)"
+      )
+      .eq("numero_pedido", Number(numeroPedido))
+      .maybeSingle();
+    setBuscando(false);
+    if (error || !data) {
+      setErro("Pedido não encontrado.");
+      return;
+    }
+    setVenda(data as unknown as VendaCancelamento);
+  }
+
+  async function cancelar() {
+    if (!venda) return;
+    if (!motivo.trim()) {
+      alert("Digite o motivo do cancelamento.");
+      return;
+    }
+    if (
+      !confirm(
+        `Cancelar o pedido #${venda.numero_pedido}? Os produtos de pronta entrega voltam pro estoque. Essa ação não pode ser desfeita.`
+      )
+    )
+      return;
+
+    setCancelando(true);
+    try {
+      const avisos: string[] = [];
+
+      for (const item of venda.venda_itens) {
+        if (item.tipo_entrega !== "pronta" || !item.produto_id) continue;
+
+        let varianteId = item.variante_id;
+        if (!varianteId && item.variante) {
+          const { data: variantes } = await supabase
+            .from("produto_variantes")
+            .select("id, nome_variante")
+            .eq("produto_id", item.produto_id);
+          const encontrada = variantes?.find((v) => v.nome_variante === item.variante);
+          if (encontrada) varianteId = encontrada.id;
+        }
+
+        if (!varianteId) {
+          const { data: variantesTodas } = await supabase
+            .from("produto_variantes")
+            .select("id")
+            .eq("produto_id", item.produto_id);
+          if (variantesTodas && variantesTodas.length > 0) {
+            avisos.push(
+              `"${item.nome_produto}${item.variante ? ` — ${item.variante}` : ""}" tem variantes, mas não consegui identificar qual — ajuste o estoque manualmente.`
+            );
+            continue;
+          }
+        }
+
+        await ajustarEstoqueLoja(supabase, venda.loja_id, item.produto_id, varianteId, item.quantidade);
+      }
+
+      const { error: erroCancelar } = await supabase
+        .from("vendas")
+        .update({
+          cancelada: true,
+          motivo_cancelamento: motivo.trim(),
+          cancelada_em: new Date().toISOString(),
+        })
+        .eq("id", venda.id);
+      if (erroCancelar) throw erroCancelar;
+
+      // reverte os totais do caixa, só se o turno dessa venda ainda estiver aberto
+      if (venda.turno_caixa_id) {
+        const { data: turno } = await supabase
+          .from("turnos_caixa")
+          .select("status, total_vendido, total_dinheiro, total_pix, total_debito, total_credito")
+          .eq("id", venda.turno_caixa_id)
+          .maybeSingle();
+        if (turno && turno.status === "aberto") {
+          const totaisAtualizados: Record<string, number> = {
+            total_vendido: Math.max((turno.total_vendido || 0) - venda.total, 0),
+          };
+          for (const pag of venda.venda_pagamentos || []) {
+            const campo =
+              pag.forma_pagamento === "Dinheiro"
+                ? "total_dinheiro"
+                : pag.forma_pagamento === "Pix"
+                ? "total_pix"
+                : pag.forma_pagamento === "Débito"
+                ? "total_debito"
+                : pag.forma_pagamento === "Crédito"
+                ? "total_credito"
+                : null;
+            if (campo) {
+              totaisAtualizados[campo] = Math.max(
+                ((turno as Record<string, number>)[campo] || 0) - pag.valor,
+                0
+              );
+            }
+          }
+          await supabase.from("turnos_caixa").update(totaisAtualizados).eq("id", venda.turno_caixa_id);
+        } else {
+          avisos.push(
+            "O turno de caixa dessa venda já está fechado — os totais do caixa não foram ajustados automaticamente, ajuste manualmente se precisar."
+          );
+        }
+      }
+
+      alert(
+        `Pedido #${venda.numero_pedido} cancelado. Produtos de pronta entrega voltaram pro estoque.` +
+          (avisos.length > 0 ? "\n\nAtenção:\n" + avisos.join("\n") : "")
+      );
+      setVenda(null);
+      setNumeroPedido("");
+      setMotivo("");
+    } catch (e) {
+      alert("Erro ao cancelar: " + (e as Error).message);
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="font-display text-xl mb-1">Cancelar nota</h2>
+      <p className="text-sm text-madeira-600 mb-4">
+        Cancela um pedido e devolve ao estoque os produtos que eram de pronta entrega. Pede o motivo do
+        cancelamento.
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          className="input-base max-w-xs"
+          placeholder="Número do pedido"
+          value={numeroPedido}
+          onChange={(e) => setNumeroPedido(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && buscar()}
+        />
+        <button className="btn-secundario" onClick={buscar} disabled={buscando}>
+          {buscando ? "Buscando..." : "Buscar"}
+        </button>
+      </div>
+
+      {erro && <p className="text-sm text-red-700 mb-4">{erro}</p>}
+
+      {venda && (
+        <div className="card p-5">
+          <p className="font-display text-lg mb-1">
+            Pedido #{venda.numero_pedido} — {venda.clientes?.nome || "Cliente"}
+          </p>
+          <p className="text-sm text-madeira-500 mb-3">Total: {formatarMoeda(venda.total)}</p>
+
+          {venda.cancelada ? (
+            <p className="text-sm font-semibold text-red-700">Esse pedido já está cancelado.</p>
+          ) : (
+            <>
+              <div className="mb-4 space-y-1">
+                {venda.venda_itens.map((item) => (
+                  <p key={item.id} className="text-sm text-madeira-700">
+                    {item.quantidade}x {item.nome_produto}
+                    {item.variante ? ` — ${item.variante}` : ""}
+                    {item.tipo_entrega === "pronta" ? " (volta pro estoque)" : " (encomenda, não mexe no estoque)"}
+                  </p>
+                ))}
+              </div>
+
+              <label className="block mb-4">
+                <span className="text-xs text-madeira-600 mb-1 block">Motivo do cancelamento</span>
+                <textarea
+                  className="input-base"
+                  rows={3}
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ex: cliente desistiu, produto com defeito, erro no cadastro..."
+                />
+              </label>
+
+              <button
+                className="btn-primario"
+                style={{ backgroundColor: "#b91c1c" }}
+                onClick={cancelar}
+                disabled={cancelando}
+              >
+                {cancelando ? "Cancelando..." : "Cancelar nota e devolver ao estoque"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
