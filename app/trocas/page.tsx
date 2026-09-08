@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { definirTamanhoPagina } from "@/lib/imprimir";
@@ -518,7 +518,7 @@ export default function TrocasPage() {
 
                 {novasLinhas.map((linha) => {
                   const produtosFiltrados = produtos.filter(
-                    (p) => !linha.busca || p.nome.toLowerCase().includes(linha.busca.toLowerCase())
+                    (p) => !linha.busca || normalizarBusca(p.nome).includes(normalizarBusca(linha.busca))
                   );
                   return (
                     <div key={linha.chave} className="border border-estofado-100 rounded p-3 mb-3">
