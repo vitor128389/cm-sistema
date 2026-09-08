@@ -19,6 +19,7 @@ const FORM_VAZIO = {
   numero: "",
   complemento: "",
   cidade: "",
+  povoado: "",
 };
 
 export default function ClientesPage() {
@@ -90,6 +91,7 @@ export default function ClientesPage() {
       numero: c.numero || "",
       complemento: c.complemento || "",
       cidade: (c as { cidade?: string | null }).cidade || "",
+      povoado: (c as { povoado?: string | null }).povoado || "",
     });
     setEditandoId(c.id);
     setMostrarForm(true);
@@ -112,6 +114,7 @@ export default function ClientesPage() {
       numero: form.numero || null,
       complemento: form.complemento || null,
       cidade: form.cidade || null,
+      povoado: form.povoado || null,
     };
 
     if (editandoId) {
@@ -188,6 +191,15 @@ export default function ClientesPage() {
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
               <input className="input-base" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Povoado (se for o caso)</span>
+              <input
+                className="input-base"
+                value={form.povoado}
+                onChange={(e) => setForm({ ...form, povoado: e.target.value })}
+                placeholder="Deixe em branco se não for povoado"
+              />
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Endereço</span>
