@@ -46,7 +46,11 @@ function diasRestantes(prazo: string): number {
 }
 
 function pedidoPendente(v: Venda): boolean {
-  return !!v.prazo_entrega_maximo && (v.venda_itens || []).some((i) => i.status_entrega === "encomenda");
+  return (
+    !v.cancelada &&
+    !!v.prazo_entrega_maximo &&
+    (v.venda_itens || []).some((i) => i.status_entrega === "encomenda")
+  );
 }
 
 function temItemRetirada(v: Venda): boolean {
@@ -76,7 +80,7 @@ export default function NotasPage() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
-  const [somenteAberto, setSomenteAberto] = useState(false);
+  const [somenteAberto, setSomenteAberto] = useState(true);
   const [somenteRetirada, setSomenteRetirada] = useState(false);
   const [somenteEntregues, setSomenteEntregues] = useState(false);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
