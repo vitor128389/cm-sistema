@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
+import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import type {
@@ -109,6 +110,8 @@ export default function VenderPage() {
   const [salvando, setSalvando] = useState(false);
   const [prazoEntregaMaximo, setPrazoEntregaMaximo] = useState("");
   const [formaRecebimento, setFormaRecebimento] = useState<FormaRecebimento>("retirada");
+  const [vendaSemCliente, setVendaSemCliente] = useState(false);
+  const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
   const [vendaConcluida, setVendaConcluida] = useState<{
     total: number;
     forma: string;
@@ -314,6 +317,11 @@ export default function VenderPage() {
   }
 
   function irParaProdutos() {
+    if (vendaSemCliente) {
+      setErroPasso1("");
+      setPasso(2);
+      return;
+    }
     const erro = validarPasso1();
     if (erro) {
       setErroPasso1(erro);
@@ -643,6 +651,11 @@ export default function VenderPage() {
 
     try {
       let clienteId = clienteIdExistente;
+
+      if (vendaSemCliente) {
+        // venda rápida — não cria nem atualiza nenhum cadastro de cliente
+        clienteId = null;
+      } else {
       const celularesPreenchidos = celulares.filter((c) => c.numero.trim());
       const dadosCliente = {
         nome,
@@ -694,6 +707,7 @@ export default function VenderPage() {
           );
         }
       }
+      } // fim do else (venda com cliente)
 
       const formaResumo = pagamentos.length > 1 ? "Dividido" : (pagamentos[0].forma as FormaPagamento);
 
@@ -836,12 +850,14 @@ export default function VenderPage() {
     setComplemento("");
     setCidade("");
     setClienteIdExistente(null);
+    setVendaSemCliente(false);
     setClienteRetira(false);
     setFormaRecebimento("retirada");
     setCarrinho([]);
     setPagamentos([{ forma: "", parcelas: 1, valor: 0 }]);
     setPrazoEntregaMaximo("");
     setVendaConcluida(null);
+    setFormatoImpressao("a4");
     setPasso(1);
   }
 
@@ -867,6 +883,22 @@ export default function VenderPage() {
       {/* PASSO 1: CLIENTE */}
       {passo === 1 && (
         <div className="card p-6 max-w-lg">
+          <label className="flex items-center gap-2 mb-4 p-3 bg-madeira-50 rounded cursor-pointer">
+            <input
+              type="checkbox"
+              checked={vendaSemCliente}
+              onChange={(e) => setVendaSemCliente(e.target.checked)}
+            />
+            <span className="text-sm font-medium text-madeira-800">
+              Venda rápida — sem dados do cliente
+            </span>
+          </label>
+
+          {vendaSemCliente ? (
+            <button className="btn-primario w-full" onClick={irParaProdutos}>
+              Ir para produtos →
+            </button>
+          ) : (
           <div className="space-y-4">
             <label className="block relative">
               <span className="text-xs text-madeira-600 mb-1 block">Nome do cliente</span>
@@ -1045,6 +1077,7 @@ export default function VenderPage() {
               Continuar para produtos
             </button>
           </div>
+          )}
         </div>
       )}
 
@@ -1677,12 +1710,28 @@ export default function VenderPage() {
           <p className="text-sm text-madeira-500 mb-4">Pedido #{vendaConcluida.numeroPedido}</p>
           <div className="bg-madeira-50 rounded p-4 mb-4">
             <p className="text-xs text-madeira-500">Cliente</p>
-            <p className="font-display">{nome}</p>
+            <p className="font-display">{vendaSemCliente ? "Venda sem cliente" : nome}</p>
           </div>
           <p className="font-display text-2xl mb-6">{formatarMoeda(vendaConcluida.total)}</p>
           <div className="flex gap-3">
-            <button className="btn-secundario" onClick={() => window.print()}>
+            <button
+              className="btn-secundario"
+              onClick={() => {
+                setFormatoImpressao("a4");
+                setTimeout(() => window.print(), 50);
+              }}
+            >
               🖨 Imprimir comprovante
+            </button>
+            <button
+              className="btn-secundario"
+              onClick={() => {
+                setFormatoImpressao("cupom88");
+                setTimeout(() => window.print(), 50);
+              }}
+              title="Imprimir cupom para impressora térmica 88mm"
+            >
+              🧾 Cupom 88mm
             </button>
             <button className="btn-primario" onClick={novaVenda}>
               Nova venda
@@ -1691,13 +1740,52 @@ export default function VenderPage() {
         </div>
       )}
 
-      {/* Área de impressão (via da loja + via do cliente) */}
-      <div id="area-impressao">
-        {vendaConcluida && (
+      {/* Área de impressão (via da loja + via do cliente, ou cupom 88mm) */}
+      <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
+        {vendaConcluida && formatoImpressao === "cupom88" && (
+          <ComprovanteCupom88mm
+            numeroPedido={vendaConcluida.numeroPedido}
+            cliente={
+              vendaSemCliente
+                ? null
+                : {
+                    nome,
+                    telefone: celulares.filter((c) => c.numero.trim())[0]?.numero || null,
+                    endereco,
+                    numero: semNumero ? "S/N" : numero,
+                    complemento,
+                    cidade,
+                  }
+            }
+            loja={lojaInfo}
+            total={vendaConcluida.total}
+            formaPagamento={vendaConcluida.forma}
+            prazoEntregaMaximo={prazoEntregaMaximo || null}
+            itens={carrinho.map((item, idx) => ({
+              id: String(idx),
+              venda_id: "",
+              produto_id: item.produtoId,
+              nome_produto: item.nome,
+              variante: item.cor,
+              quantidade: item.quantidade,
+              valor_unitario: item.valorUnitario,
+              total: item.valorUnitario * item.quantidade,
+              tipo_entrega: item.tipoEntrega,
+              status_entrega: item.tipoEntrega === "encomenda" ? "encomenda" : null,
+              retirada: item.retirada,
+              quantidade_retirada: item.quantidadeRetirada,
+              quantidade_entrega: item.quantidadeEntrega,
+              data_entregue: null,
+              trocado: false,
+              observacao: item.observacao,
+            }))}
+          />
+        )}
+        {vendaConcluida && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={vendaConcluida.numeroPedido}
             cliente={{
-              nome,
+              nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
               telefone: celulares.filter((c) => c.numero.trim())[0]?.numero || null,
               endereco,
