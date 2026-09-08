@@ -56,6 +56,7 @@ export default function MovimentoPage() {
     let query = supabase
       .from("vendas")
       .select("*, clientes(nome), venda_itens(*, produtos(custo)), turnos_caixa(caixa_id)")
+      .eq("cancelada", false)
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
 
