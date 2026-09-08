@@ -248,6 +248,8 @@ export interface TrocaGrupo {
   valor_novo_total: number;
   diferenca: number;
   forma_pagamento_diferenca: string | null;
+  parcelas_diferenca?: number | null;
+  valor_cobrado_diferenca?: number | null;
   turno_caixa_id: string | null;
   loja_id: string;
   criado_em: string;
