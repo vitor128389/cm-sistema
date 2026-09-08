@@ -19,7 +19,6 @@ import type {
   FormaRecebimento,
 } from "@/types";
 
-const ESPESSURAS = ["5cm", "7cm", "14cm"];
 const TECIDOS = ["Suede", "Linho", "Veludo"];
 const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
 const PRODUTOS_COM_MODELO = ["Poltrona Benny", "Namoradeira Benny"];
@@ -40,6 +39,7 @@ export default function VenderPage() {
   const [semNumero, setSemNumero] = useState(false);
   const [complemento, setComplemento] = useState("");
   const [cidade, setCidade] = useState("");
+  const [povoado, setPovoado] = useState("");
   const [cpfInfo, setCpfInfo] = useState("");
   const [cpfInfoCor, setCpfInfoCor] = useState("text-madeira-500");
   const [clienteIdExistente, setClienteIdExistente] = useState<string | null>(null);
@@ -226,6 +226,7 @@ export default function VenderPage() {
     sem_numero: boolean | null;
     complemento: string | null;
     cidade?: string | null;
+    povoado?: string | null;
     cliente_celulares?: { celular: string; nome_responsavel: string | null }[];
   }) {
     setClienteIdExistente(c.id);
@@ -237,6 +238,7 @@ export default function VenderPage() {
     setSemNumero(c.sem_numero || false);
     setComplemento(c.complemento || "");
     setCidade(c.cidade || "");
+    setPovoado(c.povoado || "");
     const cels = (c.cliente_celulares || []).map((cc) => ({
       numero: cc.celular,
       responsavel: cc.nome_responsavel || "",
@@ -260,7 +262,7 @@ export default function VenderPage() {
     }
     const { data } = await supabase
       .from("clientes")
-      .select("id, nome, cpf, endereco, numero, sem_numero, complemento, cidade, cliente_celulares(celular, nome_responsavel)")
+      .select("id, nome, cpf, endereco, numero, sem_numero, complemento, cidade, povoado, cliente_celulares(celular, nome_responsavel)")
       .eq("loja_id", lojaAtual)
       .ilike("nome", `%${v.trim()}%`)
       .limit(6);
@@ -676,6 +678,7 @@ export default function VenderPage() {
         sem_numero: semNumero,
         complemento: complemento || null,
         cidade: cidade || null,
+        povoado: povoado || null,
       };
 
       if (!clienteId) {
@@ -764,6 +767,7 @@ export default function VenderPage() {
       const itensParaInserir = carrinho.map((item) => ({
         venda_id: venda.id,
         produto_id: item.produtoId,
+        variante_id: item.varianteId,
         nome_produto: item.nome,
         variante: item.cor || item.varianteNome,
         quantidade: item.quantidade,
@@ -859,6 +863,7 @@ export default function VenderPage() {
     setSemNumero(false);
     setComplemento("");
     setCidade("");
+    setPovoado("");
     setClienteIdExistente(null);
     setVendaSemCliente(false);
     setClienteRetira(false);
@@ -1037,6 +1042,16 @@ export default function VenderPage() {
                 </label>
 
                 <label className="block">
+                  <span className="text-xs text-madeira-600 mb-1 block">Povoado (se for o caso)</span>
+                  <input
+                    className="input-base"
+                    value={povoado}
+                    onChange={(e) => setPovoado(e.target.value)}
+                    placeholder="Deixe em branco se não for povoado"
+                  />
+                </label>
+
+                <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Endereço da entrega</span>
                   <input
                     className="input-base"
@@ -1188,17 +1203,17 @@ export default function VenderPage() {
                   <div className="mb-3">
                     <span className="text-xs text-madeira-600 mb-1 block">Espessura</span>
                     <div className="grid grid-cols-3 gap-2">
-                      {ESPESSURAS.map((e) => (
+                      {produtoSelecionado.produto_variantes.map((v) => (
                         <button
                           type="button"
-                          key={e}
-                          className={`opcao-btn ${espessuraSel === e ? "ativo" : ""}`}
+                          key={v.nome_variante}
+                          className={`opcao-btn ${espessuraSel === v.nome_variante ? "ativo" : ""}`}
                           onClick={() => {
-                            setEspessuraSel(e);
-                            atualizarValorPelaVariante(produtoSelecionado, e);
+                            setEspessuraSel(v.nome_variante);
+                            atualizarValorPelaVariante(produtoSelecionado, v.nome_variante);
                           }}
                         >
-                          {e}
+                          {v.nome_variante}
                         </button>
                       ))}
                     </div>
@@ -1766,7 +1781,7 @@ export default function VenderPage() {
                     endereco,
                     numero: semNumero ? "S/N" : numero,
                     complemento,
-                    cidade,
+                    cidade: povoado ? `${cidade} — ${povoado}` : cidade,
                   }
             }
             loja={lojaInfo}
@@ -1803,7 +1818,7 @@ export default function VenderPage() {
               endereco,
               numero: semNumero ? "S/N" : numero,
               complemento,
-              cidade,
+              cidade: povoado ? `${cidade} — ${povoado}` : cidade,
             }}
             loja={lojaInfo}
             total={vendaConcluida.total}
