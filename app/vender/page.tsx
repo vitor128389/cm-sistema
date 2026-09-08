@@ -69,6 +69,7 @@ export default function VenderPage() {
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
   const [produtoSelecionado, setProdutoSelecionado] = useState<ProdutoComVariantes | null>(null);
   const [tecidoSel, setTecidoSel] = useState("Suede");
+  const [pecaSel, setPecaSel] = useState<"" | "2" | "3" | "conjunto">("");
   const [espessuraSel, setEspessuraSel] = useState("5cm");
   const [corSel, setCorSel] = useState("");
   const [corManual, setCorManual] = useState("");
@@ -338,6 +339,36 @@ export default function VenderPage() {
   const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
   const todasAsCores = tecidosCores.filter((c) => c.disponivel);
 
+  function ehConjuntoSofa(): boolean {
+    return produtoSelecionado?.tipo_precificacao === "tecido_peca";
+  }
+
+  function nomeVarianteConjunto(peca: "2" | "3"): string {
+    return `${tecidoSel} — ${peca} Lugares`;
+  }
+
+  function estoquePecaConjunto(peca: "2" | "3"): number {
+    if (!produtoSelecionado) return 0;
+    const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === nomeVarianteConjunto(peca));
+    return v?.estoque || 0;
+  }
+
+  function precoPecaConjunto(peca: "2" | "3"): number {
+    if (!produtoSelecionado) return 0;
+    const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === nomeVarianteConjunto(peca));
+    return v?.preco_avista || 0;
+  }
+
+  function atualizarValorConjunto(peca: "" | "2" | "3" | "conjunto") {
+    if (peca === "2" || peca === "3") {
+      setValorUnitario(Math.round(precoPecaConjunto(peca) * 1.1 * 100) / 100);
+    } else if (peca === "conjunto") {
+      setValorUnitario(Math.round((precoPecaConjunto("2") + precoPecaConjunto("3")) * 1.1 * 100) / 100);
+    } else {
+      setValorUnitario(0);
+    }
+  }
+
   function atualizarValorPelaVariante(
     p: ProdutoComVariantes,
     nomeVariante: string
@@ -358,6 +389,7 @@ export default function VenderPage() {
     setModeloSel("");
     setObservacaoItem("");
     setDividirRecebimentoItem(false);
+    setPecaSel("");
     setQtdRetiradaItem(formaRecebimento === "entrega" ? 0 : 1);
     setQtdEntregaItem(formaRecebimento === "entrega" ? 1 : 0);
 
@@ -365,6 +397,11 @@ export default function VenderPage() {
       const primeira = p.produto_variantes[0]?.nome_variante || "5cm";
       setEspessuraSel(primeira);
       atualizarValorPelaVariante(p, primeira);
+    } else if (p.tipo_precificacao === "tecido_peca") {
+      // sofá com peças de 2 e 3 lugares: precisa escolher tecido E peça antes
+      // de ter um preço/estoque válido — começa zerado até o vendedor decidir.
+      setTecidoSel("Suede");
+      setValorUnitario(0);
     } else if (p.tipo_precificacao === "tecido") {
       const primeira = p.produto_variantes[0]?.nome_variante || "Suede";
       setTecidoSel(primeira);
@@ -385,6 +422,11 @@ export default function VenderPage() {
       const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === tecidoSel);
       return v?.estoque || 0;
     }
+    if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
+      if (pecaSel === "2" || pecaSel === "3") return estoquePecaConjunto(pecaSel);
+      if (pecaSel === "conjunto") return Math.min(estoquePecaConjunto("2"), estoquePecaConjunto("3"));
+      return 0;
+    }
     return produtoSelecionado.quantidade_estoque || 0;
   }
 
@@ -401,6 +443,13 @@ export default function VenderPage() {
         produtoSelecionado.produto_variantes.find((v) => v.nome_variante === tecidoSel)?.id || null
       );
     }
+    if (produtoSelecionado.tipo_precificacao === "tecido_peca" && (pecaSel === "2" || pecaSel === "3")) {
+      return (
+        produtoSelecionado.produto_variantes.find((v) => v.nome_variante === nomeVarianteConjunto(pecaSel))
+          ?.id || null
+      );
+    }
+    // "conjunto" não tem um único id — vira dois itens separados no carrinho
     return null;
   }
 
@@ -418,12 +467,21 @@ export default function VenderPage() {
           ?.preco_avista || 0
       );
     }
+    if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
+      if (pecaSel === "2" || pecaSel === "3") return precoPecaConjunto(pecaSel);
+      if (pecaSel === "conjunto") return precoPecaConjunto("2") + precoPecaConjunto("3");
+      return 0;
+    }
     return produtoSelecionado.preco_venda;
   }
 
   function mostrarTecidoCor(): boolean {
     if (!produtoSelecionado) return false;
-    return produtoSelecionado.tipo_precificacao === "tecido" || produtoSelecionado.categoria === "Cabeceiras";
+    return (
+      produtoSelecionado.tipo_precificacao === "tecido" ||
+      produtoSelecionado.tipo_precificacao === "tecido_peca" ||
+      produtoSelecionado.categoria === "Cabeceiras"
+    );
   }
 
   function precisaCorSimples(): boolean {
@@ -436,7 +494,10 @@ export default function VenderPage() {
     if (!produtoSelecionado) return null;
     let base: string | null = null;
     if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
-    else if (mostrarTecidoCor()) {
+    else if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
+      if (pecaSel === "conjunto") base = `${tecidoSel} — Conjunto 2 + 3 Lugares`;
+      else if (pecaSel === "2" || pecaSel === "3") base = `${tecidoSel} — ${pecaSel} Lugares`;
+    } else if (mostrarTecidoCor()) {
       if (corManual.trim()) base = `${tecidoSel} — ${corManual.trim()}`;
       else {
         const cor = tecidosCores.find((c) => c.tecido === tecidoSel && c.codigo === corSel);
@@ -466,6 +527,12 @@ export default function VenderPage() {
 
   function adicionarAoCarrinho() {
     if (!produtoSelecionado) return;
+
+    if (ehConjuntoSofa() && !pecaSel) {
+      alert("Escolha se é 2 lugares, 3 lugares ou o conjunto completo antes de adicionar.");
+      return;
+    }
+
     const disponivel = estoqueDisponivel();
     if (tipoEntrega === "pronta" && disponivel <= 0) {
       alert(
@@ -494,31 +561,73 @@ export default function VenderPage() {
       quantidadeEntrega = qtdEntregaItem;
     }
 
-    setCarrinho((atual) => [
-      ...atual,
-      {
-        produtoId: produtoSelecionado.id,
-        nome: produtoSelecionado.nome,
-        categoria: produtoSelecionado.categoria,
-        quantidade,
-        valorUnitario,
-        valorAVista: valorAVistaAtual(),
-        varianteId: varianteAtualId(),
-        varianteNome:
-          produtoSelecionado.tipo_precificacao === "espessura"
-            ? espessuraSel
-            : produtoSelecionado.tipo_precificacao === "tecido"
-            ? tecidoSel
-            : null,
-        cor: corTexto(),
-        modelo: precisaModelo() ? modeloSel || null : null,
-        tipoEntrega,
-        retirada: quantidadeRetirada > 0,
-        quantidadeRetirada,
-        quantidadeEntrega,
-        observacao: observacaoItem.trim() || null,
-      },
-    ]);
+    const itemComum = {
+      categoria: produtoSelecionado.categoria,
+      modelo: precisaModelo() ? modeloSel || null : null,
+      tipoEntrega,
+      retirada: quantidadeRetirada > 0,
+      quantidadeRetirada,
+      quantidadeEntrega,
+      observacao: observacaoItem.trim() || null,
+    };
+
+    if (ehConjuntoSofa() && pecaSel === "conjunto") {
+      // "conjunto" vira dois itens no carrinho — um pra cada peça — porque
+      // cada peça tem seu próprio estoque e precisa baixar separadamente.
+      const v2 = produtoSelecionado.produto_variantes.find(
+        (v) => v.nome_variante === nomeVarianteConjunto("2")
+      );
+      const v3 = produtoSelecionado.produto_variantes.find(
+        (v) => v.nome_variante === nomeVarianteConjunto("3")
+      );
+      setCarrinho((atual) => [
+        ...atual,
+        {
+          ...itemComum,
+          produtoId: produtoSelecionado.id,
+          nome: produtoSelecionado.nome,
+          quantidade,
+          valorUnitario: Math.round(precoPecaConjunto("2") * 1.1 * 100) / 100,
+          valorAVista: precoPecaConjunto("2"),
+          varianteId: v2?.id || null,
+          varianteNome: nomeVarianteConjunto("2"),
+          cor: `${tecidoSel} — 2 Lugares`,
+        },
+        {
+          ...itemComum,
+          produtoId: produtoSelecionado.id,
+          nome: produtoSelecionado.nome,
+          quantidade,
+          valorUnitario: Math.round(precoPecaConjunto("3") * 1.1 * 100) / 100,
+          valorAVista: precoPecaConjunto("3"),
+          varianteId: v3?.id || null,
+          varianteNome: nomeVarianteConjunto("3"),
+          cor: `${tecidoSel} — 3 Lugares`,
+        },
+      ]);
+    } else {
+      setCarrinho((atual) => [
+        ...atual,
+        {
+          ...itemComum,
+          produtoId: produtoSelecionado.id,
+          nome: produtoSelecionado.nome,
+          quantidade,
+          valorUnitario,
+          valorAVista: valorAVistaAtual(),
+          varianteId: varianteAtualId(),
+          varianteNome:
+            produtoSelecionado.tipo_precificacao === "espessura"
+              ? espessuraSel
+              : produtoSelecionado.tipo_precificacao === "tecido"
+              ? tecidoSel
+              : produtoSelecionado.tipo_precificacao === "tecido_peca" && (pecaSel === "2" || pecaSel === "3")
+              ? nomeVarianteConjunto(pecaSel)
+              : null,
+          cor: corTexto(),
+        },
+      ]);
+    }
 
     setProdutoSelecionado(null);
     setBuscaProduto("");
@@ -1190,13 +1299,63 @@ export default function VenderPage() {
                           className={`opcao-btn ${tecidoSel === t ? "ativo" : ""}`}
                           onClick={() => {
                             setTecidoSel(t);
-                            atualizarValorPelaVariante(produtoSelecionado, t);
+                            if (ehConjuntoSofa()) {
+                              atualizarValorConjunto(pecaSel);
+                            } else {
+                              atualizarValorPelaVariante(produtoSelecionado, t);
+                            }
                           }}
                         >
                           {t}
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {ehConjuntoSofa() && (
+                  <div className="mb-3">
+                    <span className="text-xs text-madeira-600 mb-1 block">
+                      O que o cliente está comprando?
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(
+                        [
+                          ["2", "2 Lugares"],
+                          ["3", "3 Lugares"],
+                          ["conjunto", "Conjunto 2 + 3"],
+                        ] as const
+                      ).map(([valor, label]) => {
+                        const semEstoque =
+                          tipoEntrega === "pronta" &&
+                          (valor === "conjunto"
+                            ? estoquePecaConjunto("2") <= 0 || estoquePecaConjunto("3") <= 0
+                            : estoquePecaConjunto(valor) <= 0);
+                        return (
+                          <button
+                            type="button"
+                            key={valor}
+                            disabled={semEstoque}
+                            className={`opcao-btn ${pecaSel === valor ? "ativo" : ""} ${
+                              semEstoque ? "opacity-40 cursor-not-allowed" : ""
+                            }`}
+                            onClick={() => {
+                              setPecaSel(valor);
+                              atualizarValorConjunto(valor);
+                            }}
+                          >
+                            {label}
+                            {semEstoque ? " (sem estoque)" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {tipoEntrega === "pronta" && (
+                      <p className="text-xs text-madeira-500 mt-1">
+                        2 lugares: {estoquePecaConjunto("2")} disponível(is) · 3 lugares:{" "}
+                        {estoquePecaConjunto("3")} disponível(is)
+                      </p>
+                    )}
                   </div>
                 )}
 
