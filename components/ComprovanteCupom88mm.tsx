@@ -35,8 +35,19 @@ export default function ComprovanteCupom88mm({
   const linha = "-".repeat(32);
 
   return (
-    <div style={{ width: "80mm", padding: "2mm", fontFamily: "'Courier New', monospace", fontSize: "11px", lineHeight: 1.4 }}>
-      <p style={{ textAlign: "center", fontWeight: 700, fontSize: "13px", margin: "0 0 2px" }}>
+    <div
+      style={{
+        width: "80mm",
+        padding: "2mm",
+        fontFamily: "'Courier New', monospace",
+        fontSize: "12px",
+        fontWeight: 700,
+        color: "#000",
+        lineHeight: 1.45,
+        WebkitFontSmoothing: "none" as never,
+      }}
+    >
+      <p style={{ textAlign: "center", fontWeight: 700, fontSize: "14px", margin: "0 0 2px" }}>
         {loja?.nome || "Caruaru Móveis"}
       </p>
       {loja?.telefone && <p style={{ textAlign: "center", margin: "0 0 4px" }}>Tel: {loja.telefone}</p>}
@@ -75,7 +86,7 @@ export default function ComprovanteCupom88mm({
       ))}
       <p style={{ margin: "2px 0" }}>{linha}</p>
 
-      <p style={{ margin: "2px 0", fontWeight: 700, fontSize: "13px" }}>TOTAL: {formatarMoeda(total)}</p>
+      <p style={{ margin: "2px 0", fontWeight: 700, fontSize: "14px" }}>TOTAL: {formatarMoeda(total)}</p>
       <p style={{ margin: "2px 0" }}>Pagamento: {formaPagamento}</p>
       {prazoEntregaMaximo && (
         <p style={{ margin: "2px 0" }}>
