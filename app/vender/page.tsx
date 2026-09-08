@@ -510,7 +510,8 @@ export default function VenderPage() {
   function corTexto(): string | null {
     if (!produtoSelecionado) return null;
     let base: string | null = null;
-    if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
+    if (produtoSelecionado.categoria === "Móveis Montados") base = "MONTADO";
+    else if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
     else if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
       if (pecaSel === "conjunto") base = `${tecidoSel} — Conjunto 2 + 3 Lugares`;
       else if (pecaSel === "2" || pecaSel === "3") base = `${tecidoSel} — ${pecaSel} Lugares`;
