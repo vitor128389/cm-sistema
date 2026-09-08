@@ -491,28 +491,36 @@ export default function NotasPage() {
                     </span>
                     {item.status_entrega && (
                       <span className="flex items-center gap-2 shrink-0">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            item.status_entrega === "entregue"
-                              ? "bg-green-50 text-green-700"
-                              : "bg-amber-50 text-amber-700"
-                          }`}
-                        >
-                          {item.status_entrega === "entregue"
-                            ? "✓ ENTREGUE"
-                            : item.retirada
-                            ? "Cliente vai levar"
-                            : item.tipo_entrega === "encomenda"
-                            ? "ENCOMENDA"
-                            : "AGUARDANDO ENTREGA"}
-                        </span>
-                        {item.status_entrega !== "entregue" && (
-                          <button
-                            className="btn-secundario text-xs px-2 py-1"
-                            onClick={() => marcarEntregue(item.id)}
-                          >
-                            ENTREGUE
-                          </button>
+                        {v.cancelada ? (
+                          <span className="text-xs px-2 py-0.5 rounded font-medium bg-red-50 text-red-700">
+                            CANCELADO
+                          </span>
+                        ) : (
+                          <>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                item.status_entrega === "entregue"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {item.status_entrega === "entregue"
+                                ? "✓ ENTREGUE"
+                                : item.retirada
+                                ? "Cliente vai levar"
+                                : item.tipo_entrega === "encomenda"
+                                ? "ENCOMENDA"
+                                : "AGUARDANDO ENTREGA"}
+                            </span>
+                            {item.status_entrega !== "entregue" && (
+                              <button
+                                className="btn-secundario text-xs px-2 py-1"
+                                onClick={() => marcarEntregue(item.id)}
+                              >
+                                ENTREGUE
+                              </button>
+                            )}
+                          </>
                         )}
                       </span>
                     )}
@@ -552,6 +560,11 @@ export default function NotasPage() {
                         {t.vendas.clientes.numero ? `, ${t.vendas.clientes.numero}` : ""}
                         {t.vendas.clientes.cidade ? ` — ${t.vendas.clientes.cidade}` : ""}
                       </p>
+                    )}
+                    {t.cancelada && (
+                      <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded mt-1 bg-red-100 text-red-700">
+                        CANCELADA{t.motivo_cancelamento ? ` — ${t.motivo_cancelamento}` : ""}
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
