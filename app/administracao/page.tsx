@@ -529,6 +529,24 @@ function AbaEstoque() {
     carregar();
   }
 
+  // Pros sofás "2 e 3 lugares": um conjunto completo é sempre uma peça de 2
+  // e uma de 3 juntas, então salvar o "conjunto" atualiza as duas variantes
+  // (2 Lugares e 3 Lugares daquele tecido) com a mesma quantidade.
+  async function salvarEstoqueConjunto(
+    produtoId: string,
+    varianteId2L: string,
+    varianteId3L: string,
+    valor: number
+  ) {
+    if (!lojaAtual) return;
+    const [r1, r2] = await Promise.all([
+      salvarEstoqueLoja(supabase, lojaAtual, produtoId, varianteId2L, valor),
+      salvarEstoqueLoja(supabase, lojaAtual, produtoId, varianteId3L, valor),
+    ]);
+    if (r1.error || r2.error) alert("Erro ao salvar o estoque: " + (r1.error || r2.error)?.message);
+    carregar();
+  }
+
   async function excluirProduto(id: string, nome: string) {
     if (!confirm(`Excluir "${nome}" do catálogo? Isso remove o produto de TODAS as lojas — essa ação não pode ser desfeita.`)) return;
     const { error } = await supabase.from("produtos").delete().eq("id", id);
@@ -1062,7 +1080,53 @@ function AbaEstoque() {
                 <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
                 <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
                 <td className="px-4 py-2">
-                  {p.produto_variantes.length > 0 ? (
+                  {p.tipo_precificacao === "tecido_peca" ? (
+                    // Sofá "2 e 3 lugares": mostra uma linha por tecido (o
+                    // conjunto), não uma pra cada peça — o estoque de 2 e 3
+                    // lugares fica igual, sempre casado como um par.
+                    Array.from(new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0]))).map(
+                      (tecido) => {
+                        const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
+                        const v3 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 3 Lugares`);
+                        if (!v2 || !v3) return null;
+                        const chaveEdicao = `${v2.id}|${v3.id}`;
+                        return (
+                          <div key={tecido} className="flex items-center gap-2 mb-1">
+                            <span className="text-xs w-24">
+                              {tecido} — Conjunto
+                              <span className="block text-madeira-400">
+                                custo {formatarMoeda(v2.custo || 0)} · venda{" "}
+                                {formatarMoeda((v2.preco_avista || 0) + (v3.preco_avista || 0))}
+                              </span>
+                            </span>
+                            <input
+                              className="input-base py-1 px-2 text-xs w-20"
+                              type="number"
+                              defaultValue={Math.min(v2.estoque, v3.estoque)}
+                              onChange={(e) =>
+                                setEstoquesEdicao({ ...estoquesEdicao, [chaveEdicao]: e.target.value })
+                              }
+                            />
+                            <button
+                              className="btn-secundario text-xs px-2 py-1"
+                              onClick={() =>
+                                salvarEstoqueConjunto(
+                                  p.id,
+                                  v2.id,
+                                  v3.id,
+                                  parseInt(
+                                    estoquesEdicao[chaveEdicao] ?? String(Math.min(v2.estoque, v3.estoque))
+                                  ) || 0
+                                )
+                              }
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        );
+                      }
+                    )
+                  ) : p.produto_variantes.length > 0 ? (
                     p.produto_variantes.map((v) => (
                       <div key={v.id} className="flex items-center gap-2 mb-1">
                         <span className="text-xs w-24">
