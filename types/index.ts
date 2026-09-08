@@ -251,6 +251,9 @@ export interface TrocaGrupo {
   forma_pagamento_diferenca: string | null;
   parcelas_diferenca?: number | null;
   valor_cobrado_diferenca?: number | null;
+  cancelada?: boolean;
+  motivo_cancelamento?: string | null;
+  cancelada_em?: string | null;
   turno_caixa_id: string | null;
   loja_id: string;
   criado_em: string;
