@@ -27,6 +27,7 @@ export default function EncomendasPage() {
     let query = supabase
       .from("vendas")
       .select("*, clientes(nome, telefone, cpf), venda_itens(*)")
+      .eq("cancelada", false)
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     const { data, error } = await query;
