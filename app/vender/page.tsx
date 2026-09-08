@@ -530,7 +530,7 @@ export default function VenderPage() {
     // Produtos de "Móveis Montados" (já montados, disponíveis fisicamente na
     // loja) sempre levam essa etiqueta na venda/nota/impressão — junto com a
     // cor/variação, se o produto tiver uma selecionada.
-    if (produtoSelecionado.categoria === "Móveis Montados") {
+    if (produtoSelecionado.categoria === "Móveis Montados" || produtoSelecionado.categoria === "Importados") {
       base = base ? `${base} — MONTADO` : "MONTADO";
     }
     if (precisaModelo() && modeloSel) {
