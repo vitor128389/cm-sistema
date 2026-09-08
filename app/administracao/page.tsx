@@ -11,6 +11,7 @@ import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCom
 type Aba = "lojas" | "caixas" | "estoque" | "usuarios" | "permissoes" | "tecidos" | "relatorio" | "cancelar";
 
 const TELAS = [
+  { chave: "painel", label: "Painel" },
   { chave: "vender", label: "Vender" },
   { chave: "produtos", label: "Produtos" },
   { chave: "clientes", label: "Clientes" },
