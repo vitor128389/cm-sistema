@@ -386,9 +386,18 @@ export default function NotasPage() {
                   <p className="text-xs text-madeira-500">
                     {new Date(v.criado_em).toLocaleString("pt-BR")} ·{" "}
                     {v.forma_pagamento === "Dividido" && v.venda_pagamentos
-                      ? `Dividido (${v.venda_pagamentos.map((p) => p.forma_pagamento).join(" + ")})`
-                      : v.forma_pagamento}
+                      ? `Dividido (${v.venda_pagamentos
+                          .map((p) => `${p.forma_pagamento}${p.forma_pagamento === "Crédito" && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}`)
+                          .join(" + ")})`
+                      : `${v.forma_pagamento}${v.forma_pagamento === "Crédito" && v.parcelas > 1 ? ` ${v.parcelas}x` : ""}`}
                   </p>
+                  {v.clientes?.endereco && (
+                    <p className="text-xs text-madeira-400">
+                      {v.clientes.endereco}
+                      {v.clientes.numero ? `, ${v.clientes.numero}` : ""}
+                      {v.clientes.cidade ? ` — ${v.clientes.cidade}` : ""}
+                    </p>
+                  )}
                   {pedidoPendente(v) &&
                     (() => {
                       const dias = diasRestantes(v.prazo_entrega_maximo as string);
@@ -523,14 +532,26 @@ export default function NotasPage() {
                     </p>
                     <p className="text-xs text-madeira-500">
                       {new Date(t.criado_em).toLocaleString("pt-BR")} · Pedido original #{t.vendas?.numero_pedido}
+                      {t.forma_pagamento_diferenca === "Crédito" && (t.parcelas_diferenca || 1) > 1
+                        ? ` · Crédito ${t.parcelas_diferenca}x`
+                        : t.forma_pagamento_diferenca
+                        ? ` · ${t.forma_pagamento_diferenca}`
+                        : ""}
                     </p>
+                    {t.vendas?.clientes?.endereco && (
+                      <p className="text-xs text-madeira-400">
+                        {t.vendas.clientes.endereco}
+                        {t.vendas.clientes.numero ? `, ${t.vendas.clientes.numero}` : ""}
+                        {t.vendas.clientes.cidade ? ` — ${t.vendas.clientes.cidade}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <p className="font-display text-lg text-madeira-900">
                       {t.diferenca === 0
                         ? "Sem diferença"
                         : t.diferenca > 0
-                        ? `+ ${formatarMoeda(t.diferenca)}`
+                        ? `+ ${formatarMoeda(t.valor_cobrado_diferenca ?? t.diferenca)}`
                         : `− ${formatarMoeda(Math.abs(t.diferenca))}`}
                     </p>
                     <button className="btn-secundario text-xs px-2 py-1" onClick={() => imprimirTroca(t)}>
@@ -632,6 +653,8 @@ export default function NotasPage() {
             novos={trocaImprimindo.trocas_novos || []}
             tipoPreco={trocaImprimindo.tipo_preco}
             diferenca={trocaImprimindo.diferenca}
+            diferencaCobrada={trocaImprimindo.valor_cobrado_diferenca ?? trocaImprimindo.diferenca}
+            parcelasDiferenca={trocaImprimindo.parcelas_diferenca ?? 1}
             formaPagamentoDiferenca={trocaImprimindo.forma_pagamento_diferenca}
             loja={lojaImprimindo}
           />
