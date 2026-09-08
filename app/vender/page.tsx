@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
@@ -877,7 +877,7 @@ export default function VenderPage() {
   }
 
   const produtosFiltrados = produtos.filter((p) => {
-    if (buscaProduto && !p.nome.toLowerCase().includes(buscaProduto.toLowerCase())) return false;
+    if (buscaProduto && !normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto))) return false;
     if (categoriaAberta && p.categoria !== categoriaAberta) return false;
     return true;
   });
