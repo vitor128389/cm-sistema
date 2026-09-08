@@ -598,6 +598,10 @@ function AbaEstoque() {
     }
     setForm(novoForm);
     setMostrarForm(true);
+    // sobe até o formulário automaticamente, sem precisar rolar na mão
+    setTimeout(() => {
+      document.getElementById("form-editar-produto")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   }
 
   async function salvarProduto() {
@@ -837,7 +841,7 @@ function AbaEstoque() {
       </div>
 
       {mostrarForm && (
-        <div className="card p-5 mb-6">
+        <div id="form-editar-produto" className="card p-5 mb-6">
           <div className="grid grid-cols-3 gap-3 mb-3">
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Nome do produto</span>
