@@ -343,6 +343,23 @@ export default function VenderPage() {
     return produtoSelecionado?.tipo_precificacao === "tecido_peca";
   }
 
+  // A lista de tecidos vem das variantes reais do produto (não é mais fixa
+  // em Suede/Linho/Veludo) — assim tecidos novos como Napa ou Atoalhado,
+  // cadastrados só nesse produto, também aparecem pra escolher na venda.
+  function tecidosDisponiveis(): string[] {
+    if (!produtoSelecionado) return TECIDOS;
+    if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
+      const nomes = new Set(
+        produtoSelecionado.produto_variantes.map((v) => v.nome_variante.split(" — ")[0])
+      );
+      return nomes.size > 0 ? Array.from(nomes) : TECIDOS;
+    }
+    if (produtoSelecionado.produto_variantes.length > 0) {
+      return produtoSelecionado.produto_variantes.map((v) => v.nome_variante);
+    }
+    return TECIDOS;
+  }
+
   function nomeVarianteConjunto(peca: "2" | "3"): string {
     return `${tecidoSel} — ${peca} Lugares`;
   }
@@ -1292,7 +1309,7 @@ export default function VenderPage() {
                   <div className="mb-3">
                     <span className="text-xs text-madeira-600 mb-1 block">Tecido</span>
                     <div className="grid grid-cols-3 gap-2">
-                      {TECIDOS.map((t) => (
+                      {tecidosDisponiveis().map((t) => (
                         <button
                           type="button"
                           key={t}
