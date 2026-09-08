@@ -401,7 +401,12 @@ export default function NotasPage() {
                       {v.clientes.cidade ? ` — ${v.clientes.cidade}` : ""}
                     </p>
                   )}
-                  {pedidoPendente(v) &&
+                  {v.cancelada && (
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded mt-1 bg-red-100 text-red-700">
+                      CANCELADA{v.motivo_cancelamento ? ` — ${v.motivo_cancelamento}` : ""}
+                    </span>
+                  )}
+                  {!v.cancelada && pedidoPendente(v) &&
                     (() => {
                       const dias = diasRestantes(v.prazo_entrega_maximo as string);
                       const critico = dias <= 3;
