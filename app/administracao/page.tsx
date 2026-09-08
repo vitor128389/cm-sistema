@@ -1651,11 +1651,138 @@ function AbaPermissoes() {
           </tbody>
         </table>
       </div>
+
+      <PermissoesPorUsuario />
     </div>
   );
 }
 
-/* ==================== TECIDOS E CORES ==================== */
+/* ==================== PERMISSÃO INDIVIDUAL POR USUÁRIO ==================== */
+function PermissoesPorUsuario() {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [usuarioSel, setUsuarioSel] = useState("");
+  const [permissoesPadrao, setPermissoesPadrao] = useState<Permissao[]>([]);
+  const [excecoes, setExcecoes] = useState<{ tela: string; pode_acessar: boolean }[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("usuarios")
+      .select("id, nome, funcao")
+      .order("nome")
+      .then(({ data }) => setUsuarios((data || []) as Usuario[]));
+  }, []);
+
+  async function carregarExcecoes(usuarioId: string) {
+    const { data } = await supabase
+      .from("usuario_permissoes")
+      .select("tela, pode_acessar")
+      .eq("usuario_id", usuarioId);
+    setExcecoes(data || []);
+  }
+
+  useEffect(() => {
+    if (!usuarioSel) {
+      setExcecoes([]);
+      setPermissoesPadrao([]);
+      return;
+    }
+    const usuario = usuarios.find((u) => u.id === usuarioSel);
+    supabase
+      .from("permissoes")
+      .select("*")
+      .eq("funcao", usuario?.funcao || "")
+      .then(({ data }) => setPermissoesPadrao((data || []) as Permissao[]));
+    carregarExcecoes(usuarioSel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarioSel]);
+
+  function padraoDoCargo(tela: string): boolean {
+    return permissoesPadrao.find((p) => p.tela === tela)?.pode_acessar || false;
+  }
+
+  function valorAtual(tela: string): "padrao" | "permitir" | "bloquear" {
+    const exc = excecoes.find((e) => e.tela === tela);
+    if (!exc) return "padrao";
+    return exc.pode_acessar ? "permitir" : "bloquear";
+  }
+
+  async function definir(tela: string, opcao: "padrao" | "permitir" | "bloquear") {
+    if (opcao === "padrao") {
+      await supabase.from("usuario_permissoes").delete().eq("usuario_id", usuarioSel).eq("tela", tela);
+    } else {
+      await supabase
+        .from("usuario_permissoes")
+        .upsert(
+          { usuario_id: usuarioSel, tela, pode_acessar: opcao === "permitir" },
+          { onConflict: "usuario_id,tela" }
+        );
+    }
+    carregarExcecoes(usuarioSel);
+  }
+
+  const usuarioAtual = usuarios.find((u) => u.id === usuarioSel);
+
+  return (
+    <div className="mt-8">
+      <p className="text-sm font-semibold text-madeira-700 mb-1">Permissão individual por usuário</p>
+      <p className="text-xs text-madeira-500 mb-4">
+        Sobrescreve o padrão do cargo pra uma pessoa específica — por exemplo, bloquear alguém de ver a
+        Administração mesmo que o cargo dela normalmente permita.
+      </p>
+      <select
+        className="input-base max-w-xs mb-4"
+        value={usuarioSel}
+        onChange={(e) => setUsuarioSel(e.target.value)}
+      >
+        <option value="">Selecione um usuário...</option>
+        {usuarios
+          .filter((u) => u.funcao !== "admin")
+          .map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.nome} ({u.funcao})
+            </option>
+          ))}
+      </select>
+
+      {usuarioAtual && (
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-madeira-50">
+              <tr>
+                <th className="px-4 py-2 text-left">Tela</th>
+                <th className="px-4 py-2 text-left">Padrão do cargo ({usuarioAtual.funcao})</th>
+                <th className="px-4 py-2 text-left">Para {usuarioAtual.nome}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TELAS.map((t) => (
+                <tr key={t.chave} className="border-t border-estofado-100">
+                  <td className="px-4 py-2">{t.label}</td>
+                  <td className="px-4 py-2 text-madeira-500">
+                    {padraoDoCargo(t.chave) ? "Pode acessar" : "Bloqueado"}
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      className="input-base"
+                      value={valorAtual(t.chave)}
+                      onChange={(e) =>
+                        definir(t.chave, e.target.value as "padrao" | "permitir" | "bloquear")
+                      }
+                    >
+                      <option value="padrao">Usar padrão do cargo</option>
+                      <option value="permitir">Sempre permitir</option>
+                      <option value="bloquear">Sempre bloquear</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 function AbaTecidos() {
   const [cores, setCores] = useState<TecidoCor[]>([]);
   const [novoTecido, setNovoTecido] = useState("Suede");
