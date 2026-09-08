@@ -165,6 +165,7 @@ export interface VendaItem {
   id: string;
   venda_id: string;
   produto_id: string | null;
+  variante_id?: string | null;
   nome_produto: string;
   variante: string | null;
   quantidade: number;
@@ -305,6 +306,9 @@ export interface Venda {
   total: number;
   prazo_entrega_maximo: string | null;
   forma_recebimento: FormaRecebimento | null;
+  cancelada?: boolean;
+  motivo_cancelamento?: string | null;
+  cancelada_em?: string | null;
   criado_em: string;
   clientes?: {
     nome: string;
