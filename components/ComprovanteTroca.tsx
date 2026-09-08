@@ -19,6 +19,8 @@ interface Props {
   novos: TrocaItemNovo[];
   tipoPreco: "avista" | "aprazo";
   diferenca: number;
+  diferencaCobrada?: number;
+  parcelasDiferenca?: number;
   formaPagamentoDiferenca: string | null;
   loja?: LojaCompleta | null;
 }
@@ -50,6 +52,8 @@ function ViaTroca({
   novos,
   tipoPreco,
   diferenca,
+  diferencaCobrada,
+  parcelasDiferenca,
   formaPagamentoDiferenca,
   loja,
   rotulo,
@@ -141,8 +145,11 @@ function ViaTroca({
       )}
       {diferenca > 0 && (
         <p style={{ margin: "4px 0" }}>
-          <strong>Diferença paga pelo cliente: {formatarMoeda(diferenca)}</strong>
+          <strong>
+            Diferença paga pelo cliente: {formatarMoeda(diferencaCobrada ?? diferenca)}
+          </strong>
           {formaPagamentoDiferenca ? ` — Forma de pagamento: ${formaPagamentoDiferenca}` : ""}
+          {parcelasDiferenca && parcelasDiferenca > 1 ? ` em ${parcelasDiferenca}x` : ""}
         </p>
       )}
       {diferenca < 0 && (
