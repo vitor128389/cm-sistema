@@ -85,7 +85,7 @@ export const STATUS_ORDEM: StatusEncomenda[] = [
 
 /* ---------------- Tipos usados na tela de Vender ---------------- */
 
-export type TipoPrecificacao = "simples" | "tecido" | "espessura";
+export type TipoPrecificacao = "simples" | "tecido" | "espessura" | "tecido_peca";
 export type TipoEntregaItem = "pronta" | "encomenda";
 export type FormaPagamento = "Dinheiro" | "Pix" | "Débito" | "Crédito";
 
