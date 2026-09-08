@@ -510,8 +510,7 @@ export default function VenderPage() {
   function corTexto(): string | null {
     if (!produtoSelecionado) return null;
     let base: string | null = null;
-    if (produtoSelecionado.categoria === "Móveis Montados") base = "MONTADO";
-    else if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
+    if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
     else if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
       if (pecaSel === "conjunto") base = `${tecidoSel} — Conjunto 2 + 3 Lugares`;
       else if (pecaSel === "2" || pecaSel === "3") base = `${tecidoSel} — ${pecaSel} Lugares`;
@@ -527,6 +526,12 @@ export default function VenderPage() {
         const cor = todasAsCores.find((c) => `${c.tecido}-${c.codigo}` === corSimplesSel);
         base = cor ? cor.nome : null;
       }
+    }
+    // Produtos de "Móveis Montados" (já montados, disponíveis fisicamente na
+    // loja) sempre levam essa etiqueta na venda/nota/impressão — junto com a
+    // cor/variação, se o produto tiver uma selecionada.
+    if (produtoSelecionado.categoria === "Móveis Montados") {
+      base = base ? `${base} — MONTADO` : "MONTADO";
     }
     if (precisaModelo() && modeloSel) {
       return base ? `${base} — Modelo ${modeloSel}` : `Modelo ${modeloSel}`;
