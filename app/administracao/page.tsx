@@ -471,33 +471,39 @@ function AbaEstoque() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_VAZIO);
   const [estoquesEdicao, setEstoquesEdicao] = useState<Record<string, string>>({});
+  const [categoriasConfig, setCategoriasConfig] = useState<Record<string, "tecido" | "espessura" | "simples">>({});
+  const [tipoCategoriaNova, setTipoCategoriaNova] = useState<"tecido" | "espessura" | "simples">("simples");
 
   async function carregar() {
     const data = await carregarProdutosComEstoque(supabase, lojaAtual);
     setProdutos(data);
   }
 
+  async function carregarCategoriasConfig() {
+    const { data } = await supabase.from("categorias_config").select("nome, tipo");
+    const mapa: Record<string, "tecido" | "espessura" | "simples"> = {};
+    (data || []).forEach((c) => {
+      mapa[c.nome.trim().toLowerCase()] = c.tipo as "tecido" | "espessura" | "simples";
+    });
+    setCategoriasConfig(mapa);
+  }
+
   useEffect(() => {
     carregar();
+    carregarCategoriasConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
   const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
 
-  // Categorias que usam opção de tecido (Suede/Linho/Veludo).
-  // Qualquer categoria fora dessa lista (ex: Móveis para Sala) não mostra
-  // os campos de tecido — só o estoque simples. "Camas" é tratada à parte,
-  // com espessura de espuma (5/7/14cm).
-  const CATEGORIAS_COM_TECIDO = [
-    "sofás", "sofas",
-    "poltronas",
-    "cabeceiras",
-    "puffs",
-    "namoradeiras",
-    "painéis", "paineis",
-    "baús", "baus",
-    "recamiers",
-  ];
+  // A partir de agora, é a categoria (configurada no banco, escolhida na hora
+  // de cadastrar) que decide se o produto usa tecido, espessura ou nenhum
+  // dos dois — não uma lista fixa no código nem o que sobrou preenchido nos
+  // campos do formulário. Isso evita categorias "herdando" tecido por engano.
+  function tipoDaCategoria(nomeCategoria: string): "tecido" | "espessura" | "simples" {
+    const chave = nomeCategoria.trim().toLowerCase();
+    return categoriasConfig[chave] || "simples";
+  }
 
   const produtosFiltrados = categoriaFiltro
     ? produtos.filter((p) => p.categoria === categoriaFiltro)
@@ -526,7 +532,9 @@ function AbaEstoque() {
 
   function abrirEdicao(p: ProdutoComVariantes) {
     setEditandoId(p.id);
-    const ehCamas = p.categoria.toLowerCase() === "camas";
+    const tipoReal = tipoDaCategoria(p.categoria);
+    const ehCamas = tipoReal === "espessura";
+    const ehTecido = tipoReal === "tecido";
     const precoBaseFallback = p.preco_venda > 0 ? String(Math.round((p.preco_venda / 1.1) * 100) / 100) : "";
     const novoForm = { ...FORM_VAZIO, nome: p.nome, categoria: p.categoria, custo: String(p.custo || 0) };
     if (ehCamas) {
@@ -553,7 +561,7 @@ function AbaEstoque() {
           novoForm.custo14 = String(v.custo || 0);
         }
       });
-    } else if (p.tipo_precificacao === "tecido" || p.produto_variantes.length > 0) {
+    } else if (ehTecido) {
       novoForm.precoSuede = precoBaseFallback;
       novoForm.precoLinho = precoBaseFallback;
       novoForm.precoVeludo = precoBaseFallback;
@@ -596,7 +604,27 @@ function AbaEstoque() {
       alert("Selecione uma loja ativa no menu lateral (é nela que o estoque inicial será lançado).");
       return;
     }
-    const ehCamas = categoriaFinal.toLowerCase() === "camas";
+
+    // Se é uma categoria nova, grava o tipo escolhido (tecido/espessura/nenhum)
+    // pra ela ser lembrada da próxima vez — sem isso o produto usaria "simples"
+    // por padrão.
+    if (form.categoria === "__nova__") {
+      const { error: erroCategoria } = await supabase
+        .from("categorias_config")
+        .upsert({ nome: categoriaFinal, tipo: tipoCategoriaNova }, { onConflict: "nome" });
+      if (erroCategoria) {
+        alert("Erro ao salvar o tipo da categoria: " + erroCategoria.message);
+        return;
+      }
+      setCategoriasConfig((atual) => ({
+        ...atual,
+        [categoriaFinal.trim().toLowerCase()]: tipoCategoriaNova,
+      }));
+    }
+
+    const tipoReal =
+      form.categoria === "__nova__" ? tipoCategoriaNova : tipoDaCategoria(categoriaFinal);
+    const ehCamas = tipoReal === "espessura";
     const custoNum = parseFloat(form.custo) || 0;
 
     if (ehCamas) {
@@ -675,7 +703,7 @@ function AbaEstoque() {
       if (parseFloat(form.precoLinho) > 0) precos["Linho"] = parseFloat(form.precoLinho);
       if (parseFloat(form.precoVeludo) > 0) precos["Veludo"] = parseFloat(form.precoVeludo);
 
-      const temTecido = Object.keys(precos).length > 0;
+      const temTecido = tipoReal === "tecido" && Object.keys(precos).length > 0;
       const precoSimplesNum = parseFloat(form.precoSimples) || 0;
       const precoVendaBase = temTecido ? Object.values(precos)[0] : precoSimplesNum;
 
@@ -825,13 +853,31 @@ function AbaEstoque() {
                 <option value="__nova__">+ Cadastrar nova categoria...</option>
               </select>
               {form.categoria === "__nova__" && (
-                <input
-                  className="input-base mt-2"
-                  value={form.categoriaNova}
-                  onChange={(e) => setForm({ ...form, categoriaNova: e.target.value })}
-                  placeholder="Nome da nova categoria"
-                  autoFocus
-                />
+                <>
+                  <input
+                    className="input-base mt-2"
+                    value={form.categoriaNova}
+                    onChange={(e) => setForm({ ...form, categoriaNova: e.target.value })}
+                    placeholder="Nome da nova categoria"
+                    autoFocus
+                  />
+                  <label className="block mt-2">
+                    <span className="text-xs text-madeira-600 mb-1 block">
+                      Essa categoria usa:
+                    </span>
+                    <select
+                      className="input-base"
+                      value={tipoCategoriaNova}
+                      onChange={(e) =>
+                        setTipoCategoriaNova(e.target.value as "tecido" | "espessura" | "simples")
+                      }
+                    >
+                      <option value="simples">Nenhum (preço único, sem variação)</option>
+                      <option value="tecido">Tecido (Suede / Linho / Veludo)</option>
+                      <option value="espessura">Espessura (como as camas: 5cm / 7cm / 14cm)</option>
+                    </select>
+                  </label>
+                </>
               )}
             </label>
             <label className="block">
@@ -849,15 +895,11 @@ function AbaEstoque() {
           </div>
 
           {(() => {
-            const categoriaAtual = (form.categoria === "__nova__" ? form.categoriaNova : form.categoria)
-              .trim()
-              .toLowerCase();
+            const categoriaAtual = form.categoria === "__nova__" ? form.categoriaNova : form.categoria;
+            const tipoReal =
+              form.categoria === "__nova__" ? tipoCategoriaNova : tipoDaCategoria(categoriaAtual);
             const modoCampos: "camas" | "tecido" | "simples" =
-              categoriaAtual === "camas"
-                ? "camas"
-                : CATEGORIAS_COM_TECIDO.includes(categoriaAtual)
-                ? "tecido"
-                : "simples";
+              tipoReal === "espessura" ? "camas" : tipoReal === "tecido" ? "tecido" : "simples";
 
             if (modoCampos === "camas") {
               return (
