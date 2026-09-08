@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
+import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
@@ -79,6 +80,7 @@ export default function NotasPage() {
   const [somenteEntregues, setSomenteEntregues] = useState(false);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
+  const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
   const [mensagemSelecionada, setMensagemSelecionada] = useState<Record<string, string>>({});
   const [trocas, setTrocas] = useState<TrocaGrupo[]>([]);
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
@@ -215,8 +217,9 @@ export default function NotasPage() {
     setTimeout(() => window.print(), 100);
   }
 
-  async function imprimir(v: Venda) {
+  async function imprimir(v: Venda, formato: "a4" | "cupom88" = "a4") {
     setNotaImprimindo(v);
+    setFormatoImpressao(formato);
     if (v.loja_id) {
       const { data } = await supabase.from("lojas").select("*").eq("id", v.loja_id).maybeSingle();
       setLojaImprimindo(data as LojaCompleta | null);
@@ -438,6 +441,13 @@ export default function NotasPage() {
                     🖨
                   </button>
                   <button
+                    className="btn-secundario text-xs px-2 py-1"
+                    onClick={() => imprimir(v, "cupom88")}
+                    title="Imprimir cupom para impressora térmica 88mm"
+                  >
+                    🧾 88mm
+                  </button>
+                  <button
                     className="text-xs px-2 py-1 rounded bg-green-700 text-white font-medium hover:bg-green-800"
                     onClick={() => enviarPdfWhatsApp(v)}
                     title="Gerar PDF da nota e enviar por WhatsApp"
@@ -558,8 +568,30 @@ export default function NotasPage() {
         </>
       )}
 
-      <div id="area-impressao">
-        {notaImprimindo && (
+      <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
+        {notaImprimindo && formatoImpressao === "cupom88" && (
+          <ComprovanteCupom88mm
+            numeroPedido={notaImprimindo.numero_pedido}
+            cliente={
+              notaImprimindo.clientes
+                ? {
+                    nome: notaImprimindo.clientes.nome,
+                    telefone: notaImprimindo.clientes.telefone,
+                    endereco: notaImprimindo.clientes.endereco,
+                    numero: notaImprimindo.clientes.numero,
+                    complemento: notaImprimindo.clientes.complemento,
+                    cidade: notaImprimindo.clientes.cidade,
+                  }
+                : null
+            }
+            loja={lojaImprimindo}
+            total={notaImprimindo.total}
+            formaPagamento={notaImprimindo.forma_pagamento}
+            prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
+            itens={notaImprimindo.venda_itens || []}
+          />
+        )}
+        {notaImprimindo && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={notaImprimindo.numero_pedido}
             cliente={{
