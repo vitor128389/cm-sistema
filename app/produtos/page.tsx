@@ -45,7 +45,7 @@ export default function ProdutosPage() {
   return (
     <div className="p-8">
       <h1 className="font-display text-3xl text-madeira-900">Produtos</h1>
-      <p className="text-madeira-600 mt-1 mb-6">Peças da fábrica e da loja, com custo, preço e lucro.</p>
+      <p className="text-madeira-600 mt-1 mb-6">Peças da fábrica e da loja, com preço e disponibilidade.</p>
 
       <label className="block max-w-sm mb-4">
         <span className="text-xs text-madeira-600 mb-1 block">Buscar produto</span>
@@ -98,7 +98,6 @@ export default function ProdutosPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Produto</th>
                 <th className="px-4 py-3 font-medium">Categoria</th>
-                <th className="px-4 py-3 font-medium">Custo</th>
                 <th className="px-4 py-3 font-medium">Preço (à vista / a prazo)</th>
                 <th className="px-4 py-3 font-medium">Disponibilidade</th>
               </tr>
@@ -108,11 +107,6 @@ export default function ProdutosPage() {
                 <tr key={p.id} className="border-t border-estofado-100 align-top">
                   <td className="px-4 py-3 text-madeira-900">{p.nome}</td>
                   <td className="px-4 py-3 text-madeira-600">{p.categoria}</td>
-                  <td className="px-4 py-3 text-madeira-600">
-                    {(p as unknown as { custo: number }).custo > 0
-                      ? formatarMoeda((p as unknown as { custo: number }).custo)
-                      : "A definir"}
-                  </td>
                   <td className="px-4 py-3 text-madeira-600">
                     {p.produto_variantes.length > 0 ? (
                       p.produto_variantes.map((v) => (
