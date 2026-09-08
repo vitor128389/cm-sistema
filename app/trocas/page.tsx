@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
+import { definirTamanhoPagina } from "@/lib/imprimir";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import type {
   Venda,
@@ -419,7 +420,7 @@ export default function TrocasPage() {
             {concluida.diferenca === 0 && "Troca sem diferença de valor."}
           </p>
           <div className="flex gap-3">
-            <button className="btn-secundario" onClick={() => window.print()}>
+            <button className="btn-secundario" onClick={() => { definirTamanhoPagina("a4"); window.print(); }}>
               🖨 IMPRIMIR COMPROVANTE DE TROCA
             </button>
             <button className="btn-primario" onClick={novaTroca}>
