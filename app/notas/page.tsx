@@ -8,6 +8,7 @@ import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
+import { definirTamanhoPagina } from "@/lib/imprimir";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -214,6 +215,7 @@ export default function NotasPage() {
       const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
       setLojaImprimindo(data as LojaCompleta | null);
     }
+    definirTamanhoPagina("a4");
     setTimeout(() => window.print(), 100);
   }
 
@@ -226,6 +228,7 @@ export default function NotasPage() {
     } else {
       setLojaImprimindo(null);
     }
+    definirTamanhoPagina(formato);
     setTimeout(() => window.print(), 100);
   }
 
