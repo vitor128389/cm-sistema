@@ -60,6 +60,7 @@ export default function TrocasPage() {
   const [proxChave, setProxChave] = useState(1);
   const [tipoPreco, setTipoPreco] = useState<"avista" | "aprazo">("avista");
   const [formaPagDiferenca, setFormaPagDiferenca] = useState("");
+  const [parcelasDiferenca, setParcelasDiferenca] = useState(1);
   const [salvando, setSalvando] = useState(false);
 
   const [concluida, setConcluida] = useState<{
@@ -69,6 +70,9 @@ export default function TrocasPage() {
     devolvidos: TrocaItemDevolvido[];
     novos: TrocaItemNovo[];
     diferenca: number;
+    diferencaCobrada: number;
+    parcelasDiferenca: number;
+    formaPagDiferenca: string;
   } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
 
@@ -191,6 +195,13 @@ export default function TrocasPage() {
 
   const diferenca = Math.round((valorNovoTotal - valorDevolvidoTotal) * 100) / 100;
 
+  // Igual na venda: só parcelar em mais de 1x tem os 10% de acréscimo — em
+  // 1x (à vista) ou qualquer outra forma, cobra exatamente a diferença.
+  const diferencaParcelada = formaPagDiferenca === "Crédito" && parcelasDiferenca > 1;
+  const diferencaCobrada = diferencaParcelada
+    ? Math.round(diferenca * 1.1 * 100) / 100
+    : diferenca;
+
   async function confirmarTroca() {
     if (!vendaEncontrada || !lojaAtual) return;
     if (itensDevolvidos.length === 0) {
@@ -234,6 +245,8 @@ export default function TrocasPage() {
           valor_novo_total: valorNovoTotal,
           diferenca,
           forma_pagamento_diferenca: diferenca !== 0 ? formaPagDiferenca : null,
+          parcelas_diferenca: diferenca !== 0 && formaPagDiferenca === "Crédito" ? parcelasDiferenca : 1,
+          valor_cobrado_diferenca: diferenca !== 0 ? diferencaCobrada : null,
           turno_caixa_id: turno?.id || null,
           loja_id: lojaAtual,
         })
@@ -316,7 +329,7 @@ export default function TrocasPage() {
           const totaisAtualizados: Record<string, number> = {};
 
           if (diferenca > 0) {
-            totaisAtualizados.total_vendido = (turnoAtual.total_vendido || 0) + diferenca;
+            totaisAtualizados.total_vendido = (turnoAtual.total_vendido || 0) + diferencaCobrada;
             const campoForma =
               formaPagDiferenca === "Dinheiro"
                 ? "total_dinheiro"
@@ -328,7 +341,8 @@ export default function TrocasPage() {
                 ? "total_credito"
                 : null;
             if (campoForma) {
-              totaisAtualizados[campoForma] = ((turnoAtual as Record<string, number>)[campoForma] || 0) + diferenca;
+              totaisAtualizados[campoForma] =
+                ((turnoAtual as Record<string, number>)[campoForma] || 0) + diferencaCobrada;
             }
           } else {
             totaisAtualizados.total_devolvido = (turnoAtual.total_devolvido || 0) + Math.abs(diferenca);
@@ -359,6 +373,9 @@ export default function TrocasPage() {
         devolvidos: (devolvidosInseridos || []) as unknown as TrocaItemDevolvido[],
         novos: (novosInseridos || []) as unknown as TrocaItemNovo[],
         diferenca,
+        diferencaCobrada,
+        parcelasDiferenca: diferenca !== 0 && formaPagDiferenca === "Crédito" ? parcelasDiferenca : 1,
+        formaPagDiferenca,
       });
     } catch (erro: unknown) {
       // eslint-disable-next-line no-console
@@ -376,6 +393,7 @@ export default function TrocasPage() {
     setDevolvidosSelecionados({});
     setNovasLinhas([]);
     setFormaPagDiferenca("");
+    setParcelasDiferenca(1);
     setConcluida(null);
   }
 
@@ -391,7 +409,11 @@ export default function TrocasPage() {
         <div className="card p-6">
           <p className="font-display text-lg mb-2">✅ Troca #{concluida.numeroTroca} registrada!</p>
           <p className="text-sm text-madeira-600 mb-4">
-            {concluida.diferenca > 0 && `O cliente pagou ${formatarMoeda(concluida.diferenca)} de diferença.`}
+            {concluida.diferenca > 0 &&
+              `O cliente pagou ${formatarMoeda(concluida.diferencaCobrada)} de diferença` +
+                (concluida.parcelasDiferenca > 1
+                  ? ` (${concluida.formaPagDiferenca} em ${concluida.parcelasDiferenca}x).`
+                  : ".")}
             {concluida.diferenca < 0 &&
               `A loja devolveu ${formatarMoeda(Math.abs(concluida.diferenca))} ao cliente.`}
             {concluida.diferenca === 0 && "Troca sem diferença de valor."}
@@ -414,7 +436,9 @@ export default function TrocasPage() {
               novos={concluida.novos}
               tipoPreco={tipoPreco}
               diferenca={concluida.diferenca}
-              formaPagamentoDiferenca={diferenca !== 0 ? formaPagDiferenca : null}
+              diferencaCobrada={concluida.diferencaCobrada}
+              parcelasDiferenca={concluida.parcelasDiferenca}
+              formaPagamentoDiferenca={concluida.diferenca !== 0 ? concluida.formaPagDiferenca : null}
               loja={lojaInfo}
             />
           </div>
@@ -672,6 +696,12 @@ export default function TrocasPage() {
                       {formatarMoeda(Math.abs(diferenca))}
                     </span>
                   </div>
+                  {diferencaParcelada && (
+                    <div className="flex justify-between text-xs text-madeira-600">
+                      <span>Com acréscimo do parcelamento ({parcelasDiferenca}x)</span>
+                      <span>{formatarMoeda(diferencaCobrada)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {diferenca !== 0 && (
@@ -682,7 +712,10 @@ export default function TrocasPage() {
                     <select
                       className="input-base"
                       value={formaPagDiferenca}
-                      onChange={(e) => setFormaPagDiferenca(e.target.value)}
+                      onChange={(e) => {
+                        setFormaPagDiferenca(e.target.value);
+                        setParcelasDiferenca(1);
+                      }}
                     >
                       <option value="">Selecione...</option>
                       <option value="Dinheiro">Dinheiro</option>
@@ -690,6 +723,23 @@ export default function TrocasPage() {
                       {diferenca > 0 && <option value="Débito">Débito</option>}
                       {diferenca > 0 && <option value="Crédito">Crédito</option>}
                       <option value="Outro">Outro</option>
+                    </select>
+                  </label>
+                )}
+
+                {diferenca > 0 && formaPagDiferenca === "Crédito" && (
+                  <label className="block mb-4 max-w-xs">
+                    <span className="text-xs text-madeira-600 mb-1 block">Parcelar em</span>
+                    <select
+                      className="input-base"
+                      value={parcelasDiferenca}
+                      onChange={(e) => setParcelasDiferenca(Number(e.target.value))}
+                    >
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>
+                          {n}x{n === 1 ? " (à vista)" : ""}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 )}
