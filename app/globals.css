@@ -143,6 +143,12 @@ body {
     padding: 2px 8px;
     display: inline-block;
   }
+  #area-impressao.cupom-88mm {
+    width: 80mm;
+    height: auto;
+    font-size: 11px;
+    line-height: 1.4;
+  }
   /* cada via ocupa exatamente metade da folha (281mm de área útil),
      com um respiro simétrico de 2mm de cada lado da linha de corte —
      assim ela cai bem no meio físico da página, e não só no meio do
