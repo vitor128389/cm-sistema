@@ -8,6 +8,7 @@ import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
+import { definirTamanhoPagina } from "@/lib/imprimir";
 import type {
   ProdutoComVariantes,
   TecidoCor,
@@ -617,11 +618,20 @@ export default function VenderPage() {
       return;
     }
 
-    // Caixa fechado? pergunta se quer abrir na hora, sem sair da tela de venda.
+    // Caixa fechado? pergunta o valor em dinheiro que tem no caixa e já abre
+    // na hora, sem sair da tela de venda.
     let turnoParaUsar = turnoAtual;
     if (!turnoParaUsar) {
-      const querAbrir = confirm("O caixa está fechado. Deseja abrir o caixa?");
-      if (!querAbrir) return;
+      const valorDigitado = prompt(
+        "O caixa está fechado. Quanto tem em dinheiro no caixa agora (fundo inicial)? Digite 0 se não tiver nada."
+      );
+      if (valorDigitado === null) return; // cancelou
+
+      const fundoInicial = Number(valorDigitado.replace(",", "."));
+      if (isNaN(fundoInicial) || fundoInicial < 0) {
+        alert("Valor inválido. Digite um número (ex: 100 ou 100,50).");
+        return;
+      }
 
       const { data: caixasLoja, error: erroCaixas } = await supabase
         .from("caixas")
@@ -636,7 +646,7 @@ export default function VenderPage() {
       }
       const { data: novoTurno, error: erroAbrir } = await supabase
         .from("turnos_caixa")
-        .insert({ caixa_id: caixasLoja[0].id, fundo_inicial: 0, status: "aberto", loja_id: lojaAtual })
+        .insert({ caixa_id: caixasLoja[0].id, fundo_inicial: fundoInicial, status: "aberto", loja_id: lojaAtual })
         .select("id")
         .single();
       if (erroAbrir || !novoTurno) {
@@ -1718,6 +1728,7 @@ export default function VenderPage() {
               className="btn-secundario"
               onClick={() => {
                 setFormatoImpressao("a4");
+                definirTamanhoPagina("a4");
                 setTimeout(() => window.print(), 50);
               }}
             >
@@ -1727,6 +1738,7 @@ export default function VenderPage() {
               className="btn-secundario"
               onClick={() => {
                 setFormatoImpressao("cupom88");
+                definirTamanhoPagina("cupom88");
                 setTimeout(() => window.print(), 50);
               }}
               title="Imprimir cupom para impressora térmica 88mm"
