@@ -70,7 +70,7 @@ export default function NotasPage() {
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregar, setErroCarregar] = useState("");
-  const [periodo, setPeriodo] = useState<"hoje" | "ontem" | "personalizado" | "todos">("hoje");
+  const [periodo, setPeriodo] = useState<"hoje" | "ontem" | "personalizado" | "todos">("todos");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
