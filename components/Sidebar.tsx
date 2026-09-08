@@ -7,8 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { obterPermissoesEfetivas, type Tela } from "@/lib/permissoes";
 import { useLoja } from "@/contexts/LojaContext";
 
-const ITENS: { href: string; label: string; tela: Tela | null }[] = [
-  { href: "/", label: "Painel", tela: null },
+const ITENS: { href: string; label: string; tela: Tela }[] = [
+  { href: "/", label: "Painel", tela: "painel" },
   { href: "/vender", label: "Vender", tela: "vender" },
   { href: "/produtos", label: "Produtos", tela: "produtos" },
   { href: "/clientes", label: "Clientes", tela: "clientes" },
@@ -61,7 +61,6 @@ export default function Sidebar() {
   if (pathname === "/login") return null;
 
   const itensVisiveis = ITENS.filter((item) => {
-    if (item.tela === null) return true; // Painel sempre visível
     if (!permissoes) return false; // ainda carregando — não mostra nada de errado por um instante
     return permissoes[item.tela];
   });
