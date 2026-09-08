@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { obterPermissoesEfetivas, telaDaRota } from "@/lib/permissoes";
+import { obterPermissoesEfetivas, telaDaRota, TELAS_PROTEGIDAS } from "@/lib/permissoes";
 
 // Páginas que qualquer um pode ver sem estar logado
 const ROTAS_PUBLICAS = ["/login"];
@@ -64,7 +64,16 @@ export async function updateSession(request: NextRequest) {
       const { permissoes } = await obterPermissoesEfetivas(supabase, user.id);
       if (!permissoes[tela]) {
         const url = request.nextUrl.clone();
-        url.pathname = "/";
+        // O redirecionamento padrão é pro Painel — mas se a pessoa também não
+        // puder ver o Painel, isso criaria um loop de redirecionamento.
+        // Nesse caso, manda pra primeira tela que ela realmente pode acessar,
+        // ou pro login se não tiver nenhuma.
+        if (tela !== "painel" && permissoes.painel) {
+          url.pathname = "/";
+        } else {
+          const primeiraPermitida = TELAS_PROTEGIDAS.find((t) => t !== "painel" && permissoes[t]);
+          url.pathname = primeiraPermitida ? `/${primeiraPermitida}` : "/login";
+        }
         url.searchParams.set("sem-permissao", tela);
         return NextResponse.redirect(url);
       }
