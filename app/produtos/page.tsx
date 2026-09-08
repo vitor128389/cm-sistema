@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque } from "@/lib/produtos";
 import type { ProdutoComVariantes } from "@/types";
@@ -37,7 +37,7 @@ export default function ProdutosPage() {
   const categorias = Array.from(new Set([...CATEGORIAS_FIXAS, ...produtos.map((p) => p.categoria)]));
 
   const produtosFiltrados = produtos.filter((p) => {
-    if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false;
+    if (busca && !normalizarBusca(p.nome).includes(normalizarBusca(busca))) return false;
     if (categoriaAtiva && p.categoria !== categoriaAtiva) return false;
     return true;
   });
