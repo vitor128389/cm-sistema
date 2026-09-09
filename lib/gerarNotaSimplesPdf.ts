@@ -42,6 +42,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
     linha("Cliente", { negrito: true, tamanho: 10, espaco: 1 });
     linha(cliente.nome, { tamanho: 10 });
     if (cliente.telefone) linha(`Cel: ${cliente.telefone}`, { tamanho: 10 });
+    if (cliente.bairro) linha(`Bairro: ${cliente.bairro}`, { tamanho: 10 });
     if (cliente.endereco) {
       const numero = cliente.numero ? `, ${cliente.numero}` : "";
       linha(`End: ${cliente.endereco}${numero}`, { tamanho: 10 });
