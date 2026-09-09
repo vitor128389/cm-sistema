@@ -269,6 +269,7 @@ export interface TrocaGrupo {
       numero?: string | null;
       complemento?: string | null;
       cidade?: string | null;
+      povoado?: string | null;
     } | null;
   } | null;
 }
@@ -321,6 +322,7 @@ export interface Venda {
     numero?: string | null;
     complemento?: string | null;
     cidade?: string | null;
+    povoado?: string | null;
   } | null;
   lojas?: LojaCompleta | null;
   venda_itens?: VendaItem[];
