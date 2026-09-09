@@ -1964,7 +1964,8 @@ export default function VenderPage() {
                     endereco,
                     numero: semNumero ? "S/N" : numero,
                     complemento,
-                    cidade: povoado ? `${cidade} — ${povoado}` : cidade,
+                    cidade,
+                    povoado: povoado || null,
                   }
             }
             loja={lojaInfo}
@@ -2001,7 +2002,8 @@ export default function VenderPage() {
               endereco,
               numero: semNumero ? "S/N" : numero,
               complemento,
-              cidade: povoado ? `${cidade} — ${povoado}` : cidade,
+              cidade,
+              povoado: povoado || null,
             }}
             loja={lojaInfo}
             total={vendaConcluida.total}
