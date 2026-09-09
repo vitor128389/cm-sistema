@@ -93,7 +93,7 @@ export default function NotasPage() {
   async function carregarTrocas() {
     let query = supabase
       .from("trocas_grupo")
-      .select("*, vendas(numero_pedido, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade)), trocas_devolvidos(*), trocas_novos(*)")
+      .select("*, vendas(numero_pedido, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado)), trocas_devolvidos(*), trocas_novos(*)")
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     const { data, error } = await query;
@@ -111,7 +111,7 @@ export default function NotasPage() {
 
     let query = supabase
       .from("vendas")
-      .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade), venda_itens(*), venda_pagamentos(*)")
+      .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado), venda_itens(*), venda_pagamentos(*)")
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     let { data, error } = await query;
@@ -123,7 +123,7 @@ export default function NotasPage() {
       // não exista nesse banco (migração v8 não aplicada)
       let queryReserva = supabase
         .from("vendas")
-        .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade), venda_itens(*)")
+        .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado), venda_itens(*)")
         .order("criado_em", { ascending: false });
       if (lojaAtual) queryReserva = queryReserva.eq("loja_id", lojaAtual);
       const retry = await queryReserva;
@@ -627,6 +627,7 @@ export default function NotasPage() {
                     numero: notaImprimindo.clientes.numero,
                     complemento: notaImprimindo.clientes.complemento,
                     cidade: notaImprimindo.clientes.cidade,
+                    povoado: notaImprimindo.clientes.povoado,
                   }
                 : null
             }
@@ -648,6 +649,7 @@ export default function NotasPage() {
               numero: notaImprimindo.clientes?.numero,
               complemento: notaImprimindo.clientes?.complemento,
               cidade: notaImprimindo.clientes?.cidade,
+              povoado: notaImprimindo.clientes?.povoado,
             }}
             loja={lojaImprimindo}
             total={notaImprimindo.total}
@@ -673,6 +675,7 @@ export default function NotasPage() {
               numero: trocaImprimindo.vendas?.clientes?.numero ?? null,
               complemento: trocaImprimindo.vendas?.clientes?.complemento ?? null,
               cidade: trocaImprimindo.vendas?.clientes?.cidade ?? null,
+              povoado: trocaImprimindo.vendas?.clientes?.povoado ?? null,
             }}
             devolvidos={trocaImprimindo.trocas_devolvidos || []}
             novos={trocaImprimindo.trocas_novos || []}
