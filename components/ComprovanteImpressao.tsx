@@ -170,7 +170,9 @@ function ViaComprovante({
         </>
       ) : (
         <>
-          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>Itens</p>
+          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>
+            {itensRetirada.length === itens.length && itens.length > 0 ? "RETIRADA NA LOJA" : "Itens"}
+          </p>
           <table>
             <thead>
               <tr>
