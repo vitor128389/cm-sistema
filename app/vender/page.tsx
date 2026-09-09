@@ -35,6 +35,7 @@ export default function VenderPage() {
     { numero: "", responsavel: "" },
   ]);
   const [endereco, setEndereco] = useState("");
+  const [bairro, setBairro] = useState("");
   const [numero, setNumero] = useState("");
   const [semNumero, setSemNumero] = useState(false);
   const [complemento, setComplemento] = useState("");
@@ -243,6 +244,7 @@ export default function VenderPage() {
     setCpf(c.cpf ? formatarCpfExibicao(c.cpf) : "");
     setSemCpf(!c.cpf);
     setEndereco(c.endereco || "");
+    setBairro((c as { bairro?: string | null }).bairro || "");
     setNumero(c.numero || "");
     setSemNumero(c.sem_numero || false);
     setComplemento(c.complemento || "");
@@ -845,6 +847,7 @@ export default function VenderPage() {
         complemento: complemento || null,
         cidade: cidade || null,
         povoado: povoado || null,
+        bairro: bairro || null,
       };
 
       if (!clienteId) {
@@ -1027,6 +1030,7 @@ export default function VenderPage() {
     setSemCpf(false);
     setCelulares([{ numero: "", responsavel: "" }]);
     setEndereco("");
+    setBairro("");
     setNumero("");
     setSemNumero(false);
     setComplemento("");
@@ -1220,12 +1224,22 @@ export default function VenderPage() {
                 </label>
 
                 <label className="block">
+                  <span className="text-xs text-madeira-600 mb-1 block">Bairro</span>
+                  <input
+                    className="input-base"
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    placeholder="Ex: Centro"
+                  />
+                </label>
+
+                <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Endereço da entrega</span>
                   <input
                     className="input-base"
                     value={endereco}
                     onChange={(e) => setEndereco(e.target.value)}
-                    placeholder="Rua, bairro"
+                    placeholder="Rua"
                   />
                 </label>
 
@@ -2032,6 +2046,7 @@ export default function VenderPage() {
                     complemento,
                     cidade,
                     povoado: povoado || null,
+                    bairro: bairro || null,
                   }
             }
             loja={lojaInfo}
@@ -2072,6 +2087,7 @@ export default function VenderPage() {
               complemento,
               cidade,
               povoado: povoado || null,
+              bairro: bairro || null,
             }}
             loja={lojaInfo}
             total={vendaConcluida.total}
