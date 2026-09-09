@@ -9,6 +9,7 @@ interface ClienteResumo {
   numero?: string | null;
   complemento?: string | null;
   cidade?: string | null;
+  povoado?: string | null;
 }
 
 interface Props {
@@ -40,6 +41,7 @@ function enderecoClienteTexto(c: ClienteResumo): string | null {
     c.endereco && c.numero ? `${c.endereco}, ${c.numero}` : c.endereco,
     c.complemento,
     c.cidade,
+    c.povoado ? `Povoado: ${c.povoado}` : null,
   ].filter(Boolean);
   return partes.length > 0 ? partes.join(" — ") : null;
 }
