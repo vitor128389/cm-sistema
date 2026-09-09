@@ -9,6 +9,7 @@ interface ClienteResumo {
   complemento?: string | null;
   cidade?: string | null;
   povoado?: string | null;
+  bairro?: string | null;
 }
 
 interface Props {
@@ -62,6 +63,7 @@ export default function ComprovanteCupom88mm({
         <>
           <p style={{ margin: "2px 0" }}>Cliente: {cliente.nome}</p>
           {cliente.telefone && <p style={{ margin: "2px 0" }}>Cel: {cliente.telefone}</p>}
+          {cliente.bairro && <p style={{ margin: "2px 0" }}>Bairro: {cliente.bairro}</p>}
           {cliente.endereco && (
             <p style={{ margin: "2px 0" }}>
               End: {cliente.endereco}
