@@ -481,6 +481,22 @@ function AbaEstoque() {
   const [estoquesEdicao, setEstoquesEdicao] = useState<Record<string, string>>({});
   const [categoriasConfig, setCategoriasConfig] = useState<Record<string, "tecido" | "espessura" | "simples">>({});
   const [tipoCategoriaNova, setTipoCategoriaNova] = useState<"tecido" | "espessura" | "simples">("simples");
+  const [produtosDesativados, setProdutosDesativados] = useState<{ id: string; nome: string; categoria: string }[]>(
+    []
+  );
+  const [mostrarDesativados, setMostrarDesativados] = useState(false);
+
+  async function carregarDesativados() {
+    const { data } = await supabase.from("produtos").select("id, nome, categoria").eq("ativo", false).order("nome");
+    setProdutosDesativados(data || []);
+  }
+
+  async function reativarProduto(id: string) {
+    const { error } = await supabase.from("produtos").update({ ativo: true }).eq("id", id);
+    if (error) alert("Erro ao reativar: " + error.message);
+    carregar();
+    carregarDesativados();
+  }
 
   async function carregar() {
     const data = await carregarProdutosComEstoque(supabase, lojaAtual);
@@ -499,6 +515,7 @@ function AbaEstoque() {
   useEffect(() => {
     carregar();
     carregarCategoriasConfig();
+    carregarDesativados();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
@@ -552,7 +569,22 @@ function AbaEstoque() {
   async function excluirProduto(id: string, nome: string) {
     if (!confirm(`Excluir "${nome}" do catálogo? Isso remove o produto de TODAS as lojas — essa ação não pode ser desfeita.`)) return;
     const { error } = await supabase.from("produtos").delete().eq("id", id);
-    if (error) alert("Erro: " + error.message);
+    if (error) {
+      // Produto que já foi vendido antes não pode ser apagado de verdade
+      // (o pedido antigo precisa continuar mostrando o que foi vendido) —
+      // nesse caso, oferece desativar em vez de excluir.
+      if (error.message.includes("venda_itens_produto_id_fkey") || error.message.includes("foreign key")) {
+        const desativar = confirm(
+          `"${nome}" já tem vendas registradas, então não dá pra excluir de vez (senão as notas antigas perderiam a informação do que foi vendido).\n\nQuer desativar esse produto em vez disso? Ele some da tela de vendas, mas o histórico continua intacto.`
+        );
+        if (desativar) {
+          const { error: erroDesativar } = await supabase.from("produtos").update({ ativo: false }).eq("id", id);
+          if (erroDesativar) alert("Erro ao desativar: " + erroDesativar.message);
+        }
+      } else {
+        alert("Erro: " + error.message);
+      }
+    }
     carregar();
   }
 
@@ -1320,6 +1352,36 @@ function AbaEstoque() {
           </tbody>
         </table>
       </div>
+
+      {produtosDesativados.length > 0 && (
+        <div className="mt-8">
+          <button
+            className="text-sm text-madeira-600 underline"
+            onClick={() => setMostrarDesativados(!mostrarDesativados)}
+          >
+            {mostrarDesativados ? "Esconder" : "Mostrar"} produtos desativados ({produtosDesativados.length})
+          </button>
+          {mostrarDesativados && (
+            <div className="card p-4 mt-2">
+              <p className="text-xs text-madeira-500 mb-3">
+                Produtos que já tiveram venda registrada não podem ser excluídos de vez (senão as notas antigas
+                perderiam a informação do que foi vendido) — foram desativados em vez disso. Reative se precisar
+                voltar a vender de novo.
+              </p>
+              {produtosDesativados.map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-1 border-t border-estofado-100">
+                  <span className="text-sm">
+                    {p.nome} <span className="text-xs text-madeira-500">— {p.categoria}</span>
+                  </span>
+                  <button className="btn-secundario text-xs px-2 py-1" onClick={() => reativarProduto(p.id)}>
+                    Reativar
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
