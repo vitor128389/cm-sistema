@@ -313,7 +313,6 @@ export interface Venda {
   subtotal: number;
   ajuste: number;
   total: number;
-  valor_pago?: number;
   prazo_entrega_maximo: string | null;
   forma_recebimento: FormaRecebimento | null;
   cancelada?: boolean;
