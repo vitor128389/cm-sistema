@@ -52,8 +52,12 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   }
 
   // Itens
-  linha("Produtos", { negrito: true, tamanho: 10, espaco: 1 });
-  for (const item of venda.venda_itens || []) {
+  const itensVenda = venda.venda_itens || [];
+  const todosRetirada =
+    itensVenda.length > 0 &&
+    itensVenda.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade);
+  linha(todosRetirada ? "Produtos — RETIRADA NA LOJA" : "Produtos", { negrito: true, tamanho: 10, espaco: 1 });
+  for (const item of itensVenda) {
     const nomeVariante = item.variante ? ` — ${item.variante}` : "";
     linha(`${item.quantidade}x ${item.nome_produto}${nomeVariante}`, { tamanho: 10, espaco: 0.5 });
     linha(formatarMoeda(item.total), { tamanho: 9, espaco: 2 });
