@@ -211,6 +211,9 @@ function ViaComprovante({
       <div style={{ marginTop: 10 }}>
         {rotulo === "Via da loja" ? (
           <>
+            <p style={{ margin: "6px 0 6px" }}>
+              Declaro que recebi os produtos acima em perfeito estado.
+            </p>
             <p style={{ margin: "6px 0 6px" }}>Assinatura do cliente: __________________________________</p>
             <p style={{ margin: "2px 0" }}>Data que recebeu: ___ /___ /______</p>
           </>
