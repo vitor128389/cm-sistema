@@ -214,6 +214,12 @@ export default function VenderPage() {
       setNome(resultado.nome);
       setCpfInfo(`Nome encontrado: ${resultado.nome} (cliente novo)`);
       setCpfInfoCor("text-green-700");
+    } else if (resultado.erro) {
+      // A consulta automática falhou de verdade (serviço fora do ar,
+      // créditos esgotados, etc.) — diferente de "CPF não encontrado".
+      // Não esconde isso, senão parece que o CPF simplesmente não existe.
+      setCpfInfo("Não foi possível consultar o nome automaticamente. Digite o nome manualmente.");
+      setCpfInfoCor("text-red-700");
     } else {
       setCpfInfo("CPF não encontrado — será cadastrado um cliente novo.");
       setCpfInfoCor("text-madeira-500");
