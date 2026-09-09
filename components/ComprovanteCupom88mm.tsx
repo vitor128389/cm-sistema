@@ -87,6 +87,12 @@ export default function ComprovanteCupom88mm({
             {item.quantidade}x {item.nome_produto}
             {item.variante ? ` — ${item.variante}` : ""}
           </p>
+          {!!item.desconto && item.desconto > 0 && (
+            <p style={{ margin: 0, fontSize: "10px" }}>
+              Desconto: {formatarMoeda(item.desconto)}
+              {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
+            </p>
+          )}
           <p style={{ margin: 0, textAlign: "right" }}>{formatarMoeda(item.total)}</p>
         </div>
       ))}
