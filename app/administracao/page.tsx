@@ -38,6 +38,11 @@ const FORM_VAZIO = {
   custo: "0",
   estoqueSimples: "0",
   precoSimples: "",
+  // Guarda o tipo real do produto sendo editado (tecido/espessura/simples/
+  // tecido_peca), pra não depender só da categoria — categorias mistas como
+  // "Colchões e Bases" (que tem Bases simples E Colchões por espessura)
+  // fariam o formulário adivinhar errado se olhasse só a categoria.
+  tipoAtual: "" as "" | "tecido" | "espessura" | "simples" | "tecido_peca",
   // Tecido genérico (Suede/Linho/Veludo por padrão, mas aceita qualquer
   // nome extra como Napa, Atoalhado etc.) — uma linha por tecido que o
   // produto realmente tiver.
@@ -553,11 +558,20 @@ function AbaEstoque() {
 
   function abrirEdicao(p: ProdutoComVariantes) {
     setEditandoId(p.id);
-    const tipoReal = tipoDaCategoria(p.categoria);
+    // Usa o tipo real já salvo no produto, não o padrão da categoria — uma
+    // categoria mista (tipo "Colchões e Bases", que tem Base simples e
+    // Colchão por espessura) faria o formulário adivinhar errado.
+    const tipoReal = p.tipo_precificacao;
     const ehCamas = tipoReal === "espessura";
     const ehTecido = tipoReal === "tecido";
     const precoBaseFallback = p.preco_venda > 0 ? String(Math.round((p.preco_venda / 1.1) * 100) / 100) : "";
-    const novoForm = { ...FORM_VAZIO, nome: p.nome, categoria: p.categoria, custo: String(p.custo || 0) };
+    const novoForm = {
+      ...FORM_VAZIO,
+      nome: p.nome,
+      categoria: p.categoria,
+      custo: String(p.custo || 0),
+      tipoAtual: tipoReal,
+    };
     if (ehCamas) {
       // Pega as espessuras reais do produto (5/7/14cm nas camas, 10/20cm
       // nos colchões, etc.) — nunca mais fixo em só um padrão.
@@ -635,8 +649,14 @@ function AbaEstoque() {
       }));
     }
 
-    const tipoReal =
-      form.categoria === "__nova__" ? tipoCategoriaNova : tipoDaCategoria(categoriaFinal);
+    // Se já é um produto existente, usa o tipo que ele já tinha salvo (mais
+    // confiável que adivinhar pela categoria, principalmente em categorias
+    // mistas). Só cai pro padrão da categoria em produto novo.
+    const tipoReal = editandoId && form.tipoAtual
+      ? form.tipoAtual
+      : form.categoria === "__nova__"
+      ? tipoCategoriaNova
+      : tipoDaCategoria(categoriaFinal);
     const ehCamas = tipoReal === "espessura";
     const custoNum = parseFloat(form.custo) || 0;
 
@@ -896,8 +916,11 @@ function AbaEstoque() {
 
           {(() => {
             const categoriaAtual = form.categoria === "__nova__" ? form.categoriaNova : form.categoria;
-            const tipoReal =
-              form.categoria === "__nova__" ? tipoCategoriaNova : tipoDaCategoria(categoriaAtual);
+            const tipoReal = editandoId && form.tipoAtual
+              ? form.tipoAtual
+              : form.categoria === "__nova__"
+              ? tipoCategoriaNova
+              : tipoDaCategoria(categoriaAtual);
             const modoCampos: "camas" | "tecido" | "simples" =
               tipoReal === "espessura" ? "camas" : tipoReal === "tecido" ? "tecido" : "simples";
 
