@@ -1284,9 +1284,10 @@ export default function VenderPage() {
                     <p className="text-xs text-madeira-400 p-4 text-center">Nenhum produto encontrado.</p>
                   ) : (
                     produtosFiltrados.map((p) => {
-                      const estoqueTotal = p.produto_variantes.length
-                        ? p.produto_variantes.reduce((s, v) => s + v.estoque, 0)
-                        : p.quantidade_estoque || 0;
+                      const estoqueTotal =
+                        p.tipo_precificacao !== "simples" && p.produto_variantes.length
+                          ? p.produto_variantes.reduce((s, v) => s + v.estoque, 0)
+                          : p.quantidade_estoque || 0;
                       return (
                         <div
                           key={p.id}
