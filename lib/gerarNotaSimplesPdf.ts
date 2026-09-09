@@ -60,6 +60,12 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   for (const item of itensVenda) {
     const nomeVariante = item.variante ? ` — ${item.variante}` : "";
     linha(`${item.quantidade}x ${item.nome_produto}${nomeVariante}`, { tamanho: 10, espaco: 0.5 });
+    if (item.desconto && item.desconto > 0) {
+      linha(
+        `Desconto: ${formatarMoeda(item.desconto)}${item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}`,
+        { tamanho: 8, espaco: 0.5 }
+      );
+    }
     linha(formatarMoeda(item.total), { tamanho: 9, espaco: 2 });
   }
 
