@@ -244,80 +244,6 @@ export default function NotasPage() {
     carregar();
   }
 
-  async function registrarRestante(v: Venda) {
-    const jaPago = v.valor_pago ?? v.total;
-    const restante = Math.round((v.total - jaPago) * 100) / 100;
-    if (restante <= 0) return;
-
-    const formaDigitada = prompt(
-      `Registrar o recebimento do restante do pedido #${v.numero_pedido} (${formatarMoeda(
-        restante
-      )}).\n\nComo o cliente pagou? Digite: Dinheiro, Pix, Débito ou Crédito`,
-      "Dinheiro"
-    );
-    if (!formaDigitada) return;
-    const forma = formaDigitada.trim();
-    const formasValidas = ["Dinheiro", "Pix", "Débito", "Crédito"];
-    const formaEncontrada = formasValidas.find((f) => f.toLowerCase() === forma.toLowerCase());
-    if (!formaEncontrada) {
-      alert("Forma de pagamento inválida. Use exatamente: Dinheiro, Pix, Débito ou Crédito.");
-      return;
-    }
-
-    const { error: erroPagamento } = await supabase.from("venda_pagamentos").insert({
-      venda_id: v.id,
-      forma_pagamento: formaEncontrada,
-      parcelas: 1,
-      valor: restante,
-    });
-    if (erroPagamento) {
-      alert("Erro ao registrar o pagamento: " + erroPagamento.message);
-      return;
-    }
-
-    const { error: erroVenda } = await supabase
-      .from("vendas")
-      .update({ valor_pago: v.total })
-      .eq("id", v.id);
-    if (erroVenda) {
-      alert("Erro ao atualizar a venda: " + erroVenda.message);
-      return;
-    }
-
-    // Credita o caixa, se o turno em que a venda foi feita ainda estiver aberto
-    if (v.turno_caixa_id) {
-      const { data: turno } = await supabase
-        .from("turnos_caixa")
-        .select("status, total_vendido, total_dinheiro, total_pix, total_debito, total_credito")
-        .eq("id", v.turno_caixa_id)
-        .maybeSingle();
-      if (turno && turno.status === "aberto") {
-        const campoForma =
-          formaEncontrada === "Dinheiro"
-            ? "total_dinheiro"
-            : formaEncontrada === "Pix"
-            ? "total_pix"
-            : formaEncontrada === "Débito"
-            ? "total_debito"
-            : "total_credito";
-        await supabase
-          .from("turnos_caixa")
-          .update({
-            total_vendido: (turno.total_vendido || 0) + restante,
-            [campoForma]: ((turno as Record<string, number>)[campoForma] || 0) + restante,
-          })
-          .eq("id", v.turno_caixa_id);
-      } else {
-        alert(
-          "Pagamento registrado! Só um aviso: o turno de caixa dessa venda já está fechado, então não deu pra somar automaticamente no caixa — ajuste manualmente se precisar."
-        );
-      }
-    }
-
-    alert(`Restante de ${formatarMoeda(restante)} registrado com sucesso.`);
-    carregar();
-  }
-
   function enviarWhatsApp(v: Venda) {
     const telefone = v.clientes?.telefone;
     if (!telefone) {
@@ -507,19 +433,9 @@ export default function NotasPage() {
                       Cliente retira na loja
                     </span>
                   )}
-                  {!v.cancelada && typeof v.valor_pago === "number" && v.valor_pago < v.total - 0.01 && (
-                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded mt-1 ml-1 bg-amber-100 text-amber-800">
-                      Sinal: {formatarMoeda(v.valor_pago)} · falta {formatarMoeda(Math.round((v.total - v.valor_pago) * 100) / 100)}
-                    </span>
-                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-display text-lg text-madeira-900">{formatarMoeda(v.total)}</p>
-                  {!v.cancelada && typeof v.valor_pago === "number" && v.valor_pago < v.total - 0.01 && (
-                    <button className="btn-secundario text-xs px-2 py-1" onClick={() => registrarRestante(v)}>
-                      Registrar restante
-                    </button>
-                  )}
                   {v.clientes?.telefone && (
                     <>
                       <select
@@ -718,7 +634,6 @@ export default function NotasPage() {
             }
             loja={lojaImprimindo}
             total={notaImprimindo.total}
-            valorPago={notaImprimindo.valor_pago}
             formaPagamento={notaImprimindo.forma_pagamento}
             prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
             itens={notaImprimindo.venda_itens || []}
@@ -740,7 +655,6 @@ export default function NotasPage() {
             }}
             loja={lojaImprimindo}
             total={notaImprimindo.total}
-            valorPago={notaImprimindo.valor_pago}
             formaPagamento={notaImprimindo.forma_pagamento}
             pagamentos={(notaImprimindo.venda_pagamentos || []).map((p) => ({
               forma: p.forma_pagamento,
