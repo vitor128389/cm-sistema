@@ -10,6 +10,7 @@ interface ClienteResumo {
   complemento?: string | null;
   cidade?: string | null;
   povoado?: string | null;
+  bairro?: string | null;
 }
 
 interface Props {
@@ -38,6 +39,7 @@ function enderecoLojaTexto(loja?: LojaCompleta | null): string | null {
 
 function enderecoClienteTexto(c: ClienteResumo): string | null {
   const partes = [
+    c.bairro ? `Bairro: ${c.bairro}` : null,
     c.endereco && c.numero ? `${c.endereco}, ${c.numero}` : c.endereco,
     c.complemento,
     c.cidade,
