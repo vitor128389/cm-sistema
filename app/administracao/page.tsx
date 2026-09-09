@@ -40,15 +40,10 @@ const FORM_VAZIO = {
   estoqueSuede: "0",
   estoqueLinho: "0",
   estoqueVeludo: "0",
-  preco5: "",
-  preco7: "",
-  preco14: "",
-  custo5: "0",
-  custo7: "0",
-  custo14: "0",
-  estoque5: "0",
-  estoque7: "0",
-  estoque14: "0",
+  // Espessura genérica (camas usam 5/7/14cm, colchões usam 10/20cm, etc.) —
+  // uma linha por espessura que o produto realmente tiver, em vez de campos
+  // fixos só pra 5/7/14.
+  espessuraLinhas: [] as { label: string; preco: string; custo: string; estoque: string }[],
 };
 
 export default function AdministracaoPage() {
@@ -562,29 +557,24 @@ function AbaEstoque() {
     const precoBaseFallback = p.preco_venda > 0 ? String(Math.round((p.preco_venda / 1.1) * 100) / 100) : "";
     const novoForm = { ...FORM_VAZIO, nome: p.nome, categoria: p.categoria, custo: String(p.custo || 0) };
     if (ehCamas) {
-      novoForm.preco5 = precoBaseFallback;
-      novoForm.preco7 = precoBaseFallback;
-      novoForm.preco14 = precoBaseFallback;
-      novoForm.custo5 = String(p.custo || 0);
-      novoForm.custo7 = String(p.custo || 0);
-      novoForm.custo14 = String(p.custo || 0);
-      p.produto_variantes.forEach((v) => {
-        if (v.nome_variante === "5cm") {
-          novoForm.preco5 = String(v.preco_avista);
-          novoForm.estoque5 = String(v.estoque);
-          novoForm.custo5 = String(v.custo || 0);
-        }
-        if (v.nome_variante === "7cm") {
-          novoForm.preco7 = String(v.preco_avista);
-          novoForm.estoque7 = String(v.estoque);
-          novoForm.custo7 = String(v.custo || 0);
-        }
-        if (v.nome_variante === "14cm") {
-          novoForm.preco14 = String(v.preco_avista);
-          novoForm.estoque14 = String(v.estoque);
-          novoForm.custo14 = String(v.custo || 0);
-        }
-      });
+      // Pega as espessuras reais do produto (5/7/14cm nas camas, 10/20cm
+      // nos colchões, etc.) — nunca mais fixo em só um padrão.
+      if (p.produto_variantes.length > 0) {
+        novoForm.espessuraLinhas = p.produto_variantes.map((v) => ({
+          label: v.nome_variante,
+          preco: String(v.preco_avista),
+          custo: String(v.custo || 0),
+          estoque: String(v.estoque),
+        }));
+      } else {
+        // produto novo desse tipo, sem variantes ainda — começa com 3
+        // linhas em branco pra preencher (o nome de cada uma é editável)
+        novoForm.espessuraLinhas = [
+          { label: "5cm", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+          { label: "7cm", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+          { label: "14cm", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+        ];
+      }
     } else if (ehTecido) {
       novoForm.precoSuede = precoBaseFallback;
       novoForm.precoLinho = precoBaseFallback;
@@ -656,15 +646,12 @@ function AbaEstoque() {
     const custoNum = parseFloat(form.custo) || 0;
 
     if (ehCamas) {
-      const precos: Record<string, number> = {};
-      if (parseFloat(form.preco5) > 0) precos["5cm"] = parseFloat(form.preco5);
-      if (parseFloat(form.preco7) > 0) precos["7cm"] = parseFloat(form.preco7);
-      if (parseFloat(form.preco14) > 0) precos["14cm"] = parseFloat(form.preco14);
-      if (Object.keys(precos).length === 0) {
-        alert("Preencha o preço de pelo menos uma espessura.");
+      const linhas = form.espessuraLinhas.filter((l) => l.label.trim() && parseFloat(l.preco) > 0);
+      if (linhas.length === 0) {
+        alert("Preencha o nome e o preço de pelo menos uma espessura.");
         return;
       }
-      const precoBase = Object.values(precos)[0];
+      const precoBase = parseFloat(linhas[0].preco);
 
       let produtoId = editandoId;
       if (produtoId) {
@@ -696,19 +683,22 @@ function AbaEstoque() {
         produtoId = novo.id;
       }
 
-      const estoques: Record<string, string> = { "5cm": form.estoque5, "7cm": form.estoque7, "14cm": form.estoque14 };
-      const custos: Record<string, string> = { "5cm": form.custo5, "7cm": form.custo7, "14cm": form.custo14 };
-      for (const [nomeVar, valor] of Object.entries(precos)) {
+      for (const linha of linhas) {
         const { data: variante, error: erroVariante } = await supabase
           .from("produto_variantes")
           .upsert(
-            { produto_id: produtoId, nome_variante: nomeVar, preco_avista: valor, custo: parseFloat(custos[nomeVar]) || 0 },
+            {
+              produto_id: produtoId,
+              nome_variante: linha.label.trim(),
+              preco_avista: parseFloat(linha.preco) || 0,
+              custo: parseFloat(linha.custo) || 0,
+            },
             { onConflict: "produto_id,nome_variante" }
           )
           .select("id")
           .single();
         if (erroVariante) {
-          alert(`Erro ao salvar a variante ${nomeVar}: ` + erroVariante.message);
+          alert(`Erro ao salvar a variante ${linha.label}: ` + erroVariante.message);
           return;
         }
         if (variante) {
@@ -717,10 +707,10 @@ function AbaEstoque() {
             lojaAtual,
             produtoId as string,
             variante.id,
-            parseInt(estoques[nomeVar]) || 0
+            parseInt(linha.estoque) || 0
           );
           if (erroEstoque) {
-            alert(`Erro ao salvar o estoque de ${nomeVar}: ` + erroEstoque.message);
+            alert(`Erro ao salvar o estoque de ${linha.label}: ` + erroEstoque.message);
             return;
           }
         }
@@ -930,40 +920,81 @@ function AbaEstoque() {
               tipoReal === "espessura" ? "camas" : tipoReal === "tecido" ? "tecido" : "simples";
 
             if (modoCampos === "camas") {
+              const linhas =
+                form.espessuraLinhas.length > 0
+                  ? form.espessuraLinhas
+                  : [
+                      { label: "", preco: "", custo: "0", estoque: "0" },
+                      { label: "", preco: "", custo: "0", estoque: "0" },
+                      { label: "", preco: "", custo: "0", estoque: "0" },
+                    ];
+              const atualizarLinha = (
+                i: number,
+                campo: "label" | "preco" | "custo" | "estoque",
+                valor: string
+              ): void => {
+                const novasLinhas = linhas.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l));
+                setForm({ ...form, espessuraLinhas: novasLinhas });
+              };
               return (
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  {(["5", "7", "14"] as const).map((esp) => (
-                    <div key={esp}>
-                      <p className="text-xs font-semibold text-madeira-700 mb-1">{esp}cm</p>
-                      <label className="block mb-2">
-                        <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
-                        <input
-                          className="input-base"
-                          type="number"
-                          value={form[`preco${esp}` as "preco5"]}
-                          onChange={(e) => setForm({ ...form, [`preco${esp}`]: e.target.value })}
-                        />
-                      </label>
-                      <label className="block mb-2">
-                        <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
-                        <input
-                          className="input-base"
-                          type="number"
-                          value={form[`custo${esp}` as "custo5"]}
-                          onChange={(e) => setForm({ ...form, [`custo${esp}`]: e.target.value })}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
-                        <input
-                          className="input-base"
-                          type="number"
-                          value={form[`estoque${esp}` as "estoque5"]}
-                          onChange={(e) => setForm({ ...form, [`estoque${esp}`]: e.target.value })}
-                        />
-                      </label>
-                    </div>
-                  ))}
+                <div className="mb-3">
+                  <div className="grid grid-cols-4 gap-3">
+                    {linhas.map((linha, i) => (
+                      <div key={i}>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Espessura (ex: 10cm)</span>
+                          <input
+                            className="input-base"
+                            value={linha.label}
+                            onChange={(e) => atualizarLinha(i, "label", e.target.value)}
+                          />
+                        </label>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={linha.preco}
+                            onChange={(e) => atualizarLinha(i, "preco", e.target.value)}
+                          />
+                        </label>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Custo (R$)</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={linha.custo}
+                            onChange={(e) => atualizarLinha(i, "custo", e.target.value)}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs text-madeira-600 mb-1 block">Estoque</span>
+                          <input
+                            className="input-base"
+                            type="number"
+                            value={linha.estoque}
+                            onChange={(e) => atualizarLinha(i, "estoque", e.target.value)}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secundario text-xs px-2 py-1 mt-2"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        espessuraLinhas: [...linhas, { label: "", preco: "", custo: "0", estoque: "0" }],
+                      })
+                    }
+                  >
+                    + adicionar espessura
+                  </button>
+                  <p className="text-xs text-madeira-400 mt-1">
+                    Deixe o nome em branco pra pular uma espessura que esse produto não tem (ex: colchões
+                    normalmente só usam 2 — 10cm e 20cm).
+                  </p>
                 </div>
               );
             }
