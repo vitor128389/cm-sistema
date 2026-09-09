@@ -20,6 +20,13 @@ import type {
 } from "@/types";
 
 const TECIDOS = ["Suede", "Linho", "Veludo"];
+
+// Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
+// tecidos (Napa, Atoalhado, etc.) ficam depois, na ordem que vierem.
+function ordemTecido(nome: string): number {
+  const ordem: Record<string, number> = { Suede: 0, Linho: 1, Veludo: 2 };
+  return ordem[nome] ?? 99;
+}
 const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
 const PRODUTOS_COM_MODELO = ["Poltrona Benny", "Namoradeira Benny"];
 
@@ -362,10 +369,14 @@ export default function VenderPage() {
       const nomes = new Set(
         produtoSelecionado.produto_variantes.map((v) => v.nome_variante.split(" — ")[0])
       );
-      return nomes.size > 0 ? Array.from(nomes) : TECIDOS;
+      return nomes.size > 0
+        ? Array.from(nomes).sort((a, b) => ordemTecido(a) - ordemTecido(b))
+        : TECIDOS;
     }
     if (produtoSelecionado.produto_variantes.length > 0) {
-      return produtoSelecionado.produto_variantes.map((v) => v.nome_variante);
+      return [...produtoSelecionado.produto_variantes]
+        .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
+        .map((v) => v.nome_variante);
     }
     return TECIDOS;
   }
