@@ -76,14 +76,6 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   y += 5;
 
   linha(`Total: ${formatarMoeda(venda.total)}`, { negrito: true, tamanho: 12, espaco: 1 });
-  if (typeof venda.valor_pago === "number" && venda.valor_pago < venda.total - 0.01) {
-    linha(
-      `Sinal pago: ${formatarMoeda(venda.valor_pago)} — Restante a receber: ${formatarMoeda(
-        Math.round((venda.total - venda.valor_pago) * 100) / 100
-      )}`,
-      { negrito: true, tamanho: 9, espaco: 1 }
-    );
-  }
   linha(`Forma de pagamento: ${venda.forma_pagamento}`, { tamanho: 9 });
 
   if (venda.prazo_entrega_maximo) {
