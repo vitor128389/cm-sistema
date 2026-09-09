@@ -116,6 +116,8 @@ export default function VenderPage() {
   const [pagamentos, setPagamentos] = useState<PagamentoParte[]>([
     { forma: "", parcelas: 1, valor: 0 },
   ]);
+  const [sinalAtivo, setSinalAtivo] = useState(false);
+  const [valorTotalComSinal, setValorTotalComSinal] = useState("");
   const [turnoAtual, setTurnoAtual] = useState<{ id: string } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
 
@@ -129,6 +131,8 @@ export default function VenderPage() {
     forma: string;
     numeroPedido: number;
     pagamentos: PagamentoParte[];
+    valorPago: number;
+    totalDaVenda: number;
   } | null>(
     null
   );
@@ -740,9 +744,15 @@ export default function VenderPage() {
   const acrescimo = Math.round((total - baseTotalImplicita) * 100) / 100;
   const todasFormasEscolhidas = pagamentos.every((p) => p.forma);
   const diferencaDoEsperado = Math.round((total - subtotalAVista) * 100) / 100;
+  // Com sinal: "total" (soma dos pagamentos) vira só a parte paga agora — o
+  // valor de verdade da venda é digitado à parte, e o resto fica pendente.
+  const totalDaVendaComSinal = parseFloat(valorTotalComSinal) || 0;
+  const valorRestanteSinal = Math.round((totalDaVendaComSinal - total) * 100) / 100;
 
   function irParaPagamento() {
     setPagamentos([{ forma: "", parcelas: 1, valor: subtotalAVista }]);
+    setSinalAtivo(false);
+    setValorTotalComSinal("");
     setPasso(3);
   }
 
@@ -789,6 +799,16 @@ export default function VenderPage() {
     if (total <= 0) {
       alert("O valor total da venda precisa ser maior que zero.");
       return;
+    }
+    if (sinalAtivo) {
+      if (totalDaVendaComSinal <= 0) {
+        alert("Preencha o valor total da venda (o valor completo, não só o sinal).");
+        return;
+      }
+      if (total > totalDaVendaComSinal) {
+        alert("O sinal não pode ser maior que o valor total da venda.");
+        return;
+      }
     }
     if (precisaPrazoObrigatorio() && !prazoEntregaMaximo) {
       alert("Preencha o prazo máximo de entrega — é obrigatório quando tem item de entrega ou encomenda.");
@@ -913,7 +933,8 @@ export default function VenderPage() {
           parcelas: pagamentos.length === 1 && pagamentos[0].forma === "Crédito" ? pagamentos[0].parcelas : 1,
           subtotal: baseTotalImplicita,
           ajuste: acrescimo,
-          total,
+          total: sinalAtivo ? totalDaVendaComSinal : total,
+          valor_pago: total,
           prazo_entrega_maximo: prazoEntregaMaximo || null,
           forma_recebimento: formaRecebimento,
           loja_id: lojaAtual,
@@ -1015,7 +1036,14 @@ export default function VenderPage() {
       const { data: lojaData } = await supabase.from("lojas").select("*").eq("id", lojaAtual).maybeSingle();
       setLojaInfo(lojaData as LojaCompleta | null);
 
-      setVendaConcluida({ total, forma: formaResumo, numeroPedido: venda.numero_pedido, pagamentos });
+      setVendaConcluida({
+        total: sinalAtivo ? totalDaVendaComSinal : total,
+        forma: formaResumo,
+        numeroPedido: venda.numero_pedido,
+        pagamentos,
+        valorPago: total,
+        totalDaVenda: sinalAtivo ? totalDaVendaComSinal : total,
+      });
       setPasso(4);
       carregarProdutos();
     } catch (erro: unknown) {
@@ -1816,6 +1844,41 @@ export default function VenderPage() {
                 <strong>{formatarMoeda(subtotalCarrinho)}</strong>
               </p>
 
+              <label className="flex items-center gap-2 mb-3 text-sm text-madeira-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sinalAtivo}
+                  onChange={(e) => {
+                    setSinalAtivo(e.target.checked);
+                    if (e.target.checked && !valorTotalComSinal) {
+                      setValorTotalComSinal(String(subtotalAVista));
+                    }
+                  }}
+                />
+                Cliente vai pagar só um sinal agora (resto fica pendente pra depois)
+              </label>
+
+              {sinalAtivo && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-3">
+                  <label className="block mb-2">
+                    <span className="text-xs text-madeira-600 mb-1 block">Valor total da venda (R$)</span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      step="0.01"
+                      value={valorTotalComSinal}
+                      onChange={(e) => setValorTotalComSinal(e.target.value)}
+                    />
+                  </label>
+                  <p className="text-xs text-madeira-600">
+                    Sinal pago agora: <strong>{formatarMoeda(total)}</strong> · Restante a receber depois:{" "}
+                    <strong className={valorRestanteSinal > 0 ? "text-amber-700" : "text-green-700"}>
+                      {formatarMoeda(valorRestanteSinal)}
+                    </strong>
+                  </p>
+                </div>
+              )}
+
               {pagamentos.map((p, idx) => (
                 <div key={idx} className="border border-estofado-100 rounded p-3 mb-3">
                   {pagamentos.length > 1 && (
@@ -1859,7 +1922,7 @@ export default function VenderPage() {
 
                   <label className="block">
                     <span className="text-xs text-madeira-600 mb-1 block">
-                      Quanto o cliente vai pagar nessa forma
+                      {sinalAtivo ? "Valor do sinal nessa forma" : "Quanto o cliente vai pagar nessa forma"}
                     </span>
                     <input
                       className="input-base"
@@ -2062,6 +2125,7 @@ export default function VenderPage() {
             }
             loja={lojaInfo}
             total={vendaConcluida.total}
+            valorPago={vendaConcluida.valorPago}
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             itens={carrinho.map((item, idx) => ({
@@ -2102,6 +2166,7 @@ export default function VenderPage() {
             }}
             loja={lojaInfo}
             total={vendaConcluida.total}
+            valorPago={vendaConcluida.valorPago}
             formaPagamento={vendaConcluida.forma}
             pagamentos={vendaConcluida.pagamentos.map((p) => ({
               forma: p.forma || "—",
