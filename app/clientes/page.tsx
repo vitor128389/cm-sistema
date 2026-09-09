@@ -34,6 +34,9 @@ export default function ClientesPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_VAZIO);
+  const [celulares, setCelulares] = useState<{ numero: string; responsavel: string }[]>([
+    { numero: "", responsavel: "" },
+  ]);
 
   async function carregar() {
     setCarregando(true);
@@ -77,11 +80,12 @@ export default function ClientesPage() {
 
   function abrirNovo() {
     setForm(FORM_VAZIO);
+    setCelulares([{ numero: "", responsavel: "" }]);
     setEditandoId(null);
     setMostrarForm(true);
   }
 
-  function abrirEdicao(c: ClienteResumo, e: React.MouseEvent) {
+  async function abrirEdicao(c: ClienteResumo, e: React.MouseEvent) {
     e.stopPropagation();
     setForm({
       nome: c.nome || "",
@@ -93,6 +97,15 @@ export default function ClientesPage() {
       cidade: (c as { cidade?: string | null }).cidade || "",
       povoado: (c as { povoado?: string | null }).povoado || "",
     });
+    const { data: cels } = await supabase
+      .from("cliente_celulares")
+      .select("celular, nome_responsavel")
+      .eq("cliente_id", c.id);
+    setCelulares(
+      cels && cels.length > 0
+        ? cels.map((cc) => ({ numero: cc.celular, responsavel: cc.nome_responsavel || "" }))
+        : [{ numero: c.telefone || "", responsavel: "" }]
+    );
     setEditandoId(c.id);
     setMostrarForm(true);
   }
@@ -106,10 +119,11 @@ export default function ClientesPage() {
       alert("Selecione uma loja ativa no menu lateral antes de cadastrar um cliente.");
       return;
     }
+    const celularesPreenchidos = celulares.filter((c) => c.numero.trim());
     const dados = {
       nome: form.nome.trim(),
       cpf: form.cpf.replace(/\D/g, "") || null,
-      telefone: form.telefone || null,
+      telefone: celularesPreenchidos[0]?.numero || null,
       endereco: form.endereco || null,
       numero: form.numero || null,
       complemento: form.complemento || null,
@@ -117,6 +131,7 @@ export default function ClientesPage() {
       povoado: form.povoado || null,
     };
 
+    let clienteId = editandoId;
     if (editandoId) {
       const { error } = await supabase.from("clientes").update(dados).eq("id", editandoId);
       if (error) {
@@ -124,14 +139,33 @@ export default function ClientesPage() {
         return;
       }
     } else {
-      const { error } = await supabase.from("clientes").insert({ ...dados, loja_id: lojaAtual });
+      const { data: novo, error } = await supabase
+        .from("clientes")
+        .insert({ ...dados, loja_id: lojaAtual })
+        .select("id")
+        .single();
       if (error) {
         alert("Erro: " + error.message);
         return;
       }
+      clienteId = novo.id;
     }
+
+    // ressincroniza os celulares (evita duplicar, sempre reflete o que está na tela)
+    await supabase.from("cliente_celulares").delete().eq("cliente_id", clienteId as string);
+    if (celularesPreenchidos.length > 0) {
+      await supabase.from("cliente_celulares").insert(
+        celularesPreenchidos.map((c) => ({
+          cliente_id: clienteId,
+          celular: c.numero,
+          nome_responsavel: c.responsavel.trim() || null,
+        }))
+      );
+    }
+
     setMostrarForm(false);
     setForm(FORM_VAZIO);
+    setCelulares([{ numero: "", responsavel: "" }]);
     setEditandoId(null);
     carregar();
   }
@@ -185,10 +219,6 @@ export default function ClientesPage() {
               <input className="input-base" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
             </label>
             <label className="block">
-              <span className="text-xs text-madeira-600 mb-1 block">Telefone</span>
-              <input className="input-base" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-            </label>
-            <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
               <input className="input-base" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
             </label>
@@ -214,6 +244,51 @@ export default function ClientesPage() {
               <input className="input-base" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} />
             </label>
           </div>
+
+          <div className="mb-4">
+            <span className="text-xs text-madeira-600 mb-1 block">Celular</span>
+            {celulares.map((c, idx) => (
+              <div key={idx} className="flex gap-2 mb-2 items-start">
+                <input
+                  className="input-base"
+                  value={c.numero}
+                  onChange={(e) => {
+                    const novos = [...celulares];
+                    novos[idx] = { ...novos[idx], numero: e.target.value };
+                    setCelulares(novos);
+                  }}
+                  placeholder="(79) 9 9999-9999"
+                />
+                <input
+                  className="input-base"
+                  value={c.responsavel}
+                  onChange={(e) => {
+                    const novos = [...celulares];
+                    novos[idx] = { ...novos[idx], responsavel: e.target.value };
+                    setCelulares(novos);
+                  }}
+                  placeholder="Nome do responsável (opcional)"
+                />
+                {celulares.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-xs text-red-700 mt-2.5 whitespace-nowrap"
+                    onClick={() => setCelulares(celulares.filter((_, i) => i !== idx))}
+                  >
+                    remover
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-xs text-madeira-600 font-semibold"
+              onClick={() => setCelulares([...celulares, { numero: "", responsavel: "" }])}
+            >
+              + Adicionar outro número
+            </button>
+          </div>
+
           <button className="btn-primario" onClick={salvarCliente}>
             {editandoId ? "Salvar edição" : "Cadastrar cliente"}
           </button>
