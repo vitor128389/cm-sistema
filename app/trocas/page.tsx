@@ -86,7 +86,7 @@ export default function TrocasPage() {
     setConcluida(null);
     let query = supabase
       .from("vendas")
-      .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade), venda_itens(*)")
+      .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado), venda_itens(*)")
       .eq("numero_pedido", buscaPedido.trim());
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     const { data } = await query.maybeSingle();
