@@ -593,7 +593,7 @@ export default function VenderPage() {
       alert("Digite o motivo do desconto.");
       return;
     }
-    if (descontoValor > 0 && descontoValor > valorUnitario * quantidade) {
+    if (descontoValor > 0 && descontoValor > valorAVistaAtual() * quantidade) {
       alert("O desconto não pode ser maior que o valor do produto.");
       return;
     }
@@ -647,6 +647,11 @@ export default function VenderPage() {
         },
       ]);
     } else {
+      // O desconto sempre é tirado do valor à vista primeiro — o valor "a
+      // prazo" (com +10%) é recalculado por cima do à vista já descontado,
+      // pra não ficar resto de centavos nem bagunçar o lucro no Movimento.
+      const aVistaComDesconto =
+        Math.round((valorAVistaAtual() - descontoValor / quantidade) * 100) / 100;
       setCarrinho((atual) => [
         ...atual,
         {
@@ -654,8 +659,8 @@ export default function VenderPage() {
           produtoId: produtoSelecionado.id,
           nome: produtoSelecionado.nome,
           quantidade,
-          valorUnitario: Math.round((valorUnitario - descontoValor / quantidade) * 100) / 100,
-          valorAVista: Math.round((valorAVistaAtual() - descontoValor / quantidade) * 100) / 100,
+          valorUnitario: Math.round(aVistaComDesconto * 1.1 * 100) / 100,
+          valorAVista: aVistaComDesconto,
           varianteId: varianteAtualId(),
           varianteNome:
             produtoSelecionado.tipo_precificacao === "espessura"
