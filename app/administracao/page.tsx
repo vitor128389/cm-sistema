@@ -24,6 +24,13 @@ const TELAS = [
 ];
 const FUNCOES = ["vendedor", "producao", "caixa", "gerente", "admin"] as const;
 
+// Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
+// tecidos/espessuras (Napa, 10cm, etc.) ficam depois, na ordem que vierem.
+function ordemTecido(nome: string): number {
+  const ordem: Record<string, number> = { Suede: 0, Linho: 1, Veludo: 2 };
+  return ordem[nome] ?? 99;
+}
+
 const FORM_VAZIO = {
   nome: "",
   categoria: "",
@@ -1116,7 +1123,7 @@ function AbaEstoque() {
                   if (p.tipo_precificacao === "tecido_peca") {
                     const tecidos = Array.from(
                       new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0]))
-                    );
+                    ).sort((a, b) => ordemTecido(a) - ordemTecido(b));
                     linhas = tecidos
                       .map((tecido) => {
                         const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
@@ -1130,11 +1137,13 @@ function AbaEstoque() {
                       })
                       .filter((l): l is { label: string; custo: number; venda: number } => l !== null);
                   } else if (p.produto_variantes.length > 0) {
-                    linhas = p.produto_variantes.map((v) => ({
-                      label: v.nome_variante,
-                      custo: v.custo || 0,
-                      venda: v.preco_avista || 0,
-                    }));
+                    linhas = [...p.produto_variantes]
+                      .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
+                      .map((v) => ({
+                        label: v.nome_variante,
+                        custo: v.custo || 0,
+                        venda: v.preco_avista || 0,
+                      }));
                   }
 
                   if (linhas.length > 0) {
@@ -1174,8 +1183,9 @@ function AbaEstoque() {
                     // Sofá "2 e 3 lugares": mostra uma linha por tecido (o
                     // conjunto), não uma pra cada peça — o estoque de 2 e 3
                     // lugares fica igual, sempre casado como um par.
-                    Array.from(new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0]))).map(
-                      (tecido) => {
+                    Array.from(new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0])))
+                      .sort((a, b) => ordemTecido(a) - ordemTecido(b))
+                      .map((tecido) => {
                         const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
                         const v3 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 3 Lugares`);
                         if (!v2 || !v3) return null;
@@ -1211,7 +1221,9 @@ function AbaEstoque() {
                       }
                     )
                   ) : p.produto_variantes.length > 0 ? (
-                    p.produto_variantes.map((v) => (
+                    [...p.produto_variantes]
+                      .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
+                      .map((v) => (
                       <div key={v.id} className="flex items-center gap-2 mb-1">
                         <span className="text-xs w-24">{v.nome_variante}</span>
                         <input
