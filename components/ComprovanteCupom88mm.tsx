@@ -17,7 +17,6 @@ interface Props {
   cliente: ClienteResumo | null;
   itens: VendaItem[];
   total: number;
-  valorPago?: number;
   formaPagamento: string;
   prazoEntregaMaximo?: string | null;
   loja?: LojaCompleta | null;
@@ -31,7 +30,6 @@ export default function ComprovanteCupom88mm({
   cliente,
   itens,
   total,
-  valorPago,
   formaPagamento,
   prazoEntregaMaximo,
   loja,
@@ -103,11 +101,6 @@ export default function ComprovanteCupom88mm({
       <p style={{ margin: "2px 0" }}>{linha}</p>
 
       <p style={{ margin: "2px 0", fontWeight: 700, fontSize: "14px" }}>TOTAL: {formatarMoeda(total)}</p>
-      {typeof valorPago === "number" && valorPago < total - 0.01 && (
-        <p style={{ margin: "2px 0", fontWeight: 700 }}>
-          Sinal: {formatarMoeda(valorPago)} — Falta: {formatarMoeda(Math.round((total - valorPago) * 100) / 100)}
-        </p>
-      )}
       <p style={{ margin: "2px 0" }}>Pagamento: {formaPagamento}</p>
       {prazoEntregaMaximo && (
         <p style={{ margin: "2px 0" }}>
