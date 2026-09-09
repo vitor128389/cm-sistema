@@ -1296,7 +1296,7 @@ function AbaEstoque() {
                         );
                       }
                     )
-                  ) : p.produto_variantes.length > 0 ? (
+                  ) : p.tipo_precificacao !== "simples" && p.produto_variantes.length > 0 ? (
                     [...p.produto_variantes]
                       .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
                       .map((v) => (
