@@ -38,15 +38,10 @@ const FORM_VAZIO = {
   custo: "0",
   estoqueSimples: "0",
   precoSimples: "",
-  precoSuede: "",
-  precoLinho: "",
-  precoVeludo: "",
-  custoSuede: "0",
-  custoLinho: "0",
-  custoVeludo: "0",
-  estoqueSuede: "0",
-  estoqueLinho: "0",
-  estoqueVeludo: "0",
+  // Tecido genérico (Suede/Linho/Veludo por padrão, mas aceita qualquer
+  // nome extra como Napa, Atoalhado etc.) — uma linha por tecido que o
+  // produto realmente tiver.
+  tecidoLinhas: [] as { label: string; preco: string; custo: string; estoque: string }[],
   // Espessura genérica (camas usam 5/7/14cm, colchões usam 10/20cm, etc.) —
   // uma linha por espessura que o produto realmente tiver, em vez de campos
   // fixos só pra 5/7/14.
@@ -583,29 +578,22 @@ function AbaEstoque() {
         ];
       }
     } else if (ehTecido) {
-      novoForm.precoSuede = precoBaseFallback;
-      novoForm.precoLinho = precoBaseFallback;
-      novoForm.precoVeludo = precoBaseFallback;
-      novoForm.custoSuede = String(p.custo || 0);
-      novoForm.custoLinho = String(p.custo || 0);
-      novoForm.custoVeludo = String(p.custo || 0);
-      p.produto_variantes.forEach((v) => {
-        if (v.nome_variante === "Suede") {
-          novoForm.precoSuede = String(v.preco_avista);
-          novoForm.estoqueSuede = String(v.estoque);
-          novoForm.custoSuede = String(v.custo || 0);
-        }
-        if (v.nome_variante === "Linho") {
-          novoForm.precoLinho = String(v.preco_avista);
-          novoForm.estoqueLinho = String(v.estoque);
-          novoForm.custoLinho = String(v.custo || 0);
-        }
-        if (v.nome_variante === "Veludo") {
-          novoForm.precoVeludo = String(v.preco_avista);
-          novoForm.estoqueVeludo = String(v.estoque);
-          novoForm.custoVeludo = String(v.custo || 0);
-        }
-      });
+      if (p.produto_variantes.length > 0) {
+        novoForm.tecidoLinhas = [...p.produto_variantes]
+          .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
+          .map((v) => ({
+            label: v.nome_variante,
+            preco: String(v.preco_avista),
+            custo: String(v.custo || 0),
+            estoque: String(v.estoque),
+          }));
+      } else {
+        novoForm.tecidoLinhas = [
+          { label: "Suede", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+          { label: "Linho", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+          { label: "Veludo", preco: precoBaseFallback, custo: String(p.custo || 0), estoque: "0" },
+        ];
+      }
       novoForm.estoqueSimples = String(p.quantidade_estoque || 0);
     } else {
       novoForm.estoqueSimples = String(p.quantidade_estoque || 0);
@@ -723,14 +711,11 @@ function AbaEstoque() {
         }
       }
     } else {
-      const precos: Record<string, number> = {};
-      if (parseFloat(form.precoSuede) > 0) precos["Suede"] = parseFloat(form.precoSuede);
-      if (parseFloat(form.precoLinho) > 0) precos["Linho"] = parseFloat(form.precoLinho);
-      if (parseFloat(form.precoVeludo) > 0) precos["Veludo"] = parseFloat(form.precoVeludo);
+      const linhasTecido = form.tecidoLinhas.filter((l) => l.label.trim() && parseFloat(l.preco) > 0);
 
-      const temTecido = tipoReal === "tecido" && Object.keys(precos).length > 0;
+      const temTecido = tipoReal === "tecido" && linhasTecido.length > 0;
       const precoSimplesNum = parseFloat(form.precoSimples) || 0;
-      const precoVendaBase = temTecido ? Object.values(precos)[0] : precoSimplesNum;
+      const precoVendaBase = temTecido ? parseFloat(linhasTecido[0].preco) : precoSimplesNum;
 
       let produtoId = editandoId;
       if (produtoId) {
@@ -769,32 +754,22 @@ function AbaEstoque() {
       }
 
       if (temTecido) {
-        const estoquesTecido: Record<string, string> = {
-          Suede: form.estoqueSuede,
-          Linho: form.estoqueLinho,
-          Veludo: form.estoqueVeludo,
-        };
-        const custosTecido: Record<string, string> = {
-          Suede: form.custoSuede,
-          Linho: form.custoLinho,
-          Veludo: form.custoVeludo,
-        };
-        for (const [nomeVar, valor] of Object.entries(precos)) {
+        for (const linha of linhasTecido) {
           const { data: variante, error: erroVariante } = await supabase
             .from("produto_variantes")
             .upsert(
               {
                 produto_id: produtoId,
-                nome_variante: nomeVar,
-                preco_avista: valor,
-                custo: parseFloat(custosTecido[nomeVar]) || 0,
+                nome_variante: linha.label.trim(),
+                preco_avista: parseFloat(linha.preco) || 0,
+                custo: parseFloat(linha.custo) || 0,
               },
               { onConflict: "produto_id,nome_variante" }
             )
             .select("id")
             .single();
           if (erroVariante) {
-            alert(`Erro ao salvar a variante ${nomeVar}: ` + erroVariante.message);
+            alert(`Erro ao salvar a variante ${linha.label}: ` + erroVariante.message);
             return;
           }
           if (variante) {
@@ -803,10 +778,10 @@ function AbaEstoque() {
               lojaAtual,
               produtoId as string,
               variante.id,
-              parseInt(estoquesTecido[nomeVar]) || 0
+              parseInt(linha.estoque) || 0
             );
             if (erroEstoque) {
-              alert(`Erro ao salvar o estoque de ${nomeVar}: ` + erroEstoque.message);
+              alert(`Erro ao salvar o estoque de ${linha.label}: ` + erroEstoque.message);
               return;
             }
           }
@@ -1007,19 +982,42 @@ function AbaEstoque() {
             }
 
             if (modoCampos === "tecido") {
+              const linhas =
+                form.tecidoLinhas.length > 0
+                  ? form.tecidoLinhas
+                  : [
+                      { label: "Suede", preco: "", custo: "0", estoque: "0" },
+                      { label: "Linho", preco: "", custo: "0", estoque: "0" },
+                      { label: "Veludo", preco: "", custo: "0", estoque: "0" },
+                    ];
+              const atualizarLinhaTecido = (
+                i: number,
+                campo: "label" | "preco" | "custo" | "estoque",
+                valor: string
+              ): void => {
+                const novasLinhas = linhas.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l));
+                setForm({ ...form, tecidoLinhas: novasLinhas });
+              };
               return (
-                <>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
-                    {(["Suede", "Linho", "Veludo"] as const).map((tec) => (
-                      <div key={tec}>
-                        <p className="text-xs font-semibold text-madeira-700 mb-1">{tec}</p>
+                <div className="mb-3">
+                  <div className="grid grid-cols-4 gap-3">
+                    {linhas.map((linha, i) => (
+                      <div key={i}>
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Tecido (ex: Napa)</span>
+                          <input
+                            className="input-base"
+                            value={linha.label}
+                            onChange={(e) => atualizarLinhaTecido(i, "label", e.target.value)}
+                          />
+                        </label>
                         <label className="block mb-2">
                           <span className="text-xs text-madeira-600 mb-1 block">Preço à vista (R$)</span>
                           <input
                             className="input-base"
                             type="number"
-                            value={form[`preco${tec}` as "precoSuede"]}
-                            onChange={(e) => setForm({ ...form, [`preco${tec}`]: e.target.value })}
+                            value={linha.preco}
+                            onChange={(e) => atualizarLinhaTecido(i, "preco", e.target.value)}
                           />
                         </label>
                         <label className="block mb-2">
@@ -1027,8 +1025,8 @@ function AbaEstoque() {
                           <input
                             className="input-base"
                             type="number"
-                            value={form[`custo${tec}` as "custoSuede"]}
-                            onChange={(e) => setForm({ ...form, [`custo${tec}`]: e.target.value })}
+                            value={linha.custo}
+                            onChange={(e) => atualizarLinhaTecido(i, "custo", e.target.value)}
                           />
                         </label>
                         <label className="block">
@@ -1036,14 +1034,29 @@ function AbaEstoque() {
                           <input
                             className="input-base"
                             type="number"
-                            value={form[`estoque${tec}` as "estoqueSuede"]}
-                            onChange={(e) => setForm({ ...form, [`estoque${tec}`]: e.target.value })}
+                            value={linha.estoque}
+                            onChange={(e) => atualizarLinhaTecido(i, "estoque", e.target.value)}
                           />
                         </label>
                       </div>
                     ))}
                   </div>
-                </>
+                  <button
+                    type="button"
+                    className="btn-secundario text-xs px-2 py-1 mt-2"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        tecidoLinhas: [...linhas, { label: "", preco: "", custo: "0", estoque: "0" }],
+                      })
+                    }
+                  >
+                    + adicionar tecido
+                  </button>
+                  <p className="text-xs text-madeira-400 mt-1">
+                    Deixe o nome em branco pra pular um tecido que esse produto não tem.
+                  </p>
+                </div>
               );
             }
 
