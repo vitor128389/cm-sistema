@@ -55,7 +55,9 @@ export default function MovimentoPage() {
     setCarregando(true);
     let query = supabase
       .from("vendas")
-      .select("*, clientes(nome), venda_itens(*, produtos(custo)), turnos_caixa(caixa_id)")
+      .select(
+        "*, clientes(nome), venda_itens(*, produtos(custo), produto_variantes(custo)), turnos_caixa(caixa_id)"
+      )
       .eq("cancelada", false)
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
@@ -81,7 +83,10 @@ export default function MovimentoPage() {
 
   function lucroDaVenda(v: Venda): number {
     return (v.venda_itens || []).reduce((s, item) => {
-      const custo = item.produtos?.custo || 0;
+      // Produto com tecido/espessura guarda o custo real na variante, não
+      // no produto geral (que fica 0) — usa o da variante quando existir.
+      const itemComVariante = item as typeof item & { produto_variantes?: { custo: number } | null };
+      const custo = itemComVariante.produto_variantes?.custo ?? item.produtos?.custo ?? 0;
       // O valor gravado no item é sempre o "a prazo" (+10%, aplicado assim
       // que entra no carrinho, antes de saber a forma de pagamento) —
       // divide por 1.1 pra usar o preço à vista no cálculo do lucro.
