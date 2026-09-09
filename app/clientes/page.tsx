@@ -20,6 +20,7 @@ const FORM_VAZIO = {
   complemento: "",
   cidade: "",
   povoado: "",
+  bairro: "",
 };
 
 export default function ClientesPage() {
@@ -96,6 +97,7 @@ export default function ClientesPage() {
       complemento: c.complemento || "",
       cidade: (c as { cidade?: string | null }).cidade || "",
       povoado: (c as { povoado?: string | null }).povoado || "",
+      bairro: (c as { bairro?: string | null }).bairro || "",
     });
     const { data: cels } = await supabase
       .from("cliente_celulares")
@@ -129,6 +131,7 @@ export default function ClientesPage() {
       complemento: form.complemento || null,
       cidade: form.cidade || null,
       povoado: form.povoado || null,
+      bairro: form.bairro || null,
     };
 
     let clienteId = editandoId;
@@ -230,6 +233,10 @@ export default function ClientesPage() {
                 onChange={(e) => setForm({ ...form, povoado: e.target.value })}
                 placeholder="Deixe em branco se não for povoado"
               />
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Bairro</span>
+              <input className="input-base" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} />
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Endereço</span>
