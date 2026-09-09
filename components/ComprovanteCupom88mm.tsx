@@ -77,6 +77,10 @@ export default function ComprovanteCupom88mm({
       )}
       <p style={{ margin: "2px 0" }}>{linha}</p>
 
+      {itens.length > 0 &&
+        itens.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade) && (
+          <p style={{ margin: "2px 0", fontWeight: 700 }}>RETIRADA NA LOJA</p>
+        )}
       {itens.map((item) => (
         <div key={item.id} style={{ margin: "3px 0" }}>
           <p style={{ margin: 0 }}>
