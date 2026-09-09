@@ -145,17 +145,16 @@ body {
     font-size: 11px;
     line-height: 1.4;
   }
-  /* cada via ocupa exatamente metade da folha (281mm de área útil),
-     com um respiro simétrico de 2mm de cada lado da linha de corte —
-     assim ela cai bem no meio físico da página, e não só no meio do
-     conteúdo, não importa a quantidade de produtos */
+  /* cada via ocupa pelo menos metade da folha (281mm de área útil), com
+     um respiro simétrico de 2mm — assim, com poucos produtos, o corte cai
+     bem no meio físico da página. Com muitos produtos, a via cresce o
+     quanto precisar (sem cortar nada) em vez de esconder o final da lista. */
   #area-impressao .imp-via {
-    height: 138.5mm;
+    min-height: 138.5mm;
     box-sizing: border-box;
-    overflow: hidden;
   }
   #area-impressao .imp-via + .imp-via {
-    height: 138.5mm;
+    min-height: 138.5mm;
     margin-top: 2mm;
     border-top: 1px dashed #999;
     padding-top: 2mm;
