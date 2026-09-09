@@ -24,6 +24,7 @@ interface Props {
   cliente: ClienteResumo;
   itens: VendaItem[];
   total: number;
+  valorPago?: number;
   formaPagamento: string;
   pagamentos?: PagamentoResumo[];
   prazoEntregaMaximo?: string | null;
@@ -102,6 +103,7 @@ function ViaComprovante({
   cliente,
   itens,
   total,
+  valorPago,
   formaPagamento,
   pagamentos,
   prazoEntregaMaximo,
@@ -215,6 +217,12 @@ function ViaComprovante({
       ) : (
         <p style={{ margin: "4px 0" }}>
           <strong>Total: {formatarMoeda(total)}</strong> ({formaPagamento})
+        </p>
+      )}
+      {typeof valorPago === "number" && valorPago < total - 0.01 && (
+        <p style={{ margin: "2px 0", fontWeight: 700 }}>
+          Sinal pago: {formatarMoeda(valorPago)} — Restante a receber:{" "}
+          {formatarMoeda(Math.round((total - valorPago) * 100) / 100)}
         </p>
       )}
       {temPrazo && (
