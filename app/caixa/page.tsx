@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
+import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { useLoja } from "@/contexts/LojaContext";
 import type { Caixa, TurnoCaixa, LojaCompleta, Sangria } from "@/types";
 
@@ -125,6 +126,46 @@ export default function CaixaPage() {
     } else {
       alert("Erro ao fechar o caixa: " + error.message);
     }
+  }
+
+  async function enviarRelatorioPdf() {
+    if (!turno) {
+      alert("Nenhum turno de caixa carregado ainda.");
+      return;
+    }
+    const blob = await gerarRelatorioCaixaPdf(turno, nomeCaixaAtual, lojaInfo, qtdVendas, sangrias);
+    const nomeArquivo = `caixa-${nomeCaixaAtual.replace(/\s+/g, "-").toLowerCase()}-${new Date(
+      turno.aberto_em
+    )
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+    const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
+
+    // No celular, abre o menu de compartilhar do sistema já com o PDF
+    // pronto — escolhe o WhatsApp (e a pessoa) na lista de contatos.
+    if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({
+          files: [arquivo],
+          title: `Relatório de caixa — ${nomeCaixaAtual}`,
+          text: `Relatório de caixa — ${nomeCaixaAtual}`,
+        });
+        return;
+      } catch {
+        // usuário cancelou o compartilhamento — não faz nada
+        return;
+      }
+    }
+
+    // No computador (sem suporte a compartilhar arquivo): baixa o PDF pra
+    // anexar manualmente no WhatsApp Web/Desktop.
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nomeArquivo;
+    link.click();
+    URL.revokeObjectURL(url);
+    alert("PDF baixado. Abra o WhatsApp e anexe o arquivo pra enviar pra quem quiser.");
   }
 
   const totalCartao = (turno?.total_debito || 0) + (turno?.total_credito || 0);
@@ -372,6 +413,9 @@ export default function CaixaPage() {
           )}
 
           <div className="flex gap-3">
+            <button className="btn-secundario" onClick={enviarRelatorioPdf}>
+              📄 PDF WhatsApp
+            </button>
             {aberto ? (
               <button className="btn-primario" onClick={fecharCaixa}>
                 Fechar caixa
