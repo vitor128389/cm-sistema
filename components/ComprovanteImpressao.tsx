@@ -15,6 +15,7 @@ interface ClienteResumo {
   numero?: string | null;
   complemento?: string | null;
   cidade?: string | null;
+  povoado?: string | null;
 }
 
 interface Props {
@@ -132,6 +133,7 @@ function ViaComprovante({
       {cliente.telefone && <p style={{ margin: "0.5px 0" }}>Cel: {cliente.telefone}</p>}
       {enderecoCliente && <p style={{ margin: "0.5px 0" }}>End: {enderecoCliente}</p>}
       {cliente.cidade && <p style={{ margin: "0.5px 0" }}>Cidade: {cliente.cidade}</p>}
+      {cliente.povoado && <p style={{ margin: "0.5px 0" }}>Povoado: {cliente.povoado}</p>}
 
       {ehMisto ? (
         <>
