@@ -47,7 +47,8 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
       linha(`End: ${cliente.endereco}${numero}`, { tamanho: 10 });
     }
     if (cliente.complemento) linha(cliente.complemento, { tamanho: 10 });
-    if (cliente.cidade) linha(`Cidade: ${cliente.cidade}`, { tamanho: 10, espaco: 4 });
+    if (cliente.cidade) linha(`Cidade: ${cliente.cidade}`, { tamanho: 10 });
+    if (cliente.povoado) linha(`Povoado: ${cliente.povoado}`, { tamanho: 10, espaco: 4 });
   }
 
   // Itens
