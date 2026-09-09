@@ -78,6 +78,15 @@ function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: numb
             <strong>{item.observacao}</strong>
           </>
         )}
+        {!!item.desconto && item.desconto > 0 && (
+          <>
+            {" — Desconto: "}
+            <strong>
+              {formatarMoeda(item.desconto)}
+              {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
+            </strong>
+          </>
+        )}
       </td>
       <td>{qtd}</td>
       <td>
