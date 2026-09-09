@@ -1149,7 +1149,7 @@ function AbaEstoque() {
                         };
                       })
                       .filter((l): l is { label: string; custo: number; venda: number } => l !== null);
-                  } else if (p.produto_variantes.length > 0) {
+                  } else if (p.tipo_precificacao !== "simples" && p.produto_variantes.length > 0) {
                     linhas = [...p.produto_variantes]
                       .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
                       .map((v) => ({
