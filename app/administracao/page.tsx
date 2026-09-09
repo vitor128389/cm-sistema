@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { formatarMoeda } from "@/lib/format";
+import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { consultarCpf } from "@/lib/consultaCpf";
@@ -530,9 +530,11 @@ function AbaEstoque() {
     return categoriasConfig[chave] || "simples";
   }
 
-  const produtosFiltrados = categoriaFiltro
-    ? produtos.filter((p) => p.categoria === categoriaFiltro)
-    : produtos;
+  const [buscaProduto, setBuscaProduto] = useState("");
+
+  const produtosFiltrados = produtos
+    .filter((p) => !categoriaFiltro || p.categoria === categoriaFiltro)
+    .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)));
 
   async function salvarEstoqueSimples(produtoId: string, valor: number) {
     if (!lojaAtual) return;
@@ -1147,6 +1149,13 @@ function AbaEstoque() {
           </button>
         </div>
       )}
+
+      <input
+        className="input-base max-w-sm mb-3"
+        value={buscaProduto}
+        onChange={(e) => setBuscaProduto(e.target.value)}
+        placeholder="Buscar produto pelo nome..."
+      />
 
       <div className="flex flex-wrap gap-2 mb-4">
         <button
