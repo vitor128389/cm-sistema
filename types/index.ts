@@ -133,6 +133,8 @@ export interface ItemCarrinho {
   quantidadeRetirada: number;
   quantidadeEntrega: number;
   observacao: string | null;
+  desconto: number; // valor em R$ abatido do total dessa linha
+  motivoDesconto: string | null;
 }
 
 export type FormaRecebimento = "retirada" | "entrega" | "misto";
@@ -179,6 +181,8 @@ export interface VendaItem {
   quantidade_entrega: number;
   trocado: boolean;
   observacao: string | null;
+  desconto?: number;
+  motivo_desconto?: string | null;
   produtos?: { custo: number } | null;
 }
 
