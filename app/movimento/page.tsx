@@ -82,7 +82,11 @@ export default function MovimentoPage() {
   function lucroDaVenda(v: Venda): number {
     return (v.venda_itens || []).reduce((s, item) => {
       const custo = item.produtos?.custo || 0;
-      return s + (item.total - custo * item.quantidade);
+      // O valor gravado no item é sempre o "a prazo" (+10%, aplicado assim
+      // que entra no carrinho, antes de saber a forma de pagamento) —
+      // divide por 1.1 pra usar o preço à vista no cálculo do lucro.
+      const totalAVista = Math.round((item.total / 1.1) * 100) / 100;
+      return s + (totalAVista - custo * item.quantidade);
     }, 0);
   }
   const lucroTotal = vendas.reduce((s, v) => s + lucroDaVenda(v), 0);
