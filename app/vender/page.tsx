@@ -96,6 +96,8 @@ export default function VenderPage() {
   }, [quantidade]);
   const [valorUnitario, setValorUnitario] = useState(0);
   const [observacaoItem, setObservacaoItem] = useState("");
+  const [descontoItem, setDescontoItem] = useState("");
+  const [motivoDescontoItem, setMotivoDescontoItem] = useState("");
 
   // ---------- Pagamento ----------
   interface PagamentoParte {
@@ -405,6 +407,8 @@ export default function VenderPage() {
     setCorSimplesManual("");
     setModeloSel("");
     setObservacaoItem("");
+    setDescontoItem("");
+    setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
     setPecaSel("");
     setQtdRetiradaItem(formaRecebimento === "entrega" ? 0 : 1);
@@ -584,6 +588,16 @@ export default function VenderPage() {
       quantidadeEntrega = qtdEntregaItem;
     }
 
+    const descontoValor = parseFloat(descontoItem) || 0;
+    if (descontoValor > 0 && !motivoDescontoItem.trim()) {
+      alert("Digite o motivo do desconto.");
+      return;
+    }
+    if (descontoValor > 0 && descontoValor > valorUnitario * quantidade) {
+      alert("O desconto não pode ser maior que o valor do produto.");
+      return;
+    }
+
     const itemComum = {
       categoria: produtoSelecionado.categoria,
       modelo: precisaModelo() ? modeloSel || null : null,
@@ -615,6 +629,8 @@ export default function VenderPage() {
           varianteId: v2?.id || null,
           varianteNome: nomeVarianteConjunto("2"),
           cor: `${tecidoSel} — 2 Lugares`,
+          desconto: 0,
+          motivoDesconto: null,
         },
         {
           ...itemComum,
@@ -626,6 +642,8 @@ export default function VenderPage() {
           varianteId: v3?.id || null,
           varianteNome: nomeVarianteConjunto("3"),
           cor: `${tecidoSel} — 3 Lugares`,
+          desconto: 0,
+          motivoDesconto: null,
         },
       ]);
     } else {
@@ -636,8 +654,8 @@ export default function VenderPage() {
           produtoId: produtoSelecionado.id,
           nome: produtoSelecionado.nome,
           quantidade,
-          valorUnitario,
-          valorAVista: valorAVistaAtual(),
+          valorUnitario: Math.round((valorUnitario - descontoValor / quantidade) * 100) / 100,
+          valorAVista: Math.round((valorAVistaAtual() - descontoValor / quantidade) * 100) / 100,
           varianteId: varianteAtualId(),
           varianteNome:
             produtoSelecionado.tipo_precificacao === "espessura"
@@ -648,6 +666,8 @@ export default function VenderPage() {
               ? nomeVarianteConjunto(pecaSel)
               : null,
           cor: corTexto(),
+          desconto: descontoValor,
+          motivoDesconto: descontoValor > 0 ? motivoDescontoItem.trim() : null,
         },
       ]);
     }
@@ -663,6 +683,8 @@ export default function VenderPage() {
     setCorSimplesManual("");
     setModeloSel("");
     setObservacaoItem("");
+    setDescontoItem("");
+    setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
   }
 
@@ -925,6 +947,8 @@ export default function VenderPage() {
         quantidade_retirada: item.quantidadeRetirada,
         quantidade_entrega: item.quantidadeEntrega,
         observacao: item.observacao,
+        desconto: item.desconto || 0,
+        motivo_desconto: item.motivoDesconto,
       }));
       const { error: erroItens } = await supabase.from("venda_itens").insert(itensParaInserir);
       if (erroItens) throw erroItens;
@@ -1620,6 +1644,30 @@ export default function VenderPage() {
                   />
                 </label>
 
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">Desconto nesse produto (R$, opcional)</span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      value={descontoItem}
+                      onChange={(e) => setDescontoItem(e.target.value)}
+                      placeholder="0,00"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">
+                      Motivo do desconto{parseFloat(descontoItem) > 0 ? " (obrigatório)" : ""}
+                    </span>
+                    <input
+                      className="input-base"
+                      value={motivoDescontoItem}
+                      onChange={(e) => setMotivoDescontoItem(e.target.value)}
+                      placeholder="Ex: avaria, cliente fidelizado..."
+                    />
+                  </label>
+                </div>
+
                 <p className="text-xs text-madeira-500 mb-3">
                   {estoqueDisponivel() > 0
                     ? `${estoqueDisponivel()} em estoque`
@@ -1663,6 +1711,12 @@ export default function VenderPage() {
                       {item.observacao && (
                         <p className="text-xs text-madeira-700 mt-0.5">
                           Obs: <strong>{item.observacao}</strong>
+                        </p>
+                      )}
+                      {!!item.desconto && item.desconto > 0 && (
+                        <p className="text-xs text-green-700 mt-0.5">
+                          Desconto: <strong>{formatarMoeda(item.desconto)}</strong>
+                          {item.motivoDesconto ? ` (${item.motivoDesconto})` : ""}
                         </p>
                       )}
                     </div>
@@ -1990,6 +2044,8 @@ export default function VenderPage() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
+              desconto: item.desconto || 0,
+              motivo_desconto: item.motivoDesconto,
             }))}
           />
         )}
@@ -2032,6 +2088,8 @@ export default function VenderPage() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
+              desconto: item.desconto || 0,
+              motivo_desconto: item.motivoDesconto,
             }))}
           />
         )}
