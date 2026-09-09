@@ -1199,7 +1199,10 @@ function AbaEstoque() {
                             <div key={l.label} className="mb-1">
                               <span className="text-xs text-madeira-500">{l.label}</span>
                               <br />
-                              {formatarMoeda(l.venda)}
+                              {formatarMoeda(l.venda)}{" "}
+                              <span className="text-green-700 text-xs">
+                                (lucro {formatarMoeda(l.venda - l.custo)})
+                              </span>
                             </div>
                           ))}
                         </td>
@@ -1210,7 +1213,12 @@ function AbaEstoque() {
                   return (
                     <>
                       <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
-                      <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
+                      <td className="px-4 py-2">
+                        {formatarMoeda(p.preco_venda || 0)}{" "}
+                        <span className="text-green-700 text-xs">
+                          (lucro {formatarMoeda((p.preco_venda || 0) - (p.custo || 0))})
+                        </span>
+                      </td>
                     </>
                   );
                 })()}
