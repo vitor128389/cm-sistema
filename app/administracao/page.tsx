@@ -1108,8 +1108,67 @@ function AbaEstoque() {
               <tr key={p.id} className="border-t border-estofado-100 align-top">
                 <td className="px-4 py-2">{p.nome}</td>
                 <td className="px-4 py-2">{p.categoria}</td>
-                <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
-                <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
+                {(() => {
+                  // Monta uma linha por tecido/espessura (mesma ordem usada
+                  // na coluna Estoque), pra Custo e Preço de venda mostrarem
+                  // o valor de cada um, em vez do valor geral do produto.
+                  let linhas: { label: string; custo: number; venda: number }[] = [];
+                  if (p.tipo_precificacao === "tecido_peca") {
+                    const tecidos = Array.from(
+                      new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0]))
+                    );
+                    linhas = tecidos
+                      .map((tecido) => {
+                        const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
+                        const v3 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 3 Lugares`);
+                        if (!v2 || !v3) return null;
+                        return {
+                          label: tecido,
+                          custo: v2.custo || 0,
+                          venda: (v2.preco_avista || 0) + (v3.preco_avista || 0),
+                        };
+                      })
+                      .filter((l): l is { label: string; custo: number; venda: number } => l !== null);
+                  } else if (p.produto_variantes.length > 0) {
+                    linhas = p.produto_variantes.map((v) => ({
+                      label: v.nome_variante,
+                      custo: v.custo || 0,
+                      venda: v.preco_avista || 0,
+                    }));
+                  }
+
+                  if (linhas.length > 0) {
+                    return (
+                      <>
+                        <td className="px-4 py-2">
+                          {linhas.map((l) => (
+                            <div key={l.label} className="mb-1">
+                              <span className="text-xs text-madeira-500">{l.label}</span>
+                              <br />
+                              {formatarMoeda(l.custo)}
+                            </div>
+                          ))}
+                        </td>
+                        <td className="px-4 py-2">
+                          {linhas.map((l) => (
+                            <div key={l.label} className="mb-1">
+                              <span className="text-xs text-madeira-500">{l.label}</span>
+                              <br />
+                              {formatarMoeda(l.venda)}
+                            </div>
+                          ))}
+                        </td>
+                      </>
+                    );
+                  }
+                  // Produto simples, sem tecido nem espessura — só um custo.
+                  return (
+                    <>
+                      <td className="px-4 py-2">{formatarMoeda(p.custo || 0)}</td>
+                      <td className="px-4 py-2">{formatarMoeda(p.preco_venda || 0)}</td>
+                    </>
+                  );
+                })()}
                 <td className="px-4 py-2">
                   {p.tipo_precificacao === "tecido_peca" ? (
                     // Sofá "2 e 3 lugares": mostra uma linha por tecido (o
@@ -1123,13 +1182,7 @@ function AbaEstoque() {
                         const chaveEdicao = `${v2.id}|${v3.id}`;
                         return (
                           <div key={tecido} className="flex items-center gap-2 mb-1">
-                            <span className="text-xs w-24">
-                              {tecido} — Conjunto
-                              <span className="block text-madeira-400">
-                                custo {formatarMoeda(v2.custo || 0)} · venda{" "}
-                                {formatarMoeda((v2.preco_avista || 0) + (v3.preco_avista || 0))}
-                              </span>
-                            </span>
+                            <span className="text-xs w-24">{tecido} — Conjunto</span>
                             <input
                               className="input-base py-1 px-2 text-xs w-20"
                               type="number"
@@ -1160,12 +1213,7 @@ function AbaEstoque() {
                   ) : p.produto_variantes.length > 0 ? (
                     p.produto_variantes.map((v) => (
                       <div key={v.id} className="flex items-center gap-2 mb-1">
-                        <span className="text-xs w-24">
-                          {v.nome_variante}
-                          <span className="block text-madeira-400">
-                            custo {formatarMoeda(v.custo || 0)} · venda {formatarMoeda(v.preco_avista || 0)}
-                          </span>
-                        </span>
+                        <span className="text-xs w-24">{v.nome_variante}</span>
                         <input
                           className="input-base py-1 px-2 text-xs w-20"
                           type="number"
