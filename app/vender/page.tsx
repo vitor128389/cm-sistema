@@ -1960,7 +1960,7 @@ export default function VenderPage() {
                 ? null
                 : {
                     nome,
-                    telefone: celulares.filter((c) => c.numero.trim())[0]?.numero || null,
+                    telefone: celulares.filter((c) => c.numero.trim()).map((c) => c.numero).join(", ") || null,
                     endereco,
                     numero: semNumero ? "S/N" : numero,
                     complemento,
@@ -1998,7 +1998,7 @@ export default function VenderPage() {
             cliente={{
               nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
-              telefone: celulares.filter((c) => c.numero.trim())[0]?.numero || null,
+              telefone: celulares.filter((c) => c.numero.trim()).map((c) => c.numero).join(", ") || null,
               endereco,
               numero: semNumero ? "S/N" : numero,
               complemento,
