@@ -116,6 +116,12 @@ body {
     color: #222;
     font-size: 0.88rem;
     line-height: 1.32;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #area-impressao * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   #area-impressao table {
     width: 100%;
@@ -134,9 +140,10 @@ body {
   #area-impressao .imp-numero-pedido {
     font-size: 1.05rem;
     font-weight: 700;
-    border: 1px solid #222;
-    border-radius: 3px;
-    padding: 2px 8px;
+    color: #fff;
+    background-color: #123c2e;
+    border-radius: 5px;
+    padding: 2px 10px;
     display: inline-block;
   }
   #area-impressao.cupom-88mm {
