@@ -1,6 +1,14 @@
 import { formatarMoeda } from "@/lib/format";
 import type { VendaItem, LojaCompleta } from "@/types";
 
+// Paleta de cores da notinha — mudar só aqui já reflete em toda a
+// impressão (Via da loja e Via do cliente).
+const COR_VERDE_ESCURO = "#123C2E";
+const COR_VERDE_FUNDO = "#E8F1EC";
+const COR_TEXTO = "#111111";
+const COR_SECUNDARIO = "#666666";
+const COR_AVISO = "#9E2525";
+
 interface PagamentoResumo {
   forma: string;
   parcelas: number;
@@ -70,14 +78,24 @@ function valorPagoItem(item: VendaItem, todos: VendaItem[], totalPago: number): 
 function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: number) {
   return (
     <tr key={item.id + "-" + qtd}>
-      <td>
+      <td style={{ color: COR_TEXTO }}>
         {item.nome_produto} {item.tipo_entrega === "encomenda" ? "(ENCOMENDA)" : "(PRONTA ENTREGA)"}
         {item.variante ? ` — ${item.variante}` : ""}
         {item.observacao && (
-          <>
-            {" — Obs: "}
-            <strong>{item.observacao}</strong>
-          </>
+          <span
+            style={{
+              display: "inline-block",
+              marginLeft: 4,
+              color: COR_VERDE_ESCURO,
+              fontWeight: 700,
+              backgroundColor: COR_VERDE_FUNDO,
+              border: `1px solid ${COR_VERDE_ESCURO}`,
+              borderRadius: 4,
+              padding: "1px 5px",
+            }}
+          >
+            OBS: {item.observacao}
+          </span>
         )}
         {!!item.desconto && item.desconto > 0 && (
           <>
@@ -89,8 +107,8 @@ function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: numb
           </>
         )}
       </td>
-      <td>{qtd}</td>
-      <td>
+      <td style={{ color: COR_TEXTO }}>{qtd}</td>
+      <td style={{ color: COR_TEXTO }}>
         {formatarMoeda(Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100)}
       </td>
     </tr>
@@ -126,35 +144,62 @@ function ViaComprovante({
     <div className="imp-via">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: "1.2rem" }}>{loja?.nome || "Caruaru Móveis"}</h2>
-          {loja?.cnpj && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>CNPJ: {loja.cnpj}</p>}
-          {enderecoLoja && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>{enderecoLoja}</p>}
-          {loja?.telefone && <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: "#666" }}>Tel: {loja.telefone}</p>}
+          <h2 style={{ margin: 0, fontSize: "1.2rem", color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+            {loja?.nome || "Caruaru Móveis"}
+          </h2>
+          {loja?.cnpj && (
+            <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: COR_SECUNDARIO }}>CNPJ: {loja.cnpj}</p>
+          )}
+          {enderecoLoja && (
+            <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: COR_SECUNDARIO }}>{enderecoLoja}</p>
+          )}
+          {loja?.telefone && (
+            <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: COR_SECUNDARIO }}>Tel: {loja.telefone}</p>
+          )}
         </div>
         <span className="imp-numero-pedido">#{numeroPedido}</span>
       </div>
-      <p style={{ margin: "4px 0 6px", fontSize: "0.82rem", color: "#666" }}>
+      <p style={{ margin: "4px 0 6px", fontSize: "0.82rem", color: COR_SECUNDARIO }}>
         {rotulo} {tag ? `· ${tag}` : ""} · {new Date().toLocaleString("pt-BR")}
       </p>
 
-      <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "0 0 2px" }}>Cliente</p>
-      <p style={{ margin: "0.5px 0" }}>{cliente.nome}</p>
-      {cpfFormatado && <p style={{ margin: "0.5px 0" }}>CPF: {cpfFormatado}</p>}
-      {cliente.telefone && <p style={{ margin: "0.5px 0" }}>Cel: {cliente.telefone}</p>}
-      {cliente.bairro && <p style={{ margin: "0.5px 0" }}>Bairro: {cliente.bairro}</p>}
-      {enderecoCliente && <p style={{ margin: "0.5px 0" }}>End: {enderecoCliente}</p>}
-      {cliente.cidade && <p style={{ margin: "0.5px 0" }}>Cidade: {cliente.cidade}</p>}
-      {cliente.povoado && <p style={{ margin: "0.5px 0" }}>Povoado: {cliente.povoado}</p>}
+      <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "0 0 2px", color: COR_VERDE_ESCURO }}>Cliente</p>
+      <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>{cliente.nome}</p>
+      {cpfFormatado && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>CPF: {cpfFormatado}</p>}
+      {cliente.telefone && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Cel: {cliente.telefone}</p>}
+      {cliente.bairro && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Bairro: {cliente.bairro}</p>}
+      {enderecoCliente && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>End: {enderecoCliente}</p>}
+      {cliente.cidade && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Cidade: {cliente.cidade}</p>}
+      {cliente.povoado && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Povoado: {cliente.povoado}</p>}
 
       {ehMisto ? (
         <>
-          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>RETIRADA NA LOJA</p>
+          <span
+            style={{
+              display: "inline-block",
+              fontWeight: 700,
+              fontSize: "0.82rem",
+              margin: "6px 0 2px",
+              color: COR_VERDE_ESCURO,
+              backgroundColor: COR_VERDE_FUNDO,
+              borderRadius: 4,
+              padding: "2px 7px",
+            }}
+          >
+            RETIRADA NA LOJA
+          </span>
           <table>
             <thead>
               <tr>
-                <th>Produto</th>
-                <th>Qtd.</th>
-                <th>Total</th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Produto
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Qtd.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -163,13 +208,32 @@ function ViaComprovante({
               )}
             </tbody>
           </table>
-          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>ENTREGA</p>
+          <span
+            style={{
+              display: "inline-block",
+              fontWeight: 700,
+              fontSize: "0.82rem",
+              margin: "6px 0 2px",
+              color: COR_VERDE_ESCURO,
+              backgroundColor: COR_VERDE_FUNDO,
+              borderRadius: 4,
+              padding: "2px 7px",
+            }}
+          >
+            ENTREGA
+          </span>
           <table>
             <thead>
               <tr>
-                <th>Produto</th>
-                <th>Qtd.</th>
-                <th>Total</th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Produto
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Qtd.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -181,15 +245,38 @@ function ViaComprovante({
         </>
       ) : (
         <>
-          <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px" }}>
-            {itensRetirada.length === itens.length && itens.length > 0 ? "RETIRADA NA LOJA" : "Itens"}
-          </p>
+          {itensRetirada.length === itens.length && itens.length > 0 ? (
+            <span
+              style={{
+                display: "inline-block",
+                fontWeight: 700,
+                fontSize: "0.82rem",
+                margin: "6px 0 2px",
+                color: COR_VERDE_ESCURO,
+                backgroundColor: COR_VERDE_FUNDO,
+                borderRadius: 4,
+                padding: "2px 7px",
+              }}
+            >
+              RETIRADA NA LOJA
+            </span>
+          ) : (
+            <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "6px 0 2px", color: COR_VERDE_ESCURO }}>
+              Itens
+            </p>
+          )}
           <table>
             <thead>
               <tr>
-                <th>Produto</th>
-                <th>Qtd.</th>
-                <th>Total</th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Produto
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Qtd.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade))}</tbody>
@@ -199,31 +286,50 @@ function ViaComprovante({
 
       {pagamentos && pagamentos.length > 1 ? (
         <>
-          <p style={{ marginTop: 6, marginBottom: 1 }}>
+          <p style={{ marginTop: 6, marginBottom: 1, color: COR_TEXTO }}>
             <strong>Pagamento dividido:</strong>
           </p>
           {pagamentos.map((p, idx) => (
-            <p key={idx} style={{ margin: "0.5px 0" }}>
+            <p key={idx} style={{ margin: "0.5px 0", color: COR_TEXTO }}>
               {p.forma}
               {p.forma === "Crédito" && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}: {formatarMoeda(p.valorAPagar)}
             </p>
           ))}
-          <p style={{ margin: "2px 0" }}>
-            <strong>Total: {formatarMoeda(total)}</strong>
+          <p
+            style={{
+              margin: "4px 0",
+              padding: "4px 7px",
+              backgroundColor: COR_VERDE_FUNDO,
+              borderRadius: 4,
+              display: "inline-block",
+            }}
+          >
+            <strong style={{ color: COR_TEXTO }}>Total: </strong>
+            <span style={{ color: COR_VERDE_ESCURO, fontWeight: 700 }}>{formatarMoeda(total)}</span>
           </p>
         </>
       ) : (
-        <p style={{ margin: "4px 0" }}>
-          <strong>Total: {formatarMoeda(total)}</strong> ({formaPagamento})
+        <p
+          style={{
+            margin: "4px 0",
+            padding: "4px 7px",
+            backgroundColor: COR_VERDE_FUNDO,
+            borderRadius: 4,
+            display: "inline-block",
+          }}
+        >
+          <strong style={{ color: COR_TEXTO }}>Total: </strong>
+          <span style={{ color: COR_VERDE_ESCURO, fontWeight: 700 }}>{formatarMoeda(total)}</span>
+          <span style={{ color: COR_TEXTO }}> ({formaPagamento})</span>
         </p>
       )}
       {temPrazo && (
-        <p style={{ margin: "2px 0" }}>
+        <p style={{ margin: "2px 0", color: COR_TEXTO }}>
           Prazo máximo: {new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}
         </p>
       )}
 
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 10, color: COR_TEXTO }}>
         {rotulo === "Via da loja" ? (
           <>
             <p style={{ margin: "6px 0 6px" }}>
@@ -241,8 +347,16 @@ function ViaComprovante({
       </div>
 
       {rotulo === "Via do cliente" && (
-        <div style={{ marginTop: 10, paddingTop: 6, borderTop: "1px dashed #999", fontSize: "0.75rem", color: "#555" }}>
-          <p style={{ margin: "0 0 2px", fontWeight: 700 }}>DEVOLUÇÃO DE VALORES</p>
+        <div
+          style={{
+            marginTop: 10,
+            paddingTop: 6,
+            borderTop: "1px dashed #999",
+            fontSize: "0.75rem",
+            color: COR_SECUNDARIO,
+          }}
+        >
+          <p style={{ margin: "0 0 2px", fontWeight: 700, color: COR_AVISO }}>DEVOLUÇÃO DE VALORES</p>
           <p style={{ margin: 0 }}>
             Em compras presenciais, não devolvemos dinheiro ou diferença de valor por arrependimento ou troca
             por produto mais barato, salvo nos casos previstos em lei.
