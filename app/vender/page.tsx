@@ -28,7 +28,7 @@ function ordemTecido(nome: string): number {
   return ordem[nome] ?? 99;
 }
 const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
-const PRODUTOS_COM_MODELO = ["Poltrona Benny", "Namoradeira Benny"];
+const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 
 export default function VenderPage() {
   const [passo, setPasso] = useState<1 | 2 | 3 | 4>(1);
@@ -2077,7 +2077,11 @@ export default function VenderPage() {
                 ? null
                 : {
                     nome,
-                    telefone: celulares.filter((c) => c.numero.trim()).map((c) => c.numero).join(", ") || null,
+                    telefone:
+                      celulares
+                        .filter((c) => c.numero.trim())
+                        .map((c) => (c.responsavel.trim() ? `${c.numero} (${c.responsavel.trim()})` : c.numero))
+                        .join(", ") || null,
                     endereco,
                     numero: semNumero ? "S/N" : numero,
                     complemento,
@@ -2119,7 +2123,11 @@ export default function VenderPage() {
             cliente={{
               nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
-              telefone: celulares.filter((c) => c.numero.trim()).map((c) => c.numero).join(", ") || null,
+              telefone:
+                      celulares
+                        .filter((c) => c.numero.trim())
+                        .map((c) => (c.responsavel.trim() ? `${c.numero} (${c.responsavel.trim()})` : c.numero))
+                        .join(", ") || null,
               endereco,
               numero: semNumero ? "S/N" : numero,
               complemento,
