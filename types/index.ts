@@ -183,6 +183,7 @@ export interface VendaItem {
   observacao: string | null;
   desconto?: number;
   motivo_desconto?: string | null;
+  categoria?: string | null;
   produtos?: { custo: number } | null;
 }
 
