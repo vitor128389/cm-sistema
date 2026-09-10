@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useMenu } from "@/contexts/MenuContext";
 
 const NOMES_PAGINA: Record<string, string> = {
   "/": "Painel",
@@ -20,6 +21,7 @@ export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [nome, setNome] = useState("");
+  const { abrirMenu } = useMenu();
 
   useEffect(() => {
     async function carregar() {
@@ -46,17 +48,37 @@ export default function TopBar() {
   }
 
   return (
-    <div className="h-14 bg-white border-b border-estofado-100 flex items-center justify-between px-6 sticky top-0 z-20">
-      <div className="flex items-center gap-2 text-sm text-madeira-600 font-medium">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+    <div className="h-14 bg-white border-b border-estofado-100 flex items-center justify-between px-3 md:px-6 sticky top-0 z-20">
+      <div className="flex items-center gap-2 text-sm text-madeira-600 font-medium min-w-0">
+        <button
+          type="button"
+          onClick={abrirMenu}
+          className="md:hidden w-8 h-8 shrink-0 rounded flex items-center justify-center text-madeira-700 hover:bg-madeira-50"
+          title="Abrir menu"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <svg
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="hidden sm:block shrink-0"
+        >
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           <polyline points="9 22 9 12 15 12 15 22" />
         </svg>
-        <span>{nomeAtual}</span>
+        <span className="truncate">{nomeAtual}</span>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         {nome && (
-          <span className="text-sm text-madeira-600">
+          <span className="hidden sm:inline text-sm text-madeira-600">
             Bem-vindo, <strong className="text-madeira-900">{nome}</strong>
           </span>
         )}
