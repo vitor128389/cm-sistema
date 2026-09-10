@@ -1167,7 +1167,13 @@ function AbaEstoque() {
         {categorias.map((c) => (
           <button
             key={c}
-            className={`text-xs px-3 py-1.5 rounded-full border ${categoriaFiltro === c ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"}`}
+            className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
+              categoriaFiltro === c
+                ? "bg-madeira-700 text-white border-madeira-700"
+                : c === "Móveis Depósito"
+                ? "border-amber-400 bg-amber-50 text-amber-800"
+                : "border-madeira-300 text-madeira-600"
+            }`}
             onClick={() => setCategoriaFiltro(c)}
           >
             {c}
