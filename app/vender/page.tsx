@@ -579,6 +579,7 @@ export default function VenderPage() {
     return (
       produtoSelecionado.categoria === "Cabeceiras" ||
       produtoSelecionado.categoria === "Baús" ||
+      produtoSelecionado.categoria === "Painéis" ||
       PRODUTOS_COM_MODELO.includes(produtoSelecionado.nome)
     );
   }
