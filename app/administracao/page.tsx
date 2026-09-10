@@ -480,6 +480,7 @@ function AbaEstoque() {
   const [form, setForm] = useState(FORM_VAZIO);
   const [estoquesEdicao, setEstoquesEdicao] = useState<Record<string, string>>({});
   const [categoriasConfig, setCategoriasConfig] = useState<Record<string, "tecido" | "espessura" | "simples">>({});
+  const [nomesCategoriasConfig, setNomesCategoriasConfig] = useState<string[]>([]);
   const [tipoCategoriaNova, setTipoCategoriaNova] = useState<"tecido" | "espessura" | "simples">("simples");
   const [produtosDesativados, setProdutosDesativados] = useState<{ id: string; nome: string; categoria: string }[]>(
     []
@@ -510,6 +511,10 @@ function AbaEstoque() {
       mapa[c.nome.trim().toLowerCase()] = c.tipo as "tecido" | "espessura" | "simples";
     });
     setCategoriasConfig(mapa);
+    // guarda os nomes com a grafia certinha — assim uma categoria cadastrada
+    // mas ainda sem nenhum produto (ex: recém-criada) também aparece nos
+    // filtros, em vez de só surgir quando o primeiro produto for salvo nela
+    setNomesCategoriasConfig((data || []).map((c) => c.nome.trim()));
   }
 
   useEffect(() => {
@@ -519,7 +524,9 @@ function AbaEstoque() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
-  const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
+  const categorias = Array.from(
+    new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig])
+  );
 
   // A partir de agora, é a categoria (configurada no banco, escolhida na hora
   // de cadastrar) que decide se o produto usa tecido, espessura ou nenhum
