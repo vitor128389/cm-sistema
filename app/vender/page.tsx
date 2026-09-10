@@ -1483,26 +1483,34 @@ export default function VenderPage() {
 
                 <div className="mb-3">
                   <span className="text-xs text-madeira-600 mb-1 block">Entrega</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      className={`opcao-btn ${tipoEntrega === "pronta" ? "ativo" : ""}`}
-                      onClick={() => setTipoEntrega("pronta")}
-                    >
-                      Pronta entrega
-                    </button>
-                    <button
-                      type="button"
-                      className={`opcao-btn ${tipoEntrega === "encomenda" ? "ativo" : ""}`}
-                      onClick={() => setTipoEntrega("encomenda")}
-                    >
-                      Encomenda
-                    </button>
-                  </div>
-                  {tipoEntrega === "encomenda" && (
-                    <p className="text-xs text-madeira-500 mt-1">
-                      Item de encomenda — não será descontado do estoque.
+                  {produtoSelecionado.categoria === "Móveis Depósito" ? (
+                    <p className="opcao-btn ativo text-center" style={{ cursor: "default" }}>
+                      Depósito
                     </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className={`opcao-btn ${tipoEntrega === "pronta" ? "ativo" : ""}`}
+                          onClick={() => setTipoEntrega("pronta")}
+                        >
+                          Pronta entrega
+                        </button>
+                        <button
+                          type="button"
+                          className={`opcao-btn ${tipoEntrega === "encomenda" ? "ativo" : ""}`}
+                          onClick={() => setTipoEntrega("encomenda")}
+                        >
+                          Encomenda
+                        </button>
+                      </div>
+                      {tipoEntrega === "encomenda" && (
+                        <p className="text-xs text-madeira-500 mt-1">
+                          Item de encomenda — não será descontado do estoque.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
 
