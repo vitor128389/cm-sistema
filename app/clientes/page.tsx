@@ -386,6 +386,8 @@ export default function ClientesPage() {
                                     ? item.status_entrega === "entregue"
                                       ? "ENCOMENDA (entregue)"
                                       : "ENCOMENDA"
+                                    : item.categoria === "Móveis Depósito"
+                                    ? "DEPÓSITO"
                                     : "PRONTA ENTREGA"}
                                 </span>{" "}
                                 — {formatarMoeda(item.total)}
