@@ -1331,8 +1331,12 @@ export default function VenderPage() {
                       <button
                         type="button"
                         key={c}
-                        className={`text-xs px-2 py-1 rounded-full border ${
-                          categoriaAberta === c ? "bg-madeira-700 text-white" : "border-madeira-200"
+                        className={`text-xs px-2 py-1 rounded-full border font-medium ${
+                          categoriaAberta === c
+                            ? "bg-madeira-700 text-white"
+                            : c === "Móveis Depósito"
+                            ? "border-amber-400 bg-amber-50 text-amber-800"
+                            : "border-madeira-200"
                         }`}
                         onClick={() => setCategoriaAberta(c)}
                       >
