@@ -79,7 +79,12 @@ function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: numb
   return (
     <tr key={item.id + "-" + qtd}>
       <td style={{ color: COR_TEXTO }}>
-        {item.nome_produto} {item.tipo_entrega === "encomenda" ? "(ENCOMENDA)" : "(PRONTA ENTREGA)"}
+        {item.nome_produto}{" "}
+        {item.tipo_entrega === "encomenda"
+          ? "(ENCOMENDA)"
+          : item.categoria === "Móveis Depósito"
+          ? "(DEPÓSITO)"
+          : "(PRONTA ENTREGA)"}
         {item.variante ? ` — ${item.variante}` : ""}
         {item.observacao && (
           <span
