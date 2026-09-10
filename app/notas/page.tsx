@@ -33,9 +33,11 @@ const MENSAGENS_PRONTAS: Record<string, (nome: string, pedido: number) => string
 function linkWhatsApp(telefone: string, mensagem: string): string {
   const numero = apenasNumeros(telefone);
   const comDDI = numero.length <= 11 ? `55${numero}` : numero;
-  // Abre direto no app do WhatsApp Desktop instalado no computador
-  // (não abre aba nenhuma no navegador).
-  return `whatsapp://send?phone=${comDDI}&text=${encodeURIComponent(mensagem)}`;
+  // Link universal (wa.me) em vez do esquema "whatsapp://" — esse esquema
+  // força a abrir sempre o WhatsApp normal; o link https:// deixa o
+  // celular/computador escolher entre WhatsApp normal e Business (se os
+  // dois estiverem instalados).
+  return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`;
 }
 
 function diasRestantes(prazo: string): number {
