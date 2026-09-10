@@ -986,6 +986,7 @@ export default function VenderPage() {
         observacao: item.observacao,
         desconto: item.desconto || 0,
         motivo_desconto: item.motivoDesconto,
+        categoria: item.categoria,
       }));
       const { error: erroItens } = await supabase.from("venda_itens").insert(itensParaInserir);
       if (erroItens) throw erroItens;
@@ -2099,6 +2100,7 @@ export default function VenderPage() {
               observacao: item.observacao,
               desconto: item.desconto || 0,
               motivo_desconto: item.motivoDesconto,
+              categoria: item.categoria,
             }))}
           />
         )}
@@ -2144,6 +2146,7 @@ export default function VenderPage() {
               observacao: item.observacao,
               desconto: item.desconto || 0,
               motivo_desconto: item.motivoDesconto,
+              categoria: item.categoria,
             }))}
           />
         )}
