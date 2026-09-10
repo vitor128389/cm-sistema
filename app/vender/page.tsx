@@ -69,6 +69,7 @@ export default function VenderPage() {
 
   // ---------- Produtos / carrinho ----------
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
+  const [nomesCategoriasConfig, setNomesCategoriasConfig] = useState<string[]>([]);
   const [tecidosCores, setTecidosCores] = useState<TecidoCor[]>([]);
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
 
@@ -135,6 +136,7 @@ export default function VenderPage() {
 
   useEffect(() => {
     carregarProdutos();
+    carregarNomesCategorias();
     carregarCores();
     carregarTurnoAberto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,6 +160,14 @@ export default function VenderPage() {
       tipo_precificacao: (p.tipo_precificacao || "simples").trim() as ProdutoComVariantes["tipo_precificacao"],
     }));
     setProdutos(normalizado);
+  }
+
+  // Categorias cadastradas mas ainda sem nenhum produto (recém-criadas)
+  // também precisam aparecer no filtro, não só quando o primeiro produto
+  // for salvo nelas.
+  async function carregarNomesCategorias() {
+    const { data } = await supabase.from("categorias_config").select("nome");
+    setNomesCategoriasConfig((data || []).map((c) => c.nome.trim()));
   }
 
   async function carregarCores() {
@@ -353,7 +363,9 @@ export default function VenderPage() {
   }
 
   /* ---------------- Produtos: seleção ---------------- */
-  const categorias = Array.from(new Set(produtos.map((p) => p.categoria)));
+  const categorias = Array.from(
+    new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig])
+  );
   const todasAsCores = tecidosCores.filter((c) => c.disponivel);
 
   function ehConjuntoSofa(): boolean {
