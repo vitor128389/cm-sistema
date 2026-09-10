@@ -195,7 +195,11 @@ export default function EncomendasPage() {
                             : "bg-green-50 text-green-700"
                         }`}
                       >
-                        {item.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
+                        {item.tipo_entrega === "encomenda"
+                          ? "ENCOMENDA"
+                          : item.categoria === "Móveis Depósito"
+                          ? "DEPÓSITO"
+                          : "PRONTA ENTREGA"}
                       </span>
                       {item.quantidade}x {item.nome_produto}
                       {item.variante && <span className="text-madeira-500"> — {item.variante}</span>}
