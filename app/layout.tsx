@@ -3,6 +3,7 @@ import { Fraunces, Inter } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { LojaProvider } from "@/contexts/LojaContext";
+import { MenuProvider } from "@/contexts/MenuContext";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -30,11 +31,13 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${fraunces.variable} ${inter.variable} font-sans flex`}>
         <LojaProvider>
-          <Sidebar />
-          <div className="flex-1 min-h-screen flex flex-col min-w-0">
-            <TopBar />
-            <main className="flex-1">{children}</main>
-          </div>
+          <MenuProvider>
+            <Sidebar />
+            <div className="flex-1 min-h-screen flex flex-col min-w-0">
+              <TopBar />
+              <main className="flex-1">{children}</main>
+            </div>
+          </MenuProvider>
         </LojaProvider>
       </body>
     </html>
