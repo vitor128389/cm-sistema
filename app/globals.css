@@ -101,6 +101,15 @@ body {
   body * {
     visibility: hidden;
   }
+  /* O menu lateral e o container da página usam altura mínima de 100% da
+     tela (min-h-screen) — mesmo ficando invisíveis na impressão, essa
+     altura continua "existindo" no documento e é isso que gera página(s)
+     extra(s) em branco. Neutraliza só isso, sem mexer no próprio
+     #area-impressao nem no que tem dentro dele. */
+  body *:not(#area-impressao):not(#area-impressao *) {
+    height: auto !important;
+    min-height: 0 !important;
+  }
   #area-impressao,
   #area-impressao * {
     visibility: visible;
