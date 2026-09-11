@@ -87,7 +87,7 @@ export const STATUS_ORDEM: StatusEncomenda[] = [
 
 export type TipoPrecificacao = "simples" | "tecido" | "espessura" | "tecido_peca";
 export type TipoEntregaItem = "pronta" | "encomenda";
-export type FormaPagamento = "Dinheiro" | "Pix" | "Débito" | "Crédito";
+export type FormaPagamento = "Dinheiro" | "Pix" | "Débito" | "Crédito" | "Link";
 
 export interface ProdutoVariante {
   id: string;
@@ -159,6 +159,7 @@ export interface TurnoCaixa {
   total_pix: number;
   total_debito: number;
   total_credito: number;
+  total_link?: number;
   total_devolvido: number;
   aberto_em: string;
   fechado_em: string | null;
