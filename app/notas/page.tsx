@@ -348,18 +348,6 @@ export default function NotasPage() {
           />
           Só pedidos em aberto (encomenda ainda não entregue)
         </label>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-madeira-700">
-          Ordenar por prazo:
-          <select
-            className="input-base py-1"
-            value={ordenarPorPrazo}
-            onChange={(e) => setOrdenarPorPrazo(e.target.value as "" | "atrasado" | "recente")}
-          >
-            <option value="">Padrão</option>
-            <option value="atrasado">Mais atrasado primeiro</option>
-            <option value="recente">Menos atrasado primeiro</option>
-          </select>
-        </label>
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-madeira-700 cursor-pointer">
           <input
             type="checkbox"
@@ -385,6 +373,18 @@ export default function NotasPage() {
                 <option value="ontem">Ontem</option>
                 <option value="personalizado">Personalizado</option>
                 <option value="todos">Todos</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Ordenar por prazo</span>
+              <select
+                className="input-base"
+                value={ordenarPorPrazo}
+                onChange={(e) => setOrdenarPorPrazo(e.target.value as "" | "atrasado" | "recente")}
+              >
+                <option value="">Padrão</option>
+                <option value="atrasado">Mais atrasado primeiro</option>
+                <option value="recente">Menos atrasado primeiro</option>
               </select>
             </label>
             {periodo === "personalizado" && (
