@@ -1,6 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
@@ -30,7 +32,7 @@ function ordemTecido(nome: string): number {
 const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
 const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 
-export default function VenderPage() {
+function VenderPageConteudo() {
   const [passo, setPasso] = useState<1 | 2 | 3 | 4>(1);
   const { lojaAtual } = useLoja();
 
@@ -77,6 +79,9 @@ export default function VenderPage() {
   const [dropdownAberto, setDropdownAberto] = useState(false);
   const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
   const [produtoSelecionado, setProdutoSelecionado] = useState<ProdutoComVariantes | null>(null);
+  const [origemDepositoAtiva, setOrigemDepositoAtiva] = useState(false);
+  const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
   const [tecidoSel, setTecidoSel] = useState("Suede");
   const [pecaSel, setPecaSel] = useState<"" | "2" | "3" | "conjunto">("");
   const [espessuraSel, setEspessuraSel] = useState("5cm");
@@ -141,6 +146,41 @@ export default function VenderPage() {
     carregarTurnoAberto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
+
+  // Chegou aqui vindo do botão "Vender" da tela de Depósito — carrega esse
+  // produto específico com o estoque DO DEPÓSITO (não da loja ativa) e já
+  // deixa selecionado, marcando a origem pra baixa sair do lugar certo.
+  useEffect(() => {
+    async function carregarDoDeposito() {
+      const produtoId = searchParams.get("deposito");
+      if (!produtoId) return;
+      const { data: loja } = await supabase.from("lojas").select("id").eq("eh_deposito", true).maybeSingle();
+      if (!loja) return;
+      setDepositoLojaId(loja.id);
+      const produtosDeposito = await carregarProdutosComEstoque(supabase, loja.id);
+      const produto = produtosDeposito.find((p) => p.id === produtoId);
+      if (!produto) {
+        alert("Esse produto não foi encontrado no Depósito.");
+        return;
+      }
+      selecionarProduto(produto);
+      setOrigemDepositoAtiva(true);
+      const varianteId = searchParams.get("variante");
+      if (varianteId) {
+        const variante = produto.produto_variantes.find((v) => v.id === varianteId);
+        if (variante) {
+          if (produto.tipo_precificacao === "espessura") {
+            setEspessuraSel(variante.nome_variante);
+          } else if (produto.tipo_precificacao === "tecido") {
+            setTecidoSel(variante.nome_variante);
+          }
+          atualizarValorPelaVariante(produto, variante.nome_variante);
+        }
+      }
+    }
+    carregarDoDeposito();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const buscaProdutoRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -429,6 +469,7 @@ export default function VenderPage() {
 
   function selecionarProduto(p: ProdutoComVariantes) {
     setProdutoSelecionado(p);
+    setOrigemDepositoAtiva(false);
     setBuscaProduto(p.nome);
     setDropdownAberto(false);
     setTipoEntrega("pronta");
@@ -638,6 +679,7 @@ export default function VenderPage() {
       quantidadeRetirada,
       quantidadeEntrega,
       observacao: observacaoItem.trim() || null,
+      origemDeposito: origemDepositoAtiva,
     };
 
     if (ehConjuntoSofa() && pecaSel === "conjunto") {
@@ -723,6 +765,7 @@ export default function VenderPage() {
     setDescontoItem("");
     setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
+    setOrigemDepositoAtiva(false);
   }
 
   function removerDoCarrinho(idx: number) {
@@ -988,13 +1031,15 @@ export default function VenderPage() {
         desconto: item.desconto || 0,
         motivo_desconto: item.motivoDesconto,
         categoria: item.categoria,
+        origem_deposito: item.origemDeposito || false,
       }));
       const { error: erroItens } = await supabase.from("venda_itens").insert(itensParaInserir);
       if (erroItens) throw erroItens;
 
       for (const item of carrinho) {
         if (item.tipoEntrega !== "pronta") continue;
-        await ajustarEstoqueLoja(supabase, lojaAtual, item.produtoId, item.varianteId, -item.quantidade);
+        const lojaParaBaixa = item.origemDeposito && depositoLojaId ? depositoLojaId : lojaAtual;
+        await ajustarEstoqueLoja(supabase, lojaParaBaixa, item.produtoId, item.varianteId, -item.quantidade);
       }
 
       if (turnoParaUsar?.id) {
@@ -1346,11 +1391,7 @@ export default function VenderPage() {
                         type="button"
                         key={c}
                         className={`text-xs px-2 py-1 rounded-full border font-medium ${
-                          categoriaAberta === c
-                            ? "bg-madeira-700 text-white"
-                            : c === "Móveis Depósito"
-                            ? "border-amber-400 bg-amber-50 text-amber-800"
-                            : "border-madeira-200"
+                          categoriaAberta === c ? "bg-madeira-700 text-white" : "border-madeira-200"
                         }`}
                         onClick={() => setCategoriaAberta(c)}
                       >
@@ -1390,6 +1431,11 @@ export default function VenderPage() {
 
             {produtoSelecionado && (
               <>
+                {origemDepositoAtiva && (
+                  <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-1.5 mb-3 inline-block">
+                    📦 Vindo do Depósito — a baixa desse item sai do estoque do Depósito
+                  </p>
+                )}
                 {mostrarTecidoCor() && (
                   <div className="mb-3">
                     <span className="text-xs text-madeira-600 mb-1 block">Tecido</span>
@@ -1484,7 +1530,7 @@ export default function VenderPage() {
 
                 <div className="mb-3">
                   <span className="text-xs text-madeira-600 mb-1 block">Entrega</span>
-                  {produtoSelecionado.categoria === "Móveis Depósito" ? (
+                  {origemDepositoAtiva ? (
                     <p className="opcao-btn ativo text-center" style={{ cursor: "default" }}>
                       Depósito
                     </p>
@@ -2169,5 +2215,13 @@ export default function VenderPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VenderPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-madeira-500 text-sm">Carregando...</div>}>
+      <VenderPageConteudo />
+    </Suspense>
   );
 }
