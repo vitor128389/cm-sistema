@@ -6,9 +6,19 @@ import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { consultarCpf } from "@/lib/consultaCpf";
-import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
+import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
+import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
-type Aba = "lojas" | "caixas" | "estoque" | "usuarios" | "permissoes" | "tecidos" | "relatorio" | "cancelar";
+type Aba =
+  | "lojas"
+  | "caixas"
+  | "estoque"
+  | "usuarios"
+  | "permissoes"
+  | "tecidos"
+  | "relatorio"
+  | "movimento-geral"
+  | "cancelar";
 
 const TELAS = [
   { chave: "painel", label: "Painel" },
@@ -74,6 +84,7 @@ export default function AdministracaoPage() {
             ["permissoes", "Permissões"],
             ["tecidos", "Tecidos e cores"],
             ["relatorio", "Relatório"],
+            ["movimento-geral", "Movimento Geral"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -94,6 +105,7 @@ export default function AdministracaoPage() {
       {aba === "permissoes" && <AbaPermissoes />}
       {aba === "tecidos" && <AbaTecidos />}
       {aba === "relatorio" && <AbaRelatorio />}
+      {aba === "movimento-geral" && <AbaMovimentoGeral />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -2400,6 +2412,339 @@ interface VendaCancelamento {
     origem_loja_id?: string | null;
   }[];
   venda_pagamentos: { forma_pagamento: string; valor: number }[];
+}
+
+/* ==================== MOVIMENTO GERAL (todas as lojas) ==================== */
+function AbaMovimentoGeral() {
+  const [periodo, setPeriodo] = useState<"hoje" | "ontem" | "7dias" | "mes" | "personalizado">("hoje");
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const [vendas, setVendas] = useState<(Venda & { lojas?: { nome: string } | null })[]>([]);
+  const [carregandoVendas, setCarregandoVendas] = useState(true);
+  const [turnos, setTurnos] = useState<
+    (TurnoCaixa & { caixas?: { nome: string; lojas?: { nome: string } | null } | null })[]
+  >([]);
+  const [carregandoTurnos, setCarregandoTurnos] = useState(true);
+  const [baixandoPdf, setBaixandoPdf] = useState<string | null>(null);
+
+  function intervaloData(): { inicio: Date; fim: Date } {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    if (periodo === "hoje") {
+      const fim = new Date(hoje);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio: hoje, fim };
+    }
+    if (periodo === "ontem") {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() - 1);
+      const fim = new Date(inicio);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    if (periodo === "7dias") {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() - 6);
+      const fim = new Date();
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    if (periodo === "mes") {
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      const fim = new Date();
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    const inicio = de ? new Date(de + "T00:00:00") : new Date(2000, 0, 1);
+    const fim = ate ? new Date(ate + "T23:59:59") : new Date(2100, 0, 1);
+    return { inicio, fim };
+  }
+
+  async function carregarVendas() {
+    setCarregandoVendas(true);
+    const { inicio, fim } = intervaloData();
+    const { data } = await supabase
+      .from("vendas")
+      .select("*, lojas(nome), venda_itens(*, produtos(custo), produto_variantes(custo))")
+      .eq("cancelada", false)
+      .gte("criado_em", inicio.toISOString())
+      .lte("criado_em", fim.toISOString())
+      .order("criado_em", { ascending: false });
+    setVendas((data || []) as unknown as (Venda & { lojas?: { nome: string } | null })[]);
+    setCarregandoVendas(false);
+  }
+
+  async function carregarTurnos() {
+    setCarregandoTurnos(true);
+    const { inicio, fim } = intervaloData();
+    const { data } = await supabase
+      .from("turnos_caixa")
+      .select("*, caixas(nome, lojas(nome))")
+      .gte("aberto_em", inicio.toISOString())
+      .lte("aberto_em", fim.toISOString())
+      .order("aberto_em", { ascending: false });
+    setTurnos(
+      (data || []) as unknown as (TurnoCaixa & {
+        caixas?: { nome: string; lojas?: { nome: string } | null } | null;
+      })[]
+    );
+    setCarregandoTurnos(false);
+  }
+
+  useEffect(() => {
+    carregarVendas();
+    carregarTurnos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, de, ate]);
+
+  function lucroDaVenda(v: Venda): number {
+    return (v.venda_itens || []).reduce((s, item) => {
+      const itemComVariante = item as typeof item & { produto_variantes?: { custo: number } | null };
+      const custo = itemComVariante.produto_variantes?.custo ?? item.produtos?.custo ?? 0;
+      const totalAVista = Math.round((item.total / 1.1) * 100) / 100;
+      return s + (totalAVista - custo * item.quantidade);
+    }, 0);
+  }
+
+  const faturamentoTotal = vendas.reduce((s, v) => s + v.total, 0);
+  const lucroTotal = vendas.reduce((s, v) => s + lucroDaVenda(v), 0);
+  const ticketMedio = vendas.length > 0 ? faturamentoTotal / vendas.length : 0;
+
+  // agrupa por loja — pra comparar o desempenho de cada uma no período
+  const porLoja = new Map<string, { faturamento: number; lucro: number; qtd: number }>();
+  vendas.forEach((v) => {
+    const nomeLoja = v.lojas?.nome || "Sem loja";
+    const atual = porLoja.get(nomeLoja) || { faturamento: 0, lucro: 0, qtd: 0 };
+    atual.faturamento += v.total;
+    atual.lucro += lucroDaVenda(v);
+    atual.qtd += 1;
+    porLoja.set(nomeLoja, atual);
+  });
+
+  // agrupa por forma de pagamento
+  const porForma = new Map<string, number>();
+  vendas.forEach((v) => {
+    porForma.set(v.forma_pagamento, (porForma.get(v.forma_pagamento) || 0) + v.total);
+  });
+
+  async function baixarPdfTurno(turno: TurnoCaixa & { caixas?: { nome: string; lojas?: { nome: string } | null } | null }) {
+    setBaixandoPdf(turno.id);
+    try {
+      const nomeCaixa = turno.caixas?.nome || "Caixa";
+      const nomeLoja = turno.caixas?.lojas?.nome || null;
+      let lojaInfo: LojaCompleta | null = null;
+      if (nomeLoja) {
+        const { data } = await supabase.from("lojas").select("*").eq("nome", nomeLoja).maybeSingle();
+        lojaInfo = data as LojaCompleta | null;
+      }
+      const { count: qtdVendas } = await supabase
+        .from("vendas")
+        .select("id", { count: "exact", head: true })
+        .eq("turno_caixa_id", turno.id)
+        .eq("cancelada", false);
+      const { data: sangriasData } = await supabase
+        .from("sangrias")
+        .select("*, usuarios(nome)")
+        .eq("turno_caixa_id", turno.id);
+
+      const blob = await gerarRelatorioCaixaPdf(
+        turno,
+        nomeCaixa,
+        lojaInfo,
+        qtdVendas || 0,
+        (sangriasData || []) as Sangria[]
+      );
+      const nomeArquivo = `caixa-${nomeCaixa.replace(/\s+/g, "-").toLowerCase()}-${new Date(turno.aberto_em)
+        .toISOString()
+        .slice(0, 10)}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nomeArquivo;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Erro ao gerar o PDF: " + (e as Error).message);
+    } finally {
+      setBaixandoPdf(null);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-madeira-700 mb-2">Visão geral de todas as lojas</p>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {(
+          [
+            ["hoje", "Hoje"],
+            ["ontem", "Ontem"],
+            ["7dias", "Últimos 7 dias"],
+            ["mes", "Este mês"],
+            ["personalizado", "Personalizado"],
+          ] as [typeof periodo, string][]
+        ).map(([valor, label]) => (
+          <button
+            key={valor}
+            className={`text-xs px-3 py-1.5 rounded-full border ${
+              periodo === valor ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+            }`}
+            onClick={() => setPeriodo(valor)}
+          >
+            {label}
+          </button>
+        ))}
+        {periodo === "personalizado" && (
+          <>
+            <input className="input-base w-auto" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
+            <input className="input-base w-auto" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="card p-4">
+          <p className="text-xs text-madeira-500 mb-1">Faturamento no período</p>
+          <p className="font-display text-xl">{formatarMoeda(faturamentoTotal)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-madeira-500 mb-1">Lucro no período</p>
+          <p className="font-display text-xl text-green-700">{formatarMoeda(lucroTotal)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-madeira-500 mb-1">Quantidade de vendas</p>
+          <p className="font-display text-xl">{vendas.length}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs text-madeira-500 mb-1">Ticket médio</p>
+          <p className="font-display text-xl">{formatarMoeda(ticketMedio)}</p>
+        </div>
+      </div>
+
+      {carregandoVendas ? (
+        <p className="text-madeira-500 text-sm mb-6">Carregando...</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <div>
+            <p className="text-sm font-semibold text-madeira-700 mb-2">Por loja</p>
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-madeira-50 text-left">
+                  <tr>
+                    <th className="px-4 py-2">Loja</th>
+                    <th className="px-4 py-2 text-right">Vendas</th>
+                    <th className="px-4 py-2 text-right">Faturamento</th>
+                    <th className="px-4 py-2 text-right">Lucro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from(porLoja.entries()).map(([nome, d]) => (
+                    <tr key={nome} className="border-t border-estofado-100">
+                      <td className="px-4 py-2">{nome}</td>
+                      <td className="px-4 py-2 text-right">{d.qtd}</td>
+                      <td className="px-4 py-2 text-right">{formatarMoeda(d.faturamento)}</td>
+                      <td className="px-4 py-2 text-right text-green-700">{formatarMoeda(d.lucro)}</td>
+                    </tr>
+                  ))}
+                  {porLoja.size === 0 && (
+                    <tr>
+                      <td className="px-4 py-3 text-madeira-500 text-xs" colSpan={4}>
+                        Nenhuma venda no período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-madeira-700 mb-2">Por forma de pagamento</p>
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-madeira-50 text-left">
+                  <tr>
+                    <th className="px-4 py-2">Forma</th>
+                    <th className="px-4 py-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from(porForma.entries()).map(([forma, valor]) => (
+                    <tr key={forma} className="border-t border-estofado-100">
+                      <td className="px-4 py-2">{forma}</td>
+                      <td className="px-4 py-2 text-right">{formatarMoeda(valor)}</td>
+                    </tr>
+                  ))}
+                  {porForma.size === 0 && (
+                    <tr>
+                      <td className="px-4 py-3 text-madeira-500 text-xs" colSpan={2}>
+                        Nenhuma venda no período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm font-semibold text-madeira-700 mb-2">Caixas abertos e fechados no período</p>
+      {carregandoTurnos ? (
+        <p className="text-madeira-500 text-sm">Carregando...</p>
+      ) : turnos.length === 0 ? (
+        <div className="card p-8 text-center text-madeira-500 text-sm">
+          Nenhum caixa aberto nesse período.
+        </div>
+      ) : (
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-madeira-50 text-left">
+              <tr>
+                <th className="px-4 py-2">Loja</th>
+                <th className="px-4 py-2">Caixa</th>
+                <th className="px-4 py-2">Aberto em</th>
+                <th className="px-4 py-2">Fechado em</th>
+                <th className="px-4 py-2 text-right">Total vendido</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {turnos.map((t) => (
+                <tr key={t.id} className="border-t border-estofado-100">
+                  <td className="px-4 py-2">{t.caixas?.lojas?.nome || "—"}</td>
+                  <td className="px-4 py-2">{t.caixas?.nome || "—"}</td>
+                  <td className="px-4 py-2">{new Date(t.aberto_em).toLocaleString("pt-BR")}</td>
+                  <td className="px-4 py-2">
+                    {t.fechado_em ? new Date(t.fechado_em).toLocaleString("pt-BR") : "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right">{formatarMoeda(t.total_vendido || 0)}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        t.status === "aberto" ? "bg-green-50 text-green-700" : "bg-madeira-100 text-madeira-600"
+                      }`}
+                    >
+                      {t.status === "aberto" ? "Aberto" : "Fechado"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button
+                      className="btn-secundario text-xs px-2 py-1"
+                      onClick={() => baixarPdfTurno(t)}
+                      disabled={baixandoPdf === t.id}
+                    >
+                      {baixandoPdf === t.id ? "Gerando..." : "📄 PDF"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AbaCancelarNota() {
