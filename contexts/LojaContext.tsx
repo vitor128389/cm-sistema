@@ -55,7 +55,12 @@ export function LojaProvider({ children }: { children: ReactNode }) {
     setMinhaLojaId(perfil?.loja_id ?? null);
 
     if (admin) {
-      const { data: todasLojas } = await supabase.from("lojas").select("*").eq("ativo", true).order("nome");
+      const { data: todasLojas } = await supabase
+        .from("lojas")
+        .select("*")
+        .eq("ativo", true)
+        .eq("eh_deposito", false)
+        .order("nome");
       setLojas((todasLojas || []) as Loja[]);
 
       const salva = localStorage.getItem(CHAVE_LOCALSTORAGE);
