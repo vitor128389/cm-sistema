@@ -18,6 +18,7 @@ const ITENS: { href: string; label: string; tela: Tela }[] = [
   { href: "/trocas", label: "Trocas", tela: "trocas" },
   { href: "/caixa", label: "Caixa", tela: "caixa" },
   { href: "/movimento", label: "Movimento", tela: "movimento" },
+  { href: "/deposito", label: "Depósito", tela: "deposito" },
   { href: "/administracao", label: "Administração", tela: "administracao" },
 ];
 
