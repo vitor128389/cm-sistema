@@ -1500,6 +1500,14 @@ function VenderPageConteudo() {
             </div>
 
             {produtoSelecionado && (
+              <p className="text-xs text-madeira-500 mb-3">
+                {estoqueDisponivel() > 0
+                  ? `${estoqueDisponivel()} em estoque`
+                  : "sem estoque (pronta entrega bloqueada)"}
+              </p>
+            )}
+
+            {produtoSelecionado && (
               <>
                 {todasLojas.length > 0 && (
                   <label className="block mb-3">
@@ -1869,12 +1877,6 @@ function VenderPageConteudo() {
                     />
                   </label>
                 </div>
-
-                <p className="text-xs text-madeira-500 mb-3">
-                  {estoqueDisponivel() > 0
-                    ? `${estoqueDisponivel()} em estoque`
-                    : "sem estoque (pronta entrega bloqueada)"}
-                </p>
 
                 <div className="bg-madeira-50 rounded p-3 flex justify-between items-center mb-3">
                   <span className="text-sm text-madeira-700">Total do item</span>
