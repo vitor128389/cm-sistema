@@ -629,7 +629,7 @@ function VenderPageConteudo() {
       atualizarValorPelaVariante(p, primeira);
     } else {
       setValorUnitario(Math.round(p.preco_venda * 1.1 * 100) / 100);
-      if (p.categoria === "Cabeceiras") setTecidoSel("Suede"); // só pra filtrar a cor, não muda o preço
+      if (p.categoria === "Cabeceiras e Baús") setTecidoSel("Suede"); // só pra filtrar a cor, não muda o preço
     }
   }
 
@@ -701,7 +701,7 @@ function VenderPageConteudo() {
     return (
       produtoSelecionado.tipo_precificacao === "tecido" ||
       produtoSelecionado.tipo_precificacao === "tecido_peca" ||
-      produtoSelecionado.categoria === "Cabeceiras"
+      produtoSelecionado.categoria === "Cabeceiras e Baús"
     );
   }
 
@@ -746,9 +746,7 @@ function VenderPageConteudo() {
   function precisaModelo(): boolean {
     if (!produtoSelecionado) return false;
     return (
-      produtoSelecionado.categoria === "Cabeceiras" ||
-      produtoSelecionado.categoria === "Baús" ||
-      produtoSelecionado.categoria === "Painéis" ||
+      produtoSelecionado.categoria === "Cabeceiras e Baús" ||
       PRODUTOS_COM_MODELO.includes(produtoSelecionado.nome)
     );
   }
