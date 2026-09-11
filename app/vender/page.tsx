@@ -387,6 +387,71 @@ function VenderPageConteudo() {
     return "";
   }
 
+  /* ---------------- Salva/atualiza o cadastro do cliente ----------------
+     Reaproveitada tanto ao avançar do Cliente pra Produtos (pra não perder
+     os dados digitados se a venda for interrompida) quanto ao finalizar a
+     venda (aí só atualiza de novo, sem duplicar, porque clienteIdExistente
+     já vai estar preenchido). */
+  async function salvarOuAtualizarCliente(): Promise<string | null> {
+    if (vendaSemCliente) return null;
+
+    const celularesPreenchidos = celulares.filter((c) => c.numero.trim());
+    const dadosCliente = {
+      nome,
+      cpf: semCpf ? null : apenasNumeros(cpf),
+      telefone: celularesPreenchidos[0]?.numero || null,
+      endereco,
+      numero: semNumero ? "S/N" : numero,
+      sem_numero: semNumero,
+      complemento: complemento || null,
+      cidade: cidade || null,
+      povoado: povoado || null,
+      bairro: bairro || null,
+    };
+
+    let clienteId = clienteIdExistente;
+
+    if (!clienteId) {
+      const { data: novoCliente, error: erroCliente } = await supabase
+        .from("clientes")
+        .insert({ ...dadosCliente, loja_id: lojaAtual })
+        .select("id")
+        .single();
+      if (erroCliente) throw erroCliente;
+      clienteId = novoCliente.id;
+
+      if (celularesPreenchidos.length > 0) {
+        await supabase.from("cliente_celulares").insert(
+          celularesPreenchidos.map((c) => ({
+            cliente_id: clienteId,
+            celular: c.numero,
+            nome_responsavel: c.responsavel.trim() || null,
+          }))
+        );
+      }
+    } else {
+      // cliente já existia (ou já tinha sido salvo agora há pouco, ao
+      // avançar de tela) — atualiza o cadastro com os dados mais recentes
+      const { error: erroAtualizar } = await supabase.from("clientes").update(dadosCliente).eq("id", clienteId);
+      if (erroAtualizar) throw erroAtualizar;
+
+      // ressincroniza os celulares (evita duplicar, sempre reflete o que está na tela)
+      await supabase.from("cliente_celulares").delete().eq("cliente_id", clienteId);
+      if (celularesPreenchidos.length > 0) {
+        await supabase.from("cliente_celulares").insert(
+          celularesPreenchidos.map((c) => ({
+            cliente_id: clienteId,
+            celular: c.numero,
+            nome_responsavel: c.responsavel.trim() || null,
+          }))
+        );
+      }
+    }
+
+    setClienteIdExistente(clienteId);
+    return clienteId;
+  }
+
   function irParaProdutos() {
     if (vendaSemCliente) {
       setErroPasso1("");
@@ -400,6 +465,11 @@ function VenderPageConteudo() {
     }
     setErroPasso1("");
     setPasso(2);
+    // já salva o cliente nesse momento — se a venda for interrompida
+    // depois, o cadastro não se perde.
+    salvarOuAtualizarCliente().catch((e) => {
+      console.error("Erro ao salvar cliente ao avançar de tela:", e);
+    });
   }
 
   /* ---------------- Produtos: seleção ---------------- */
@@ -897,66 +967,14 @@ function VenderPageConteudo() {
     setSalvando(true);
 
     try {
-      let clienteId = clienteIdExistente;
+      let clienteId: string | null;
 
       if (vendaSemCliente) {
         // venda rápida — não cria nem atualiza nenhum cadastro de cliente
         clienteId = null;
       } else {
-      const celularesPreenchidos = celulares.filter((c) => c.numero.trim());
-      const dadosCliente = {
-        nome,
-        cpf: semCpf ? null : apenasNumeros(cpf),
-        telefone: celularesPreenchidos[0]?.numero || null,
-        endereco,
-        numero: semNumero ? "S/N" : numero,
-        sem_numero: semNumero,
-        complemento: complemento || null,
-        cidade: cidade || null,
-        povoado: povoado || null,
-        bairro: bairro || null,
-      };
-
-      if (!clienteId) {
-        const { data: novoCliente, error: erroCliente } = await supabase
-          .from("clientes")
-          .insert({ ...dadosCliente, loja_id: lojaAtual })
-          .select("id")
-          .single();
-        if (erroCliente) throw erroCliente;
-        clienteId = novoCliente.id;
-
-        if (celularesPreenchidos.length > 0) {
-          await supabase.from("cliente_celulares").insert(
-            celularesPreenchidos.map((c) => ({
-              cliente_id: clienteId,
-              celular: c.numero,
-              nome_responsavel: c.responsavel.trim() || null,
-            }))
-          );
-        }
-      } else {
-        // cliente já existia — atualiza o cadastro principal com os dados mais recentes
-        // digitados nessa venda (endereço, telefone, número, complemento etc.)
-        const { error: erroAtualizar } = await supabase
-          .from("clientes")
-          .update(dadosCliente)
-          .eq("id", clienteId);
-        if (erroAtualizar) throw erroAtualizar;
-
-        // ressincroniza os celulares (evita duplicar, sempre reflete o que está na tela)
-        await supabase.from("cliente_celulares").delete().eq("cliente_id", clienteId);
-        if (celularesPreenchidos.length > 0) {
-          await supabase.from("cliente_celulares").insert(
-            celularesPreenchidos.map((c) => ({
-              cliente_id: clienteId,
-              celular: c.numero,
-              nome_responsavel: c.responsavel.trim() || null,
-            }))
-          );
-        }
+        clienteId = await salvarOuAtualizarCliente();
       }
-      } // fim do else (venda com cliente)
 
       const formaResumo = pagamentos.length > 1 ? "Dividido" : (pagamentos[0].forma as FormaPagamento);
 
@@ -1045,7 +1063,7 @@ function VenderPageConteudo() {
       if (turnoParaUsar?.id) {
         const { data: turno } = await supabase
           .from("turnos_caixa")
-          .select("total_vendido, total_dinheiro, total_pix, total_debito, total_credito")
+          .select("total_vendido, total_dinheiro, total_pix, total_debito, total_credito, total_link")
           .eq("id", turnoParaUsar.id)
           .single();
         if (turno) {
@@ -1055,6 +1073,7 @@ function VenderPageConteudo() {
             total_pix: turno.total_pix || 0,
             total_debito: turno.total_debito || 0,
             total_credito: turno.total_credito || 0,
+            total_link: turno.total_link || 0,
           };
           for (const p of pagamentos) {
             const campoForma =
@@ -1064,6 +1083,8 @@ function VenderPageConteudo() {
                 ? "total_pix"
                 : p.forma === "Débito"
                 ? "total_debito"
+                : p.forma === "Link"
+                ? "total_link"
                 : "total_credito";
             totaisAtualizados[campoForma] += p.valor;
           }
@@ -1910,6 +1931,7 @@ function VenderPageConteudo() {
                     <option value="Pix">Pix</option>
                     <option value="Débito">Débito</option>
                     <option value="Crédito">Crédito</option>
+                    <option value="Link">Link de pagamento</option>
                   </select>
 
                   {p.forma === "Crédito" && (
