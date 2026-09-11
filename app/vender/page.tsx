@@ -35,6 +35,7 @@ const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 function VenderPageConteudo() {
   const [passo, setPasso] = useState<1 | 2 | 3 | 4>(1);
   const { lojaAtual } = useLoja();
+  const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
 
   // ---------- Cliente ----------
   const [nome, setNome] = useState("");
@@ -81,6 +82,8 @@ function VenderPageConteudo() {
   const [produtoSelecionado, setProdutoSelecionado] = useState<ProdutoComVariantes | null>(null);
   const [origemDepositoAtiva, setOrigemDepositoAtiva] = useState(false);
   const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
+  const [lojaOrigemEstoque, setLojaOrigemEstoque] = useState<string | null>(null); // null = loja ativa (padrão)
+  const [carregandoEstoqueOutraLoja, setCarregandoEstoqueOutraLoja] = useState(false);
   const searchParams = useSearchParams();
   const [tecidoSel, setTecidoSel] = useState("Suede");
   const [pecaSel, setPecaSel] = useState<"" | "2" | "3" | "conjunto">("");
@@ -147,16 +150,26 @@ function VenderPageConteudo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
-  // Chegou aqui vindo do botão "Vender" da tela de Depósito — carrega esse
-  // produto específico com o estoque DO DEPÓSITO (não da loja ativa) e já
-  // deixa selecionado, marcando a origem pra baixa sair do lugar certo.
+  useEffect(() => {
+    async function carregarTodasLojas() {
+      const { data } = await supabase.from("lojas").select("id, nome").eq("ativo", true).eq("eh_deposito", false).order("nome");
+      setTodasLojas(data || []);
+    }
+    carregarTodasLojas();
+  }, []);
+
+  // Sempre carrega o id da loja "Depósito" (pra poder oferecer como opção
+  // de origem de estoque no seletor, mesmo sem vir pelo botão da tela de
+  // Depósito). Se veio com ?deposito=X na URL, já entra com esse produto
+  // selecionado direto.
   useEffect(() => {
     async function carregarDoDeposito() {
-      const produtoId = searchParams.get("deposito");
-      if (!produtoId) return;
       const { data: loja } = await supabase.from("lojas").select("id").eq("eh_deposito", true).maybeSingle();
       if (!loja) return;
       setDepositoLojaId(loja.id);
+
+      const produtoId = searchParams.get("deposito");
+      if (!produtoId) return;
       const produtosDeposito = await carregarProdutosComEstoque(supabase, loja.id);
       const produto = produtosDeposito.find((p) => p.id === produtoId);
       if (!produto) {
@@ -165,6 +178,7 @@ function VenderPageConteudo() {
       }
       selecionarProduto(produto);
       setOrigemDepositoAtiva(true);
+      setLojaOrigemEstoque(loja.id);
       const varianteId = searchParams.get("variante");
       if (varianteId) {
         const variante = produto.produto_variantes.find((v) => v.id === varianteId);
@@ -181,6 +195,37 @@ function VenderPageConteudo() {
     carregarDoDeposito();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Troca de onde vem o estoque desse produto (loja atual, outra loja, ou
+  // volta pra loja atual) — recarrega os números certos (estoque e
+  // variantes) da loja escolhida, sem perder o produto selecionado.
+  async function trocarLojaOrigemEstoque(novaLojaId: string | null) {
+    if (!produtoSelecionado) return;
+    setCarregandoEstoqueOutraLoja(true);
+    try {
+      const lojaParaBuscar = novaLojaId || lojaAtual;
+      if (!lojaParaBuscar) return;
+      const produtosDaLoja = await carregarProdutosComEstoque(supabase, lojaParaBuscar);
+      const produtoAtualizado = produtosDaLoja.find((p) => p.id === produtoSelecionado.id);
+      if (!produtoAtualizado) return;
+      setProdutoSelecionado(produtoAtualizado);
+      setLojaOrigemEstoque(novaLojaId);
+      setOrigemDepositoAtiva(!!novaLojaId && novaLojaId === depositoLojaId);
+      // reaplica a mesma variante escolhida (se ainda existir), só que com
+      // o estoque/preço da loja nova
+      const nomeVarianteAtual =
+        produtoAtualizado.tipo_precificacao === "espessura"
+          ? espessuraSel
+          : produtoAtualizado.tipo_precificacao === "tecido"
+          ? tecidoSel
+          : null;
+      if (nomeVarianteAtual) {
+        atualizarValorPelaVariante(produtoAtualizado, nomeVarianteAtual);
+      }
+    } finally {
+      setCarregandoEstoqueOutraLoja(false);
+    }
+  }
 
   const buscaProdutoRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -540,6 +585,7 @@ function VenderPageConteudo() {
   function selecionarProduto(p: ProdutoComVariantes) {
     setProdutoSelecionado(p);
     setOrigemDepositoAtiva(false);
+    setLojaOrigemEstoque(null);
     setBuscaProduto(p.nome);
     setDropdownAberto(false);
     setTipoEntrega("pronta");
@@ -750,6 +796,7 @@ function VenderPageConteudo() {
       quantidadeEntrega,
       observacao: observacaoItem.trim() || null,
       origemDeposito: origemDepositoAtiva,
+      origemLojaId: lojaOrigemEstoque,
     };
 
     if (ehConjuntoSofa() && pecaSel === "conjunto") {
@@ -836,6 +883,7 @@ function VenderPageConteudo() {
     setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
     setOrigemDepositoAtiva(false);
+    setLojaOrigemEstoque(null);
   }
 
   function removerDoCarrinho(idx: number) {
@@ -1050,13 +1098,14 @@ function VenderPageConteudo() {
         motivo_desconto: item.motivoDesconto,
         categoria: item.categoria,
         origem_deposito: item.origemDeposito || false,
+        origem_loja_id: item.origemLojaId || null,
       }));
       const { error: erroItens } = await supabase.from("venda_itens").insert(itensParaInserir);
       if (erroItens) throw erroItens;
 
       for (const item of carrinho) {
         if (item.tipoEntrega !== "pronta") continue;
-        const lojaParaBaixa = item.origemDeposito && depositoLojaId ? depositoLojaId : lojaAtual;
+        const lojaParaBaixa = item.origemLojaId || lojaAtual;
         await ajustarEstoqueLoja(supabase, lojaParaBaixa, item.produtoId, item.varianteId, -item.quantidade);
       }
 
@@ -1452,9 +1501,33 @@ function VenderPageConteudo() {
 
             {produtoSelecionado && (
               <>
-                {origemDepositoAtiva && (
+                {todasLojas.length > 0 && (
+                  <label className="block mb-3">
+                    <span className="text-xs text-madeira-600 mb-1 block">Vender do estoque de</span>
+                    <select
+                      className="input-base"
+                      value={lojaOrigemEstoque || ""}
+                      disabled={carregandoEstoqueOutraLoja}
+                      onChange={(e) => trocarLojaOrigemEstoque(e.target.value || null)}
+                    >
+                      <option value="">Loja atual</option>
+                      {todasLojas
+                        .filter((l) => l.id !== lojaAtual)
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.nome}
+                          </option>
+                        ))}
+                      {depositoLojaId && <option value={depositoLojaId}>Depósito</option>}
+                    </select>
+                  </label>
+                )}
+                {lojaOrigemEstoque && (
                   <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-1.5 mb-3 inline-block">
-                    📦 Vindo do Depósito — a baixa desse item sai do estoque do Depósito
+                    {origemDepositoAtiva
+                      ? "📦 Vindo do Depósito"
+                      : `🏬 Vindo do estoque de ${todasLojas.find((l) => l.id === lojaOrigemEstoque)?.nome || "outra loja"}`}
+                    {" — a baixa desse item sai de lá, não da loja atual"}
                   </p>
                 )}
                 {mostrarTecidoCor() && (
