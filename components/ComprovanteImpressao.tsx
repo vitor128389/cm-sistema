@@ -82,7 +82,7 @@ function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: numb
         {item.nome_produto}{" "}
         {item.tipo_entrega === "encomenda"
           ? "(ENCOMENDA)"
-          : item.categoria === "Móveis Depósito"
+          : item.origem_deposito
           ? "(DEPÓSITO)"
           : "(PRONTA ENTREGA)"}
         {item.variante ? ` — ${item.variante}` : ""}
