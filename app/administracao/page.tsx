@@ -474,6 +474,9 @@ function AbaCaixas() {
 /* ==================== ESTOQUE ==================== */
 function AbaEstoque() {
   const { lojaAtual } = useLoja();
+  const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
+  const [usandoDeposito, setUsandoDeposito] = useState(false);
+  const lojaEstoqueEfetiva = usandoDeposito && depositoLojaId ? depositoLojaId : lojaAtual;
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -501,8 +504,13 @@ function AbaEstoque() {
   }
 
   async function carregar() {
-    const data = await carregarProdutosComEstoque(supabase, lojaAtual);
+    const data = await carregarProdutosComEstoque(supabase, lojaEstoqueEfetiva);
     setProdutos(data);
+  }
+
+  async function carregarDepositoLojaId() {
+    const { data } = await supabase.from("lojas").select("id").eq("eh_deposito", true).maybeSingle();
+    setDepositoLojaId(data?.id || null);
   }
 
   async function carregarCategoriasConfig() {
@@ -522,8 +530,9 @@ function AbaEstoque() {
     carregar();
     carregarCategoriasConfig();
     carregarDesativados();
+    carregarDepositoLojaId();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lojaAtual]);
+  }, [lojaEstoqueEfetiva]);
 
   const categorias = Array.from(
     new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig])
@@ -545,15 +554,15 @@ function AbaEstoque() {
     .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)));
 
   async function salvarEstoqueSimples(produtoId: string, valor: number) {
-    if (!lojaAtual) return;
-    const { error } = await salvarEstoqueLoja(supabase, lojaAtual, produtoId, null, valor);
+    if (!lojaEstoqueEfetiva) return;
+    const { error } = await salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, null, valor);
     if (error) alert("Erro ao salvar o estoque: " + error.message);
     carregar();
   }
 
   async function salvarEstoqueVariante(produtoId: string, varianteId: string, valor: number) {
-    if (!lojaAtual) return;
-    const { error } = await salvarEstoqueLoja(supabase, lojaAtual, produtoId, varianteId, valor);
+    if (!lojaEstoqueEfetiva) return;
+    const { error } = await salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, varianteId, valor);
     if (error) alert("Erro ao salvar o estoque: " + error.message);
     carregar();
   }
@@ -567,10 +576,10 @@ function AbaEstoque() {
     varianteId3L: string,
     valor: number
   ) {
-    if (!lojaAtual) return;
+    if (!lojaEstoqueEfetiva) return;
     const [r1, r2] = await Promise.all([
-      salvarEstoqueLoja(supabase, lojaAtual, produtoId, varianteId2L, valor),
-      salvarEstoqueLoja(supabase, lojaAtual, produtoId, varianteId3L, valor),
+      salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, varianteId2L, valor),
+      salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, varianteId3L, valor),
     ]);
     if (r1.error || r2.error) alert("Erro ao salvar o estoque: " + (r1.error || r2.error)?.message);
     carregar();
@@ -669,8 +678,12 @@ function AbaEstoque() {
       alert("Preencha nome e categoria.");
       return;
     }
-    if (!lojaAtual) {
-      alert("Selecione uma loja ativa no menu lateral (é nela que o estoque inicial será lançado).");
+    if (!lojaEstoqueEfetiva) {
+      alert(
+        usandoDeposito
+          ? "Não consegui identificar a loja do Depósito."
+          : "Selecione uma loja ativa no menu lateral (é nela que o estoque inicial será lançado)."
+      );
       return;
     }
 
@@ -761,7 +774,7 @@ function AbaEstoque() {
         if (variante) {
           const { error: erroEstoque } = await salvarEstoqueLoja(
             supabase,
-            lojaAtual,
+            lojaEstoqueEfetiva,
             produtoId as string,
             variante.id,
             parseInt(linha.estoque) || 0
@@ -837,7 +850,7 @@ function AbaEstoque() {
           if (variante) {
             const { error: erroEstoque } = await salvarEstoqueLoja(
               supabase,
-              lojaAtual,
+              lojaEstoqueEfetiva,
               produtoId as string,
               variante.id,
               parseInt(linha.estoque) || 0
@@ -851,7 +864,7 @@ function AbaEstoque() {
       } else {
         const { error: erroEstoque } = await salvarEstoqueLoja(
           supabase,
-          lojaAtual,
+          lojaEstoqueEfetiva,
           produtoId as string,
           null,
           parseInt(form.estoqueSimples) || 0
@@ -1156,6 +1169,17 @@ function AbaEstoque() {
             {editandoId ? "Salvar edição" : "Salvar produto"}
           </button>
         </div>
+      )}
+
+      {depositoLojaId && (
+        <label className="flex items-center gap-2 mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded px-3 py-2 max-w-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={usandoDeposito}
+            onChange={(e) => setUsandoDeposito(e.target.checked)}
+          />
+          📦 Gerenciar o estoque do Depósito (em vez da loja atual)
+        </label>
       )}
 
       <input
