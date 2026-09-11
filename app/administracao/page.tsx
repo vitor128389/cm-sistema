@@ -551,7 +551,20 @@ function AbaEstoque() {
 
   const produtosFiltrados = produtos
     .filter((p) => !categoriaFiltro || p.categoria === categoriaFiltro)
-    .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)));
+    .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)))
+    .filter((p) => {
+      // No modo Depósito, sem busca ativa, só mostra quem já tem estoque
+      // lá — a lista de produtos já carregou as quantidades DO DEPÓSITO
+      // nesse modo, então basta checar se sobrou alguma. Se a pessoa
+      // estiver buscando por nome, mostra o produto de qualquer forma —
+      // senão não teria como achar um produto novo pra lançar estoque
+      // nele pela primeira vez.
+      if (!usandoDeposito || buscaProduto) return true;
+      if (p.produto_variantes.length > 0) {
+        return p.produto_variantes.some((v) => v.estoque > 0);
+      }
+      return (p.quantidade_estoque || 0) > 0;
+    });
 
   async function salvarEstoqueSimples(produtoId: string, valor: number) {
     if (!lojaEstoqueEfetiva) return;
@@ -1172,14 +1185,22 @@ function AbaEstoque() {
       )}
 
       {depositoLojaId && (
-        <label className="flex items-center gap-2 mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded px-3 py-2 max-w-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={usandoDeposito}
-            onChange={(e) => setUsandoDeposito(e.target.checked)}
-          />
-          📦 Gerenciar o estoque do Depósito (em vez da loja atual)
-        </label>
+        <>
+          <label className="flex items-center gap-2 mb-1 text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded px-3 py-2 max-w-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={usandoDeposito}
+              onChange={(e) => setUsandoDeposito(e.target.checked)}
+            />
+            📦 Gerenciar o estoque do Depósito (em vez da loja atual)
+          </label>
+          {usandoDeposito && (
+            <p className="text-xs text-madeira-500 mb-3">
+              Mostrando só o que já tem estoque no Depósito. Pra lançar um produto novo lá, busca ele pelo
+              nome — aí aparece mesmo sem estoque ainda.
+            </p>
+          )}
+        </>
       )}
 
       <input
