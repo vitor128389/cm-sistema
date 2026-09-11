@@ -96,7 +96,65 @@ body {
 
 #area-impressao {
   display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 281mm;
+  font-family: sans-serif;
+  color: #222;
+  font-size: 0.88rem;
+  line-height: 1.32;
 }
+#area-impressao table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+#area-impressao th {
+  text-align: left;
+  border-bottom: 1px solid #222;
+  padding: 3px 4px;
+}
+#area-impressao td {
+  padding: 3px 4px;
+  border-bottom: 1px solid #eee;
+}
+#area-impressao .imp-numero-pedido {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  background-color: #123c2e;
+  border-radius: 5px;
+  padding: 2px 10px;
+  display: inline-block;
+}
+#area-impressao.cupom-88mm {
+  width: 80mm;
+  height: auto;
+  font-size: 11px;
+  line-height: 1.4;
+}
+/* cada via reserva um espaço mínimo, pra o corte cair perto do meio da
+   folha quando o pedido é curto — mas sem consumir toda a folha (281mm),
+   porque a "Via do cliente" tem um bloco a mais (aviso de devolução) que
+   a "Via da loja" não tem, e isso precisa de folga sobrando pra não
+   estourar pra uma segunda página. Com muitos produtos, a via cresce o
+   quanto precisar (sem cortar nada) em vez de esconder o final da lista —
+   e se ainda assim passar da altura disponível, o ajustarEscalaImpressaoA4
+   (chamado antes de imprimir) reduz a fonte pra caber certinho. */
+#area-impressao .imp-via {
+  min-height: 118mm;
+  box-sizing: border-box;
+}
+#area-impressao .imp-via + .imp-via {
+  min-height: 118mm;
+  margin-top: 2mm;
+  border-top: 1px dashed #999;
+  padding-top: 2mm;
+  box-sizing: border-box;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -116,66 +174,9 @@ body {
   }
   #area-impressao {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 281mm;
-    font-family: sans-serif;
-    color: #222;
-    font-size: 0.88rem;
-    line-height: 1.32;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
   #area-impressao * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-  }
-  #area-impressao table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.84rem;
-  }
-  #area-impressao th {
-    text-align: left;
-    border-bottom: 1px solid #222;
-    padding: 3px 4px;
-  }
-  #area-impressao td {
-    padding: 3px 4px;
-    border-bottom: 1px solid #eee;
-  }
-  #area-impressao .imp-numero-pedido {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #fff;
-    background-color: #123c2e;
-    border-radius: 5px;
-    padding: 2px 10px;
-    display: inline-block;
-  }
-  #area-impressao.cupom-88mm {
-    width: 80mm;
-    height: auto;
-    font-size: 11px;
-    line-height: 1.4;
-  }
-  /* cada via reserva um espaço mínimo, pra o corte cair perto do meio da
-     folha quando o pedido é curto — mas sem consumir toda a folha (281mm),
-     porque a "Via do cliente" tem um bloco a mais (aviso de devolução) que
-     a "Via da loja" não tem, e isso precisa de folga sobrando pra não
-     estourar pra uma segunda página. Com muitos produtos, a via cresce o
-     quanto precisar (sem cortar nada) em vez de esconder o final da lista. */
-  #area-impressao .imp-via {
-    min-height: 118mm;
-    box-sizing: border-box;
-  }
-  #area-impressao .imp-via + .imp-via {
-    min-height: 118mm;
-    margin-top: 2mm;
-    border-top: 1px dashed #999;
-    padding-top: 2mm;
-    box-sizing: border-box;
   }
 }
