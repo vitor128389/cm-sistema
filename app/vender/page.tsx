@@ -910,12 +910,12 @@ function VenderPageConteudo() {
      valor sugerido automaticamente quando a forma muda, mas o caixa pode
      ajustar como quiser). */
   function baseImplicita(p: { forma: FormaPagamento | ""; parcelas: number; valor: number }) {
-    const ehParcelado = p.forma === "Crédito" && p.parcelas > 1;
+    const ehParcelado = (p.forma === "Crédito" || p.forma === "Link") && p.parcelas > 1;
     return ehParcelado ? Math.round((p.valor / 1.1) * 100) / 100 : p.valor;
   }
 
   function valorSugerido(base: number, forma: FormaPagamento | "", parcelas: number) {
-    const ehParcelado = forma === "Crédito" && parcelas > 1;
+    const ehParcelado = (forma === "Crédito" || forma === "Link") && parcelas > 1;
     return ehParcelado ? Math.round(base * 1.1 * 100) / 100 : Math.round(base * 100) / 100;
   }
 
@@ -1042,7 +1042,10 @@ function VenderPageConteudo() {
           turno_caixa_id: turnoParaUsar?.id || null,
           cliente_id: clienteId,
           forma_pagamento: formaResumo,
-          parcelas: pagamentos.length === 1 && pagamentos[0].forma === "Crédito" ? pagamentos[0].parcelas : 1,
+          parcelas:
+            pagamentos.length === 1 && (pagamentos[0].forma === "Crédito" || pagamentos[0].forma === "Link")
+              ? pagamentos[0].parcelas
+              : 1,
           subtotal: baseTotalImplicita,
           ajuste: acrescimo,
           total,
@@ -1057,7 +1060,7 @@ function VenderPageConteudo() {
       const pagamentosParaInserir = pagamentos.map((p) => ({
         venda_id: venda.id,
         forma_pagamento: p.forma as FormaPagamento,
-        parcelas: p.forma === "Crédito" ? p.parcelas : 1,
+        parcelas: p.forma === "Crédito" || p.forma === "Link" ? p.parcelas : 1,
         valor: p.valor,
       }));
       const { error: erroPagamentos } = await supabase.from("venda_pagamentos").insert(pagamentosParaInserir);
@@ -2021,7 +2024,7 @@ function VenderPageConteudo() {
                     <option value="Link">Link de pagamento</option>
                   </select>
 
-                  {p.forma === "Crédito" && (
+                  {(p.forma === "Crédito" || p.forma === "Link") && (
                     <label className="block mb-2">
                       <span className="text-xs text-madeira-600 mb-1 block">Parcelar em</span>
                       <select
@@ -2115,7 +2118,7 @@ function VenderPageConteudo() {
                     <div key={idx} className="flex justify-between text-sm">
                       <span className="text-madeira-600">
                         {p.forma || "—"}
-                        {p.forma === "Crédito" && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}
+                        {(p.forma === "Crédito" || p.forma === "Link") && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}
                       </span>
                       <span>{formatarMoeda(p.valor)}</span>
                     </div>
