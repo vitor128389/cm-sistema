@@ -66,6 +66,7 @@ export async function gerarRelatorioCaixaPdf(
   linha(`Pix: ${formatarMoeda(turno.total_pix || 0)}`, { tamanho: 10 });
   linha(`Débito: ${formatarMoeda(turno.total_debito || 0)}`, { tamanho: 10 });
   linha(`Crédito: ${formatarMoeda(turno.total_credito || 0)}`, { tamanho: 10 });
+  linha(`Link de pagamento: ${formatarMoeda(turno.total_link || 0)}`, { tamanho: 10 });
   if (turno.total_devolvido) {
     linha(`Devolvido (trocas): ${formatarMoeda(turno.total_devolvido)}`, { tamanho: 10 });
   }
@@ -88,7 +89,8 @@ export async function gerarRelatorioCaixaPdf(
 
   // Resumo final
   const totalCartao = (turno.total_debito || 0) + (turno.total_credito || 0);
-  const totalGeral = (turno.total_dinheiro || 0) + (turno.total_pix || 0) + totalCartao;
+  const totalGeral =
+    (turno.total_dinheiro || 0) + (turno.total_pix || 0) + totalCartao + (turno.total_link || 0);
   const totalSangrias = sangrias.reduce((sum, s) => sum + s.valor, 0);
   const saldoDinheiro = (turno.fundo_inicial || 0) + (turno.total_dinheiro || 0) - totalSangrias;
 
