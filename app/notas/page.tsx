@@ -8,7 +8,7 @@ import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
-import { definirTamanhoPagina } from "@/lib/imprimir";
+import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -234,7 +234,10 @@ export default function NotasPage() {
       setLojaImprimindo(data as LojaCompleta | null);
     }
     definirTamanhoPagina("a4");
-    setTimeout(() => window.print(), 100);
+    setTimeout(() => {
+      ajustarEscalaImpressaoA4();
+      window.print();
+    }, 100);
   }
 
   async function imprimir(v: Venda, formato: "a4" | "cupom88" = "a4") {
@@ -247,7 +250,10 @@ export default function NotasPage() {
       setLojaImprimindo(null);
     }
     definirTamanhoPagina(formato);
-    setTimeout(() => window.print(), 100);
+    setTimeout(() => {
+      if (formato === "a4") ajustarEscalaImpressaoA4();
+      window.print();
+    }, 100);
   }
 
   async function marcarEntregue(itemId: string) {
