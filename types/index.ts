@@ -135,6 +135,7 @@ export interface ItemCarrinho {
   observacao: string | null;
   desconto: number; // valor em R$ abatido do total dessa linha
   motivoDesconto: string | null;
+  origemDeposito?: boolean; // true quando o item veio da seção Depósito — a baixa de estoque, nesse caso, sai do Depósito em vez da loja ativa
 }
 
 export type FormaRecebimento = "retirada" | "entrega" | "misto";
@@ -184,6 +185,7 @@ export interface VendaItem {
   desconto?: number;
   motivo_desconto?: string | null;
   categoria?: string | null;
+  origem_deposito?: boolean;
   produtos?: { custo: number } | null;
 }
 
@@ -292,6 +294,7 @@ export interface LojaCompleta {
   id: string;
   nome: string;
   ativo: boolean;
+  eh_deposito?: boolean;
   cnpj: string | null;
   cep: string | null;
   rua: string | null;
