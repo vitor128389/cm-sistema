@@ -135,20 +135,19 @@ body {
   font-size: 11px;
   line-height: 1.4;
 }
-/* cada via reserva um espaço mínimo, pra o corte cair perto do meio da
-   folha quando o pedido é curto — mas sem consumir toda a folha (281mm),
-   porque a "Via do cliente" tem um bloco a mais (aviso de devolução) que
-   a "Via da loja" não tem, e isso precisa de folga sobrando pra não
-   estourar pra uma segunda página. Com muitos produtos, a via cresce o
-   quanto precisar (sem cortar nada) em vez de esconder o final da lista —
-   e se ainda assim passar da altura disponível, o ajustarEscalaImpressaoA4
-   (chamado antes de imprimir) reduz a fonte pra caber certinho. */
+/* cada via ocupa exatamente a metade da folha (138,5mm de área útil,
+   + 2mm de respiro no meio = 281mm no total) — o corte cai sempre bem no
+   meio físico da página. Se o conteúdo de alguma via precisar de mais
+   espaço que isso, o ajustarEscalaImpressaoA4 (chamado antes de
+   imprimir) reduz a fonte até caber certinho nessa metade, em vez de
+   deixar o corte torto ou cortar informação. */
 #area-impressao .imp-via {
-  min-height: 118mm;
+  height: 138.5mm;
+  overflow: visible;
   box-sizing: border-box;
 }
 #area-impressao .imp-via + .imp-via {
-  min-height: 118mm;
+  height: 138.5mm;
   margin-top: 2mm;
   border-top: 1px dashed #999;
   padding-top: 2mm;
