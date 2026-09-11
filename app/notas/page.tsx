@@ -83,6 +83,7 @@ export default function NotasPage() {
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
   const [somenteAberto, setSomenteAberto] = useState(true);
+  const [ordenarPorPrazo, setOrdenarPorPrazo] = useState<"" | "atrasado" | "recente">("");
   const [somenteRetirada, setSomenteRetirada] = useState(false);
   const [somenteEntregues, setSomenteEntregues] = useState(false);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
@@ -193,13 +194,24 @@ export default function NotasPage() {
     return false;
   }
 
-  const vendasFiltradas = vendas.filter((v) => {
-    if (somenteAberto && !pedidoPendente(v)) return false;
-    if (somenteRetirada && !temItemRetirada(v)) return false;
-    if (somenteEntregues && !pedidoEntregue(v)) return false;
-    if (busca.trim()) return bateComBusca(v, busca);
-    return dentroDoPeriodo(v.criado_em);
-  });
+  const vendasFiltradas = vendas
+    .filter((v) => {
+      if (somenteAberto && !pedidoPendente(v)) return false;
+      if (somenteRetirada && !temItemRetirada(v)) return false;
+      if (somenteEntregues && !pedidoEntregue(v)) return false;
+      if (busca.trim()) return bateComBusca(v, busca);
+      return dentroDoPeriodo(v.criado_em);
+    })
+    .sort((a, b) => {
+      if (!ordenarPorPrazo) return 0;
+      // pedido sem prazo definido sempre vai pro final, não atrapalha quem tem prazo
+      if (!a.prazo_entrega_maximo && !b.prazo_entrega_maximo) return 0;
+      if (!a.prazo_entrega_maximo) return 1;
+      if (!b.prazo_entrega_maximo) return -1;
+      const diasA = diasRestantes(a.prazo_entrega_maximo as string);
+      const diasB = diasRestantes(b.prazo_entrega_maximo as string);
+      return ordenarPorPrazo === "atrasado" ? diasA - diasB : diasB - diasA;
+    });
 
   const pedidosVencendoLogo = vendas.filter(
     (v) => pedidoPendente(v) && diasRestantes(v.prazo_entrega_maximo as string) <= 2
@@ -335,6 +347,18 @@ export default function NotasPage() {
             onChange={(e) => setSomenteAberto(e.target.checked)}
           />
           Só pedidos em aberto (encomenda ainda não entregue)
+        </label>
+        <label className="flex items-center gap-2 self-end pb-2 text-sm text-madeira-700">
+          Ordenar por prazo:
+          <select
+            className="input-base py-1"
+            value={ordenarPorPrazo}
+            onChange={(e) => setOrdenarPorPrazo(e.target.value as "" | "atrasado" | "recente")}
+          >
+            <option value="">Padrão</option>
+            <option value="atrasado">Mais atrasado primeiro</option>
+            <option value="recente">Menos atrasado primeiro</option>
+          </select>
         </label>
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-madeira-700 cursor-pointer">
           <input
