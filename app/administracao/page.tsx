@@ -2447,7 +2447,7 @@ function AbaCancelarNota() {
       if (venda.turno_caixa_id) {
         const { data: turno } = await supabase
           .from("turnos_caixa")
-          .select("status, total_vendido, total_dinheiro, total_pix, total_debito, total_credito")
+          .select("status, total_vendido, total_dinheiro, total_pix, total_debito, total_credito, total_link")
           .eq("id", venda.turno_caixa_id)
           .maybeSingle();
         if (turno && turno.status === "aberto") {
@@ -2464,6 +2464,8 @@ function AbaCancelarNota() {
                 ? "total_debito"
                 : pag.forma_pagamento === "Crédito"
                 ? "total_credito"
+                : pag.forma_pagamento === "Link"
+                ? "total_link"
                 : null;
             if (campo) {
               totaisAtualizados[campo] = Math.max(
@@ -2675,6 +2677,8 @@ function AbaCancelarTroca() {
                 ? "total_debito"
                 : troca.forma_pagamento_diferenca === "Crédito"
                 ? "total_credito"
+                : troca.forma_pagamento_diferenca === "Link"
+                ? "total_link"
                 : null;
             if (campoForma) {
               totaisAtualizados[campoForma] = Math.max(
