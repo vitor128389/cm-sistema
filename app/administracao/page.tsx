@@ -20,6 +20,7 @@ const TELAS = [
   { chave: "trocas", label: "Trocas" },
   { chave: "caixa", label: "Caixa" },
   { chave: "movimento", label: "Movimento" },
+  { chave: "deposito", label: "Depósito" },
   { chave: "administracao", label: "Administração" },
 ];
 const FUNCOES = ["vendedor", "producao", "caixa", "gerente", "admin"] as const;
@@ -125,7 +126,7 @@ function AbaLojas() {
   });
 
   async function carregar() {
-    const { data } = await supabase.from("lojas").select("*").order("nome");
+    const { data } = await supabase.from("lojas").select("*").eq("eh_deposito", false).order("nome");
     if (data) setLojas(data as LojaCompleta[]);
   }
 
@@ -1177,8 +1178,6 @@ function AbaEstoque() {
             className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
               categoriaFiltro === c
                 ? "bg-madeira-700 text-white border-madeira-700"
-                : c === "Móveis Depósito"
-                ? "border-amber-400 bg-amber-50 text-amber-800"
                 : "border-madeira-300 text-madeira-600"
             }`}
             onClick={() => setCategoriaFiltro(c)}
@@ -2352,6 +2351,7 @@ interface VendaCancelamento {
     nome_produto: string;
     quantidade: number;
     tipo_entrega: string;
+    origem_deposito?: boolean;
   }[];
   venda_pagamentos: { forma_pagamento: string; valor: number }[];
 }
@@ -2372,7 +2372,7 @@ function AbaCancelarNota() {
     const { data, error } = await supabase
       .from("vendas")
       .select(
-        "id, numero_pedido, loja_id, total, cancelada, turno_caixa_id, forma_pagamento, clientes(nome), venda_itens(id, produto_id, variante_id, variante, nome_produto, quantidade, tipo_entrega), venda_pagamentos(forma_pagamento, valor)"
+        "id, numero_pedido, loja_id, total, cancelada, turno_caixa_id, forma_pagamento, clientes(nome), venda_itens(id, produto_id, variante_id, variante, nome_produto, quantidade, tipo_entrega, origem_deposito), venda_pagamentos(forma_pagamento, valor)"
       )
       .eq("numero_pedido", Number(numeroPedido))
       .maybeSingle();
@@ -2400,6 +2400,7 @@ function AbaCancelarNota() {
     setCancelando(true);
     try {
       const avisos: string[] = [];
+      const { data: lojaDeposito } = await supabase.from("lojas").select("id").eq("eh_deposito", true).maybeSingle();
 
       for (const item of venda.venda_itens) {
         if (item.tipo_entrega !== "pronta" || !item.produto_id) continue;
@@ -2427,7 +2428,9 @@ function AbaCancelarNota() {
           }
         }
 
-        await ajustarEstoqueLoja(supabase, venda.loja_id, item.produto_id, varianteId, item.quantidade);
+        const lojaDaDevolucao =
+          item.origem_deposito && lojaDeposito ? lojaDeposito.id : venda.loja_id;
+        await ajustarEstoqueLoja(supabase, lojaDaDevolucao, item.produto_id, varianteId, item.quantidade);
       }
 
       const { error: erroCancelar } = await supabase
