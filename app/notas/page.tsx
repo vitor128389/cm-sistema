@@ -405,6 +405,7 @@ export default function NotasPage() {
                       {v.clientes.endereco}
                       {v.clientes.numero ? `, ${v.clientes.numero}` : ""}
                       {v.clientes.cidade ? ` — ${v.clientes.cidade}` : ""}
+                      {v.clientes.povoado ? ` — ${v.clientes.povoado}` : ""}
                     </p>
                   )}
                   {v.cancelada && (
@@ -565,6 +566,7 @@ export default function NotasPage() {
                         {t.vendas.clientes.endereco}
                         {t.vendas.clientes.numero ? `, ${t.vendas.clientes.numero}` : ""}
                         {t.vendas.clientes.cidade ? ` — ${t.vendas.clientes.cidade}` : ""}
+                        {t.vendas.clientes.povoado ? ` — ${t.vendas.clientes.povoado}` : ""}
                       </p>
                     )}
                     {t.cancelada && (
