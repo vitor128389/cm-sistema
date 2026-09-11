@@ -426,9 +426,9 @@ export default function NotasPage() {
                     {new Date(v.criado_em).toLocaleString("pt-BR")} ·{" "}
                     {v.forma_pagamento === "Dividido" && v.venda_pagamentos
                       ? `Dividido (${v.venda_pagamentos
-                          .map((p) => `${p.forma_pagamento}${p.forma_pagamento === "Crédito" && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}`)
+                          .map((p) => `${p.forma_pagamento}${(p.forma_pagamento === "Crédito" || p.forma_pagamento === "Link") && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}`)
                           .join(" + ")})`
-                      : `${v.forma_pagamento}${v.forma_pagamento === "Crédito" && v.parcelas > 1 ? ` ${v.parcelas}x` : ""}`}
+                      : `${v.forma_pagamento}${(v.forma_pagamento === "Crédito" || v.forma_pagamento === "Link") && v.parcelas > 1 ? ` ${v.parcelas}x` : ""}`}
                   </p>
                   {v.clientes?.endereco && (
                     <p className="text-xs text-madeira-400">
