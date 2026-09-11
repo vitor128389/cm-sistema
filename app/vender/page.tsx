@@ -82,7 +82,7 @@ function VenderPageConteudo() {
   const [produtoSelecionado, setProdutoSelecionado] = useState<ProdutoComVariantes | null>(null);
   const [origemDepositoAtiva, setOrigemDepositoAtiva] = useState(false);
   const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
-  const [lojaOrigemEstoque, setLojaOrigemEstoque] = useState<string | null>(null); // null = loja ativa (padrão)
+  const [lojaBuscaProdutos, setLojaBuscaProdutos] = useState<string | null>(null); // loja de onde vem o estoque exibido na busca — padrão: loja atual
   const [carregandoEstoqueOutraLoja, setCarregandoEstoqueOutraLoja] = useState(false);
   const searchParams = useSearchParams();
   const [tecidoSel, setTecidoSel] = useState("Suede");
@@ -143,12 +143,26 @@ function VenderPageConteudo() {
   );
 
   useEffect(() => {
-    carregarProdutos();
     carregarNomesCategorias();
     carregarCores();
     carregarTurnoAberto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
+
+  // Deixa "loja atual" como padrão sempre que a loja ativa mudar (menos
+  // quando está no meio de um redirecionamento vindo do Depósito, que
+  // define isso sozinho logo abaixo).
+  useEffect(() => {
+    if (!searchParams.get("deposito")) {
+      setLojaBuscaProdutos(lojaAtual);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaAtual]);
+
+  useEffect(() => {
+    carregarProdutos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaBuscaProdutos]);
 
   useEffect(() => {
     async function carregarTodasLojas() {
@@ -178,7 +192,7 @@ function VenderPageConteudo() {
       }
       selecionarProduto(produto);
       setOrigemDepositoAtiva(true);
-      setLojaOrigemEstoque(loja.id);
+      setLojaBuscaProdutos(loja.id);
       const varianteId = searchParams.get("variante");
       if (varianteId) {
         const variante = produto.produto_variantes.find((v) => v.id === varianteId);
@@ -196,31 +210,29 @@ function VenderPageConteudo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Troca de onde vem o estoque desse produto (loja atual, outra loja, ou
-  // volta pra loja atual) — recarrega os números certos (estoque e
-  // variantes) da loja escolhida, sem perder o produto selecionado.
-  async function trocarLojaOrigemEstoque(novaLojaId: string | null) {
-    if (!produtoSelecionado) return;
+  // Troca de qual loja vem o estoque mostrado na busca de produtos — épra
+  // ser escolhido ANTES de procurar o produto, mas também atualiza o
+  // produto já selecionado (se tiver) pros números da loja nova.
+  async function trocarLojaBusca(novaLojaId: string) {
     setCarregandoEstoqueOutraLoja(true);
     try {
-      const lojaParaBuscar = novaLojaId || lojaAtual;
-      if (!lojaParaBuscar) return;
-      const produtosDaLoja = await carregarProdutosComEstoque(supabase, lojaParaBuscar);
-      const produtoAtualizado = produtosDaLoja.find((p) => p.id === produtoSelecionado.id);
-      if (!produtoAtualizado) return;
-      setProdutoSelecionado(produtoAtualizado);
-      setLojaOrigemEstoque(novaLojaId);
-      setOrigemDepositoAtiva(!!novaLojaId && novaLojaId === depositoLojaId);
-      // reaplica a mesma variante escolhida (se ainda existir), só que com
-      // o estoque/preço da loja nova
-      const nomeVarianteAtual =
-        produtoAtualizado.tipo_precificacao === "espessura"
-          ? espessuraSel
-          : produtoAtualizado.tipo_precificacao === "tecido"
-          ? tecidoSel
-          : null;
-      if (nomeVarianteAtual) {
-        atualizarValorPelaVariante(produtoAtualizado, nomeVarianteAtual);
+      setLojaBuscaProdutos(novaLojaId);
+      setOrigemDepositoAtiva(novaLojaId === depositoLojaId);
+      if (produtoSelecionado) {
+        const produtosDaLoja = await carregarProdutosComEstoque(supabase, novaLojaId);
+        const produtoAtualizado = produtosDaLoja.find((p) => p.id === produtoSelecionado.id);
+        if (produtoAtualizado) {
+          setProdutoSelecionado(produtoAtualizado);
+          const nomeVarianteAtual =
+            produtoAtualizado.tipo_precificacao === "espessura"
+              ? espessuraSel
+              : produtoAtualizado.tipo_precificacao === "tecido"
+              ? tecidoSel
+              : null;
+          if (nomeVarianteAtual) {
+            atualizarValorPelaVariante(produtoAtualizado, nomeVarianteAtual);
+          }
+        }
       }
     } finally {
       setCarregandoEstoqueOutraLoja(false);
@@ -239,7 +251,9 @@ function VenderPageConteudo() {
   }, []);
 
   async function carregarProdutos() {
-    const data = await carregarProdutosComEstoque(supabase, lojaAtual);
+    const lojaParaBuscar = lojaBuscaProdutos || lojaAtual;
+    if (!lojaParaBuscar) return;
+    const data = await carregarProdutosComEstoque(supabase, lojaParaBuscar);
     const normalizado = data.map((p) => ({
       ...p,
       tipo_precificacao: (p.tipo_precificacao || "simples").trim() as ProdutoComVariantes["tipo_precificacao"],
@@ -584,8 +598,6 @@ function VenderPageConteudo() {
 
   function selecionarProduto(p: ProdutoComVariantes) {
     setProdutoSelecionado(p);
-    setOrigemDepositoAtiva(false);
-    setLojaOrigemEstoque(null);
     setBuscaProduto(p.nome);
     setDropdownAberto(false);
     setTipoEntrega("pronta");
@@ -796,7 +808,7 @@ function VenderPageConteudo() {
       quantidadeEntrega,
       observacao: observacaoItem.trim() || null,
       origemDeposito: origemDepositoAtiva,
-      origemLojaId: lojaOrigemEstoque,
+      origemLojaId: lojaBuscaProdutos && lojaBuscaProdutos !== lojaAtual ? lojaBuscaProdutos : null,
     };
 
     if (ehConjuntoSofa() && pecaSel === "conjunto") {
@@ -882,8 +894,6 @@ function VenderPageConteudo() {
     setDescontoItem("");
     setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
-    setOrigemDepositoAtiva(false);
-    setLojaOrigemEstoque(null);
   }
 
   function removerDoCarrinho(idx: number) {
@@ -1185,6 +1195,8 @@ function VenderPageConteudo() {
     setPrazoEntregaMaximo("");
     setVendaConcluida(null);
     setFormatoImpressao("a4");
+    setLojaBuscaProdutos(lojaAtual);
+    setOrigemDepositoAtiva(false);
     setPasso(1);
   }
 
@@ -1432,6 +1444,27 @@ function VenderPageConteudo() {
       {passo === 2 && (
         <div className="grid grid-cols-1 md:grid-cols-[380px_1fr] gap-5">
           <div className="card p-5">
+            {todasLojas.length > 0 && (
+              <label className="block mb-3">
+                <span className="text-xs text-madeira-600 mb-1 block">Vender do estoque de</span>
+                <select
+                  className="input-base"
+                  value={lojaBuscaProdutos || lojaAtual || ""}
+                  disabled={carregandoEstoqueOutraLoja}
+                  onChange={(e) => trocarLojaBusca(e.target.value)}
+                >
+                  <option value={lojaAtual || ""}>Loja atual</option>
+                  {todasLojas
+                    .filter((l) => l.id !== lojaAtual)
+                    .map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.nome}
+                      </option>
+                    ))}
+                  {depositoLojaId && <option value={depositoLojaId}>Depósito</option>}
+                </select>
+              </label>
+            )}
             <div className="relative mb-3" ref={buscaProdutoRef}>
               <span className="text-xs text-madeira-600 mb-1 block">Buscar produto</span>
               <input
@@ -1509,32 +1542,11 @@ function VenderPageConteudo() {
 
             {produtoSelecionado && (
               <>
-                {todasLojas.length > 0 && (
-                  <label className="block mb-3">
-                    <span className="text-xs text-madeira-600 mb-1 block">Vender do estoque de</span>
-                    <select
-                      className="input-base"
-                      value={lojaOrigemEstoque || ""}
-                      disabled={carregandoEstoqueOutraLoja}
-                      onChange={(e) => trocarLojaOrigemEstoque(e.target.value || null)}
-                    >
-                      <option value="">Loja atual</option>
-                      {todasLojas
-                        .filter((l) => l.id !== lojaAtual)
-                        .map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.nome}
-                          </option>
-                        ))}
-                      {depositoLojaId && <option value={depositoLojaId}>Depósito</option>}
-                    </select>
-                  </label>
-                )}
-                {lojaOrigemEstoque && (
+                {lojaBuscaProdutos && lojaBuscaProdutos !== lojaAtual && (
                   <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300 rounded px-2 py-1.5 mb-3 inline-block">
                     {origemDepositoAtiva
                       ? "📦 Vindo do Depósito"
-                      : `🏬 Vindo do estoque de ${todasLojas.find((l) => l.id === lojaOrigemEstoque)?.nome || "outra loja"}`}
+                      : `🏬 Vindo do estoque de ${todasLojas.find((l) => l.id === lojaBuscaProdutos)?.nome || "outra loja"}`}
                     {" — a baixa desse item sai de lá, não da loja atual"}
                   </p>
                 )}
