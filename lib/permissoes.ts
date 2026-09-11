@@ -10,6 +10,7 @@ export const TELAS_PROTEGIDAS = [
   "trocas",
   "caixa",
   "movimento",
+  "deposito",
   "administracao",
 ] as const;
 
@@ -25,6 +26,7 @@ const ROTA_PARA_TELA: Record<string, Tela> = {
   "/trocas": "trocas",
   "/caixa": "caixa",
   "/movimento": "movimento",
+  "/deposito": "deposito",
   "/administracao": "administracao",
 };
 
