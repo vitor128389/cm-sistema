@@ -386,7 +386,7 @@ export default function ClientesPage() {
                                     ? item.status_entrega === "entregue"
                                       ? "ENCOMENDA (entregue)"
                                       : "ENCOMENDA"
-                                    : item.categoria === "Móveis Depósito"
+                                    : item.origem_deposito
                                     ? "DEPÓSITO"
                                     : "PRONTA ENTREGA"}
                                 </span>{" "}
