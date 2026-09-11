@@ -197,7 +197,7 @@ export default function EncomendasPage() {
                       >
                         {item.tipo_entrega === "encomenda"
                           ? "ENCOMENDA"
-                          : item.categoria === "Móveis Depósito"
+                          : item.origem_deposito
                           ? "DEPÓSITO"
                           : "PRONTA ENTREGA"}
                       </span>
