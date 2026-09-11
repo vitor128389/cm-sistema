@@ -340,6 +340,8 @@ export default function TrocasPage() {
                 ? "total_debito"
                 : formaPagDiferenca === "Crédito"
                 ? "total_credito"
+                : formaPagDiferenca === "Link"
+                ? "total_link"
                 : null;
             if (campoForma) {
               totaisAtualizados[campoForma] =
@@ -723,6 +725,7 @@ export default function TrocasPage() {
                       <option value="Pix">Pix</option>
                       {diferenca > 0 && <option value="Débito">Débito</option>}
                       {diferenca > 0 && <option value="Crédito">Crédito</option>}
+                      {diferenca > 0 && <option value="Link">Link de pagamento</option>}
                       <option value="Outro">Outro</option>
                     </select>
                   </label>
