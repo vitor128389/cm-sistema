@@ -2352,6 +2352,7 @@ interface VendaCancelamento {
     quantidade: number;
     tipo_entrega: string;
     origem_deposito?: boolean;
+    origem_loja_id?: string | null;
   }[];
   venda_pagamentos: { forma_pagamento: string; valor: number }[];
 }
@@ -2372,7 +2373,7 @@ function AbaCancelarNota() {
     const { data, error } = await supabase
       .from("vendas")
       .select(
-        "id, numero_pedido, loja_id, total, cancelada, turno_caixa_id, forma_pagamento, clientes(nome), venda_itens(id, produto_id, variante_id, variante, nome_produto, quantidade, tipo_entrega, origem_deposito), venda_pagamentos(forma_pagamento, valor)"
+        "id, numero_pedido, loja_id, total, cancelada, turno_caixa_id, forma_pagamento, clientes(nome), venda_itens(id, produto_id, variante_id, variante, nome_produto, quantidade, tipo_entrega, origem_deposito, origem_loja_id), venda_pagamentos(forma_pagamento, valor)"
       )
       .eq("numero_pedido", Number(numeroPedido))
       .maybeSingle();
@@ -2429,7 +2430,7 @@ function AbaCancelarNota() {
         }
 
         const lojaDaDevolucao =
-          item.origem_deposito && lojaDeposito ? lojaDeposito.id : venda.loja_id;
+          item.origem_loja_id || (item.origem_deposito && lojaDeposito ? lojaDeposito.id : venda.loja_id);
         await ajustarEstoqueLoja(supabase, lojaDaDevolucao, item.produto_id, varianteId, item.quantidade);
       }
 
