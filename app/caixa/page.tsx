@@ -169,7 +169,8 @@ export default function CaixaPage() {
   }
 
   const totalCartao = (turno?.total_debito || 0) + (turno?.total_credito || 0);
-  const totalGeral = (turno?.total_dinheiro || 0) + (turno?.total_pix || 0) + totalCartao;
+  const totalGeral =
+    (turno?.total_dinheiro || 0) + (turno?.total_pix || 0) + totalCartao + (turno?.total_link || 0);
   const ticketMedio = qtdVendas > 0 ? (turno?.total_vendido || 0) / qtdVendas : 0;
   const totalDinheiroVendido = (turno?.fundo_inicial || 0) + (turno?.total_dinheiro || 0);
   const totalSangrias = sangrias.reduce((s, sg) => s + sg.valor, 0);
@@ -590,6 +591,10 @@ export default function CaixaPage() {
                 <tr>
                   <td style={{ padding: "5px 0" }}>Cartão de crédito</td>
                   <td style={{ padding: "5px 0", textAlign: "right" }}>{formatarMoeda(turno.total_credito)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "5px 0" }}>Link de pagamento</td>
+                  <td style={{ padding: "5px 0", textAlign: "right" }}>{formatarMoeda(turno.total_link || 0)}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: "8px 0", fontWeight: 700, borderTop: "1px solid #999" }}>Total geral</td>
