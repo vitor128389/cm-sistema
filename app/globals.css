@@ -95,13 +95,8 @@ body {
 }
 
 #area-impressao {
-  visibility: hidden;
-  pointer-events: none;
-  position: absolute;
-  left: 0;
-  top: 0;
+  display: none;
   width: 210mm;
-  height: 281mm;
   font-family: sans-serif;
   color: #222;
   font-size: 0.88rem;
@@ -132,18 +127,15 @@ body {
 }
 #area-impressao.cupom-88mm {
   width: 80mm;
-  height: auto;
   font-size: 11px;
   line-height: 1.4;
 }
 /* cada via reserva um espaço mínimo (quase a metade da folha), pra o
-   corte cair perto do meio quando o pedido é curto. Isso é min-height (e
-   não height fixo) de propósito: altura fixa com conteúdo que estoura
-   pode fazer o motor de impressão do navegador paginar de forma
-   imprevisível (páginas extra do nada) — com min-height, a via só cresce
-   naturalmente se precisar, sem essa armadilha. O ajustarEscalaImpressaoA4
-   (chamado antes de imprimir) ainda encolhe a fonte quando o conteúdo é
-   grande, pra manter o corte o mais perto do meio possível. */
+   corte cair perto do meio quando o pedido é curto. É min-height (nunca
+   height fixo nem 100vh) de propósito: com min-height, a via só cresce
+   naturalmente se o conteúdo precisar de mais espaço — não sobra altura
+   vazia em branco, e o navegador nunca fica "confuso" tentando paginar
+   uma caixa de tamanho fixo que estourou. */
 #area-impressao .imp-via {
   min-height: 138.5mm;
   box-sizing: border-box;
@@ -157,24 +149,35 @@ body {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  /* O menu lateral e o container da página usam altura mínima de 100% da
-     tela (min-h-screen) — mesmo ficando invisíveis na impressão, essa
-     altura continua "existindo" no documento e é isso que gera página(s)
-     extra(s) em branco. Neutraliza só isso, sem mexer no próprio
-     #area-impressao nem no que tem dentro dele. */
+  /* Esconde tudo que não é a nota. Usa visibility (não display) aqui
+     porque a nota fica ANINHADA dentro de outros elementos da página —
+     se um "pai" dela ficasse com display:none, esconderia a nota junto,
+     mesmo com display:block!important nela (display:none no pai sempre
+     vence, não tem como um filho "reaparecer"). Visibility não tem esse
+     problema: um filho pode ficar visível mesmo com o pai invisível. */
   body *:not(#area-impressao):not(#area-impressao *) {
+    visibility: hidden !important;
     height: auto !important;
     min-height: 0 !important;
   }
   #area-impressao,
   #area-impressao * {
-    visibility: visible;
+    visibility: visible !important;
   }
   #area-impressao {
     display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
   }
   #area-impressao * {
     -webkit-print-color-adjust: exact;
