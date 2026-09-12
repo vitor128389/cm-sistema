@@ -8,6 +8,7 @@ const COR_VERDE_FUNDO = "#E8F1EC";
 const COR_TEXTO = "#111111";
 const COR_SECUNDARIO = "#666666";
 const COR_AVISO = "#9E2525";
+const COR_LARANJA = "#C2660D";
 
 interface PagamentoResumo {
   forma: string;
@@ -37,6 +38,7 @@ interface Props {
   prazoEntregaMaximo?: string | null;
   loja?: LojaCompleta | null;
   tag?: string;
+  lojasPorId?: Record<string, string>;
 }
 
 function enderecoLojaTexto(loja?: LojaCompleta | null): string | null {
@@ -75,17 +77,36 @@ function valorPagoItem(item: VendaItem, todos: VendaItem[], totalPago: number): 
   return Math.round(totalPago * (item.total / somaListada) * 100) / 100;
 }
 
-function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: number) {
+function linhaItem(
+  item: VendaItem,
+  itens: VendaItem[],
+  total: number,
+  qtd: number,
+  ehViaLoja: boolean,
+  lojasPorId?: Record<string, string>
+) {
+  const totalLinha = Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100;
+  const valorUnitario = qtd > 0 ? Math.round((totalLinha / qtd) * 100) / 100 : 0;
+  const nomeLojaOrigem = item.origem_loja_id ? lojasPorId?.[item.origem_loja_id] : null;
   return (
     <tr key={item.id + "-" + qtd}>
       <td style={{ color: COR_TEXTO }}>
         {item.nome_produto}{" "}
-        {item.tipo_entrega === "encomenda"
-          ? "(ENCOMENDA)"
-          : item.origem_deposito
-          ? "(DEPÓSITO)"
-          : "(PRONTA ENTREGA)"}
+        {item.tipo_entrega === "encomenda" ? (
+          <span style={{ color: ehViaLoja ? COR_LARANJA : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
+            (ENCOMENDA)
+          </span>
+        ) : item.origem_deposito ? (
+          "(DEPÓSITO)"
+        ) : (
+          <span style={{ color: ehViaLoja ? COR_VERDE_ESCURO : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
+            (PRONTA ENTREGA)
+          </span>
+        )}
         {item.variante ? ` — ${item.variante}` : ""}
+        {nomeLojaOrigem && (
+          <span style={{ color: COR_SECUNDARIO, fontWeight: 700 }}> ({nomeLojaOrigem})</span>
+        )}
         {item.observacao && (
           <span
             style={{
@@ -111,11 +132,14 @@ function linhaItem(item: VendaItem, itens: VendaItem[], total: number, qtd: numb
             </strong>
           </>
         )}
+        {qtd >= 2 && (
+          <div style={{ fontSize: "0.78rem", color: COR_SECUNDARIO }}>
+            Valor unitário: {formatarMoeda(valorUnitario)}
+          </div>
+        )}
       </td>
       <td style={{ color: COR_TEXTO }}>{qtd}</td>
-      <td style={{ color: COR_TEXTO }}>
-        {formatarMoeda(Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100)}
-      </td>
+      <td style={{ color: COR_TEXTO }}>{formatarMoeda(totalLinha)}</td>
     </tr>
   );
 }
@@ -130,8 +154,10 @@ function ViaComprovante({
   prazoEntregaMaximo,
   loja,
   tag,
+  lojasPorId,
   rotulo,
 }: Props & { rotulo: string }) {
+  const ehViaLoja = rotulo === "Via da loja";
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const cpfFormatado = formatarCpf(cliente.cpf);
@@ -209,7 +235,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensRetirada.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade)
+                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade, ehViaLoja, lojasPorId)
               )}
             </tbody>
           </table>
@@ -243,7 +269,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensEntrega.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade)
+                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade, ehViaLoja, lojasPorId)
               )}
             </tbody>
           </table>
@@ -284,10 +310,21 @@ function ViaComprovante({
                 </th>
               </tr>
             </thead>
-            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade))}</tbody>
+            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade, ehViaLoja, lojasPorId))}</tbody>
           </table>
         </>
       )}
+
+      {(() => {
+        const descontoTotal = itens.reduce((s, i) => s + (i.desconto || 0), 0);
+        if (descontoTotal <= 0) return null;
+        return (
+          <p style={{ margin: "4px 0 0", color: COR_TEXTO, fontSize: "0.85rem" }}>
+            Subtotal: {formatarMoeda(total + descontoTotal)} — Desconto:{" "}
+            <strong style={{ color: COR_AVISO }}>{formatarMoeda(descontoTotal)}</strong>
+          </p>
+        );
+      })()}
 
       {pagamentos && pagamentos.length > 1 ? (
         <>
