@@ -96,7 +96,6 @@ body {
 
 #area-impressao {
   display: none;
-  width: 210mm;
   font-family: sans-serif;
   color: #222;
   font-size: 0.88rem;
@@ -126,58 +125,46 @@ body {
   display: inline-block;
 }
 #area-impressao.cupom-88mm {
-  width: 80mm;
   font-size: 11px;
   line-height: 1.4;
 }
 /* cada via reserva um espaço mínimo (quase a metade da folha), pra o
-   corte cair perto do meio quando o pedido é curto. É min-height (nunca
-   height fixo nem 100vh) de propósito: com min-height, a via só cresce
-   naturalmente se o conteúdo precisar de mais espaço — não sobra altura
-   vazia em branco, e o navegador nunca fica "confuso" tentando paginar
-   uma caixa de tamanho fixo que estourou. */
+   corte cair perto do meio quando o pedido é curto. É min-height — a via
+   só cresce naturalmente se o conteúdo precisar de mais espaço, nunca
+   fica presa numa altura fixa. */
 #area-impressao .imp-via {
   min-height: 138.5mm;
-  box-sizing: border-box;
 }
 #area-impressao .imp-via + .imp-via {
   min-height: 138.5mm;
   margin-top: 2mm;
   border-top: 1px dashed #999;
   padding-top: 2mm;
-  box-sizing: border-box;
 }
 
 @media print {
-  html,
-  body {
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
+  body * {
+    visibility: hidden;
   }
-  /* Esconde tudo que não é a nota. Usa visibility (não display) aqui
-     porque a nota fica ANINHADA dentro de outros elementos da página —
-     se um "pai" dela ficasse com display:none, esconderia a nota junto,
-     mesmo com display:block!important nela (display:none no pai sempre
-     vence, não tem como um filho "reaparecer"). Visibility não tem esse
-     problema: um filho pode ficar visível mesmo com o pai invisível. */
+  /* O menu lateral e o container da página usam altura mínima de 100% da
+     tela (min-h-screen) — mesmo ficando invisíveis na impressão, essa
+     altura continua "existindo" no documento e é isso que gera página(s)
+     extra(s) em branco. Neutraliza só isso, sem mexer no próprio
+     #area-impressao nem no que tem dentro dele. */
   body *:not(#area-impressao):not(#area-impressao *) {
-    visibility: hidden !important;
     height: auto !important;
     min-height: 0 !important;
   }
   #area-impressao,
   #area-impressao * {
-    visibility: visible !important;
+    visibility: visible;
   }
   #area-impressao {
     display: block !important;
-    position: static !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
   #area-impressao * {
     -webkit-print-color-adjust: exact;
