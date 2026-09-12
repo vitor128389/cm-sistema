@@ -2295,6 +2295,7 @@ function VenderPageConteudo() {
               bairro: bairro || null,
             }}
             loja={lojaInfo}
+            lojasPorId={Object.fromEntries(todasLojas.map((l) => [l.id, l.nome]))}
             total={vendaConcluida.total}
             formaPagamento={vendaConcluida.forma}
             pagamentos={vendaConcluida.pagamentos.map((p) => ({
