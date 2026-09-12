@@ -7,7 +7,7 @@ import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque } from "@/lib/produtos";
 import type { ProdutoComVariantes } from "@/types";
 
-const CATEGORIAS_FIXAS = ["Sofás", "Poltronas e Namoradeiras", "Puffs", "Cama e Colchões", "Cabeceiras e Baús"];
+const CATEGORIAS_FIXAS = ["Sofás", "Poltronas e Namoradeiras", "Cama e Colchões", "Cabeceiras e Baús"];
 
 export default function ProdutosPage() {
   const { lojaAtual } = useLoja();
