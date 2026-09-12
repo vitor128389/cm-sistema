@@ -7,6 +7,7 @@ import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { consultarCpf } from "@/lib/consultaCpf";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
+import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
 type Aba =
@@ -2527,6 +2528,96 @@ function AbaMovimentoGeral() {
     porForma.set(v.forma_pagamento, (porForma.get(v.forma_pagamento) || 0) + v.total);
   });
 
+  const [baixandoPdfDetalhado, setBaixandoPdfDetalhado] = useState<string | null>(null);
+
+  async function baixarPdfDetalhadoTurno(
+    turno: TurnoCaixa & { caixas?: { nome: string; lojas?: { nome: string } | null } | null }
+  ) {
+    setBaixandoPdfDetalhado(turno.id);
+    try {
+      const nomeCaixa = turno.caixas?.nome || "Caixa";
+      const nomeLoja = turno.caixas?.lojas?.nome || null;
+      let lojaInfo: LojaCompleta | null = null;
+      if (nomeLoja) {
+        const { data } = await supabase.from("lojas").select("*").eq("nome", nomeLoja).maybeSingle();
+        lojaInfo = data as LojaCompleta | null;
+      }
+
+      // mapa id->nome de todas as lojas, pra identificar quando um item
+      // veio do estoque de uma loja diferente da que vendeu
+      const { data: todasLojasData } = await supabase.from("lojas").select("id, nome");
+      const nomePorLojaId = new Map((todasLojasData || []).map((l) => [l.id, l.nome]));
+      const idLojaDoTurno = lojaInfo?.id || null;
+
+      const { data: vendasData, error } = await supabase
+        .from("vendas")
+        .select(
+          "numero_pedido, criado_em, forma_pagamento, parcelas, subtotal, ajuste, total, clientes(nome, cpf, telefone), venda_itens(nome_produto, variante, quantidade, total, tipo_entrega, desconto, origem_loja_id), venda_pagamentos(forma_pagamento, parcelas, valor)"
+        )
+        .eq("turno_caixa_id", turno.id)
+        .eq("cancelada", false)
+        .order("numero_pedido", { ascending: true });
+      if (error) throw error;
+
+      const vendasDetalhadas: VendaDetalhadaRelatorio[] = (vendasData || []).map((v) => {
+        const cliente = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+        return {
+          numero_pedido: v.numero_pedido,
+          criado_em: v.criado_em,
+          forma_pagamento: v.forma_pagamento,
+          parcelas: v.parcelas,
+          subtotal: v.subtotal,
+          ajuste: v.ajuste,
+          total: v.total,
+          cliente_nome: cliente?.nome || null,
+          cliente_cpf: cliente?.cpf || null,
+          cliente_telefone: cliente?.telefone || null,
+          itens: (v.venda_itens || []).map((item) => ({
+            nome_produto: item.nome_produto,
+            variante: item.variante,
+            quantidade: item.quantidade,
+            total: item.total,
+            tipo_entrega: item.tipo_entrega,
+            desconto: item.desconto || 0,
+            origem_loja_nome:
+              item.origem_loja_id && item.origem_loja_id !== idLojaDoTurno
+                ? nomePorLojaId.get(item.origem_loja_id) || null
+                : null,
+          })),
+          pagamentos: v.venda_pagamentos || [],
+        };
+      });
+
+      const { data: sangriasData } = await supabase
+        .from("sangrias")
+        .select("*, usuarios(nome)")
+        .eq("turno_caixa_id", turno.id);
+
+      const blob = await gerarRelatorioDetalhadoCaixaPdf(
+        turno,
+        nomeCaixa,
+        lojaInfo,
+        vendasDetalhadas,
+        (sangriasData || []) as Sangria[]
+      );
+      const nomeArquivo = `movimento-detalhado-${nomeCaixa.replace(/\s+/g, "-").toLowerCase()}-${new Date(
+        turno.aberto_em
+      )
+        .toISOString()
+        .slice(0, 10)}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nomeArquivo;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Erro ao gerar o relatório detalhado: " + (e as Error).message);
+    } finally {
+      setBaixandoPdfDetalhado(null);
+    }
+  }
+
   async function baixarPdfTurno(turno: TurnoCaixa & { caixas?: { nome: string; lojas?: { nome: string } | null } | null }) {
     setBaixandoPdf(turno.id);
     try {
@@ -2729,13 +2820,23 @@ function AbaMovimentoGeral() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button
-                      className="btn-secundario text-xs px-2 py-1"
-                      onClick={() => baixarPdfTurno(t)}
-                      disabled={baixandoPdf === t.id}
-                    >
-                      {baixandoPdf === t.id ? "Gerando..." : "📄 PDF"}
-                    </button>
+                    <div className="flex gap-1 justify-end">
+                      <button
+                        className="btn-secundario text-xs px-2 py-1"
+                        onClick={() => baixarPdfTurno(t)}
+                        disabled={baixandoPdf === t.id}
+                      >
+                        {baixandoPdf === t.id ? "Gerando..." : "📄 PDF"}
+                      </button>
+                      <button
+                        className="btn-secundario text-xs px-2 py-1"
+                        onClick={() => baixarPdfDetalhadoTurno(t)}
+                        disabled={baixandoPdfDetalhado === t.id}
+                        title="Relatório com todas as vendas desse caixa, venda por venda"
+                      >
+                        {baixandoPdfDetalhado === t.id ? "Gerando..." : "📋 Movimento detalhado"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
