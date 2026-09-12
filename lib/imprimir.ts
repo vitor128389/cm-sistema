@@ -18,13 +18,11 @@ export function definirTamanhoPagina(formato: "a4" | "cupom88") {
 }
 
 // Garante que a notinha A4 (Via da loja + Via do cliente) sempre caiba em
-// 1 folha só, com o corte bem no meio — em vez de deixar o conteúdo
-// estourar pra uma segunda página (ou empurrar o corte pra fora do meio)
-// quando o pedido tem muita coisa (pagamento dividido, observação grande,
-// endereço bem longo, muitos produtos, etc.), reduz a fonte só o
-// suficiente pra cada via caber na sua metade exata da folha. Pedidos
-// curtos não são afetados — só encolhe quando alguma das duas vias
-// realmente precisa.
+// 1 folha só — em vez de deixar o conteúdo estourar pra uma segunda
+// página quando o pedido tem muita coisa (pagamento dividido, endereço
+// bem longo, muitos produtos, etc.), reduz a fonte só o suficiente pra
+// cada via caber perto da sua metade da folha. Pedidos curtos não são
+// afetados — só encolhe quando alguma das duas vias realmente precisa.
 export function ajustarEscalaImpressaoA4() {
   const area = document.getElementById("area-impressao");
   if (!area) return;
@@ -33,15 +31,23 @@ export function ajustarEscalaImpressaoA4() {
   const vias = Array.from(area.querySelectorAll<HTMLElement>(".imp-via"));
   if (vias.length === 0) return;
 
-  // cada via tem height fixo (138.5mm) — se o conteúdo de dentro precisar
-  // de mais que isso, o próprio scrollHeight da via acusa. Mede cada via
-  // com o clientHeight DELA MESMA (a segunda tem um pouquinho menos de
-  // área útil por causa do padding/borda do separador).
+  // como cada via usa min-height (não height fixo — ver comentário no
+  // CSS), ela nunca "estoura" a própria caixa, só cresce. Por isso, em
+  // vez de comparar o scrollHeight da via contra ela mesma, mede contra
+  // uma referência de verdade: um elemento provisório de exatamente
+  // 138.5mm, só pra converter mm em pixels nessa tela/impressora.
+  const referencia = document.createElement("div");
+  referencia.style.height = "138.5mm";
+  referencia.style.position = "absolute";
+  referencia.style.visibility = "hidden";
+  document.body.appendChild(referencia);
+  const alturaAlvoPx = referencia.offsetHeight;
+  document.body.removeChild(referencia);
+
   let piorRazao = 1; // 1 = coube perfeitamente; >1 = precisa encolher nessa proporção
   for (const via of vias) {
-    const alturaAlvo = via.clientHeight;
-    if (alturaAlvo > 0 && via.scrollHeight > alturaAlvo) {
-      piorRazao = Math.max(piorRazao, via.scrollHeight / alturaAlvo);
+    if (alturaAlvoPx > 0 && via.scrollHeight > alturaAlvoPx) {
+      piorRazao = Math.max(piorRazao, via.scrollHeight / alturaAlvoPx);
     }
   }
 
