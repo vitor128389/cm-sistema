@@ -136,19 +136,20 @@ body {
   font-size: 11px;
   line-height: 1.4;
 }
-/* cada via ocupa exatamente a metade da folha (138,5mm de área útil,
-   + 2mm de respiro no meio = 281mm no total) — o corte cai sempre bem no
-   meio físico da página. Se o conteúdo de alguma via precisar de mais
-   espaço que isso, o ajustarEscalaImpressaoA4 (chamado antes de
-   imprimir) reduz a fonte até caber certinho nessa metade, em vez de
-   deixar o corte torto ou cortar informação. */
+/* cada via reserva um espaço mínimo (quase a metade da folha), pra o
+   corte cair perto do meio quando o pedido é curto. Isso é min-height (e
+   não height fixo) de propósito: altura fixa com conteúdo que estoura
+   pode fazer o motor de impressão do navegador paginar de forma
+   imprevisível (páginas extra do nada) — com min-height, a via só cresce
+   naturalmente se precisar, sem essa armadilha. O ajustarEscalaImpressaoA4
+   (chamado antes de imprimir) ainda encolhe a fonte quando o conteúdo é
+   grande, pra manter o corte o mais perto do meio possível. */
 #area-impressao .imp-via {
-  height: 138.5mm;
-  overflow: visible;
+  min-height: 138.5mm;
   box-sizing: border-box;
 }
 #area-impressao .imp-via + .imp-via {
-  height: 138.5mm;
+  min-height: 138.5mm;
   margin-top: 2mm;
   border-top: 1px dashed #999;
   padding-top: 2mm;
