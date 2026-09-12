@@ -14,11 +14,44 @@ function ordemTecido(nome: string): number {
   return ordem[nome] ?? 99;
 }
 
+// Agrupamento por tipo de móvel, só pra exibição dentro da tela de
+// Depósito — não mexe na categoria "oficial" do produto (usada em
+// Vendas, Produtos, Administração etc.), porque a maioria dos móveis
+// do Depósito está toda na mesma categoria "Móveis Montados" e isso
+// não ajuda a organizar visualmente o que tem lá.
+function tipoMovelDeposito(nome: string): string {
+  const n = nome.toUpperCase();
+  if (n.includes("ROUPEIRO INFANTIL")) return "Roupeiros infantis";
+  if (n.includes("ROUPEIRO")) return "Roupeiros";
+  if (n.includes("ARMÁRIO") || n.includes("ARMARIO")) return "Armários";
+  if (n.includes("CAMA INFANTIL")) return "Camas infantis";
+  if (n.includes("CAMA")) return "Camas";
+  if (n.includes("BERÇO") || n.includes("BERCO")) return "Berços";
+  if (n.includes("CÔMODA") || n.includes("COMODA")) return "Cômodas";
+  if (n.includes("PAINEL") || n.includes("PAINÉL")) return "Painéis";
+  if (n.includes("APARADOR") || n.includes("CENTRO")) return "Aparador e Centro";
+  if (n.includes("RACK")) return "Racks";
+  if (n.includes("ESTANTE")) return "Estantes";
+  if (n.includes("SAPATEIRA")) return "Sapateiras";
+  if (n.includes("SALA")) return "Salas de jantar";
+  if (n.includes("MESA")) return "Mesas";
+  if (n.includes("CADEIRA")) return "Cadeiras";
+  if (n.includes("POLTRONA")) return "Poltronas";
+  if (n.includes("NAMORADEIRA")) return "Namoradeiras";
+  if (n.includes("SOFÁ") || n.includes("SOFA")) return "Sofás";
+  if (n.includes("COLCHÃO") || n.includes("COLCHAO")) return "Colchões";
+  if (n.includes("CABECEIRA")) return "Cabeceiras";
+  if (n.includes("BAÚ") || n.includes("BAU")) return "Baús";
+  if (n.includes("PUFF")) return "Puffs";
+  return "Outros";
+}
+
 interface LinhaDeposito {
   produtoId: string;
   varianteId: string | null;
   nome: string;
   categoria: string;
+  tipoMovel: string;
   variante: string | null; // tecido/cor/espessura — o que a variante representar nesse produto
   quantidade: number;
   custo: number;
@@ -87,6 +120,7 @@ export default function DepositoPage() {
               varianteId: v.id,
               nome: p.nome,
               categoria: p.categoria,
+              tipoMovel: tipoMovelDeposito(p.nome),
               variante: v.nome_variante,
               quantidade: v.estoque,
               custo: v.custo || 0,
@@ -100,6 +134,7 @@ export default function DepositoPage() {
         varianteId: null,
         nome: p.nome,
         categoria: p.categoria,
+        tipoMovel: tipoMovelDeposito(p.nome),
         variante: null,
         quantidade: p.quantidade_estoque || 0,
         custo: p.custo,
@@ -108,12 +143,12 @@ export default function DepositoPage() {
     }
   });
 
-  const categorias = Array.from(new Set(linhas.map((l) => l.categoria)));
+  const categorias = Array.from(new Set(linhas.map((l) => l.tipoMovel))).sort();
 
   const linhasFiltradas = linhas.filter((l) => {
-    if (categoriaFiltro && l.categoria !== categoriaFiltro) return false;
+    if (categoriaFiltro && l.tipoMovel !== categoriaFiltro) return false;
     if (busca) {
-      const alvo = normalizarBusca(`${l.nome} ${l.categoria} ${l.variante || ""}`);
+      const alvo = normalizarBusca(`${l.nome} ${l.tipoMovel} ${l.variante || ""}`);
       if (!alvo.includes(normalizarBusca(busca))) return false;
     }
     return true;
@@ -236,43 +271,62 @@ export default function DepositoPage() {
           Nada no Depósito ainda. Cadastre estoque no Depósito normalmente em Administração → Estoque.
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-madeira-50 text-madeira-600 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Produto</th>
-                <th className="px-4 py-3 font-medium">Categoria</th>
-                <th className="px-4 py-3 font-medium">Tecido/Cor</th>
-                <th className="px-4 py-3 font-medium">Qtd.</th>
-                <th className="px-4 py-3 font-medium">Custo</th>
-                <th className="px-4 py-3 font-medium">Venda</th>
-                <th className="px-4 py-3 font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linhasFiltradas.map((l) => (
-                <tr key={`${l.produtoId}-${l.varianteId}`} className="border-t border-estofado-100">
-                  <td className="px-4 py-3 text-madeira-900">{l.nome}</td>
-                  <td className="px-4 py-3 text-madeira-600">{l.categoria}</td>
-                  <td className="px-4 py-3 text-madeira-600">{l.variante || "—"}</td>
-                  <td className="px-4 py-3 text-madeira-900 font-medium">{l.quantidade}</td>
-                  <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.custo)}</td>
-                  <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.precoVenda)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button className="btn-secundario text-xs px-2 py-1" onClick={() => abrirMover(l)}>
-                        Mover para loja
-                      </button>
-                      <button className="btn-primario text-xs px-2 py-1" onClick={() => irVender(l)}>
-                        Vender
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+        (() => {
+          const grupos = new Map<string, LinhaDeposito[]>();
+          linhasFiltradas.forEach((l) => {
+            const lista = grupos.get(l.tipoMovel) || [];
+            lista.push(l);
+            grupos.set(l.tipoMovel, lista);
+          });
+          const gruposOrdenados = Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+          return (
+            <div className="space-y-6">
+              {gruposOrdenados.map(([grupo, itensDoGrupo]) => (
+                <div key={grupo}>
+                  <p className="text-sm font-semibold text-madeira-700 mb-2">
+                    {grupo} <span className="text-madeira-400 font-normal">({itensDoGrupo.length})</span>
+                  </p>
+                  <div className="card overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-madeira-50 text-madeira-600 text-left">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Produto</th>
+                          <th className="px-4 py-3 font-medium">Tecido/Cor</th>
+                          <th className="px-4 py-3 font-medium">Qtd.</th>
+                          <th className="px-4 py-3 font-medium">Custo</th>
+                          <th className="px-4 py-3 font-medium">Venda</th>
+                          <th className="px-4 py-3 font-medium">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itensDoGrupo.map((l) => (
+                          <tr key={`${l.produtoId}-${l.varianteId}`} className="border-t border-estofado-100">
+                            <td className="px-4 py-3 text-madeira-900">{l.nome}</td>
+                            <td className="px-4 py-3 text-madeira-600">{l.variante || "—"}</td>
+                            <td className="px-4 py-3 text-madeira-900 font-medium">{l.quantidade}</td>
+                            <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.custo)}</td>
+                            <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.precoVenda)}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-2">
+                                <button className="btn-secundario text-xs px-2 py-1" onClick={() => abrirMover(l)}>
+                                  Mover para loja
+                                </button>
+                                <button className="btn-primario text-xs px-2 py-1" onClick={() => irVender(l)}>
+                                  Vender
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          );
+        })()
       )}
 
       {historico.length > 0 && (
