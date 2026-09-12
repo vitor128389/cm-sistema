@@ -86,6 +86,8 @@ export default function NotasPage() {
   const [ordenarPorPrazo, setOrdenarPorPrazo] = useState<"" | "atrasado" | "recente">("");
   const [somenteRetirada, setSomenteRetirada] = useState(false);
   const [somenteEntregues, setSomenteEntregues] = useState(false);
+  const [filtroDesconto, setFiltroDesconto] = useState<"todas" | "com" | "sem">("todas");
+  const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
@@ -157,6 +159,14 @@ export default function NotasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
+  useEffect(() => {
+    async function carregarTodasLojas() {
+      const { data } = await supabase.from("lojas").select("id, nome").eq("eh_deposito", false).order("nome");
+      setTodasLojas(data || []);
+    }
+    carregarTodasLojas();
+  }, []);
+
   function dentroDoPeriodo(dataStr: string): boolean {
     if (periodo === "todos") return true;
     const data = new Date(dataStr);
@@ -194,11 +204,17 @@ export default function NotasPage() {
     return false;
   }
 
+  function temDesconto(v: Venda): boolean {
+    return (v.venda_itens || []).some((i) => (i.desconto || 0) > 0);
+  }
+
   const vendasFiltradas = vendas
     .filter((v) => {
       if (somenteAberto && !pedidoPendente(v)) return false;
       if (somenteRetirada && !temItemRetirada(v)) return false;
       if (somenteEntregues && !pedidoEntregue(v)) return false;
+      if (filtroDesconto === "com" && !temDesconto(v)) return false;
+      if (filtroDesconto === "sem" && temDesconto(v)) return false;
       if (busca.trim()) return bateComBusca(v, busca);
       return dentroDoPeriodo(v.criado_em);
     })
@@ -391,6 +407,18 @@ export default function NotasPage() {
                 <option value="">Padrão</option>
                 <option value="atrasado">Mais atrasado primeiro</option>
                 <option value="recente">Menos atrasado primeiro</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Desconto</span>
+              <select
+                className="input-base"
+                value={filtroDesconto}
+                onChange={(e) => setFiltroDesconto(e.target.value as "todas" | "com" | "sem")}
+              >
+                <option value="todas">Todas</option>
+                <option value="com">Com desconto</option>
+                <option value="sem">Sem desconto</option>
               </select>
             </label>
             {periodo === "personalizado" && (
@@ -688,6 +716,7 @@ export default function NotasPage() {
               bairro: notaImprimindo.clientes?.bairro,
             }}
             loja={lojaImprimindo}
+            lojasPorId={Object.fromEntries(todasLojas.map((l) => [l.id, l.nome]))}
             total={notaImprimindo.total}
             formaPagamento={notaImprimindo.forma_pagamento}
             pagamentos={(notaImprimindo.venda_pagamentos || []).map((p) => ({
