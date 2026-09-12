@@ -95,11 +95,12 @@ body {
 }
 
 #area-impressao {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
   position: absolute;
   left: 0;
   top: 0;
-  width: 100%;
+  width: 210mm;
   height: 281mm;
   font-family: sans-serif;
   color: #222;
