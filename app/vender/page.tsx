@@ -10,7 +10,7 @@ import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
-import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
+import { definirTamanhoPagina } from "@/lib/imprimir";
 import type {
   ProdutoComVariantes,
   TecidoCor,
@@ -2200,10 +2200,7 @@ function VenderPageConteudo() {
               onClick={() => {
                 setFormatoImpressao("a4");
                 definirTamanhoPagina("a4");
-                setTimeout(() => {
-                  ajustarEscalaImpressaoA4();
-                  window.print();
-                }, 50);
+                setTimeout(() => window.print(), 50);
               }}
             >
               🖨 Imprimir comprovante
