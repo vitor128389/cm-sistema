@@ -21,54 +21,34 @@ export function definirTamanhoPagina(formato: "a4" | "cupom88") {
 // 1 folha só, com o corte bem no meio — em vez de deixar o conteúdo
 // estourar pra uma segunda página (ou empurrar o corte pra fora do meio)
 // quando o pedido tem muita coisa (pagamento dividido, observação grande,
-// muitos produtos, etc.), reduz a fonte só o suficiente pra cada via
-// caber na sua metade exata da folha. Pedidos curtos não são afetados —
-// só encolhe quando alguma das duas vias realmente precisa.
+// endereço bem longo, muitos produtos, etc.), reduz a fonte só o
+// suficiente pra cada via caber na sua metade exata da folha. Pedidos
+// curtos não são afetados — só encolhe quando alguma das duas vias
+// realmente precisa.
 export function ajustarEscalaImpressaoA4() {
   const area = document.getElementById("area-impressao");
   if (!area) return;
-
-  const estiloOriginal = area.getAttribute("style") || "";
-  area.style.fontSize = "";
-
-  // #area-impressao fica com display:none fora da impressão (CSS base) —
-  // pra medir o tamanho real do conteúdo é preciso forçar ele a aparecer
-  // por um instante, fora da tela, sem o usuário nem perceber.
-  area.style.display = "block";
-  area.style.position = "fixed";
-  area.style.left = "-99999px";
-  area.style.top = "0";
-  area.style.width = "194mm"; // largura real de impressão (A4 210mm - 8mm de margem dos 2 lados)
-  area.style.height = "281mm";
-  area.style.visibility = "visible";
+  area.style.fontSize = ""; // tira um ajuste de uma impressão anterior antes de medir de novo
 
   const vias = Array.from(area.querySelectorAll<HTMLElement>(".imp-via"));
-  let fonteAjustada = "";
+  if (vias.length === 0) return;
 
-  if (vias.length > 0) {
-    // cada via tem height fixo (138.5mm) — se o conteúdo de dentro
-    // precisar de mais que isso, o próprio scrollHeight da via acusa.
-    // Mede cada via com o clientHeight DELA MESMA (a segunda tem um
-    // pouquinho menos de área útil por causa do padding/borda do
-    // separador, então não dá pra assumir que as duas são iguais).
-    let piorRazao = 1; // 1 = coube perfeitamente; >1 = precisa encolher nessa proporção
-    for (const via of vias) {
-      const alturaAlvo = via.clientHeight;
-      if (alturaAlvo > 0 && via.scrollHeight > alturaAlvo) {
-        piorRazao = Math.max(piorRazao, via.scrollHeight / alturaAlvo);
-      }
-    }
-    if (piorRazao > 1) {
-      const fonteAtualPx = parseFloat(window.getComputedStyle(area).fontSize);
-      // uma folguinha de 3% de segurança, pra garantir que cabe de verdade
-      const fator = Math.max((1 / piorRazao) * 0.97, 0.62); // nunca encolhe abaixo de 62% (fica ilegível)
-      fonteAjustada = `${fonteAtualPx * fator}px`;
+  // cada via tem height fixo (138.5mm) — se o conteúdo de dentro precisar
+  // de mais que isso, o próprio scrollHeight da via acusa. Mede cada via
+  // com o clientHeight DELA MESMA (a segunda tem um pouquinho menos de
+  // área útil por causa do padding/borda do separador).
+  let piorRazao = 1; // 1 = coube perfeitamente; >1 = precisa encolher nessa proporção
+  for (const via of vias) {
+    const alturaAlvo = via.clientHeight;
+    if (alturaAlvo > 0 && via.scrollHeight > alturaAlvo) {
+      piorRazao = Math.max(piorRazao, via.scrollHeight / alturaAlvo);
     }
   }
 
-  // desfaz a exibição forçada (volta a ficar do jeito que a impressão de
-  // verdade vai renderizar — escondido, controlado pelo @media print) e
-  // só mantém a fonte ajustada, que essa sim precisa continuar valendo.
-  area.setAttribute("style", estiloOriginal);
-  if (fonteAjustada) area.style.fontSize = fonteAjustada;
+  if (piorRazao > 1) {
+    const fonteAtualPx = parseFloat(window.getComputedStyle(area).fontSize);
+    // uma folguinha de 3% de segurança, pra garantir que cabe de verdade
+    const fator = Math.max((1 / piorRazao) * 0.97, 0.62); // nunca encolhe abaixo de 62% (fica ilegível)
+    area.style.fontSize = `${fonteAtualPx * fator}px`;
+  }
 }
