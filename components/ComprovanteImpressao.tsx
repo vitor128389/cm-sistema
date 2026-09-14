@@ -428,7 +428,8 @@ function ViaComprovante({
             margin: "2px 0",
             color: COR_TEXTO,
             backgroundColor: "#E8E8E8",
-            display: "inline-block",
+            display: "block",
+            width: "fit-content",
             padding: "1px 6px",
             borderRadius: 3,
           }}
