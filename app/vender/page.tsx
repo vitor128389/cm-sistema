@@ -769,8 +769,11 @@ function VenderPageConteudo() {
     }
     // Produtos de "Móveis Montados" (já montados, disponíveis fisicamente na
     // loja) sempre levam essa etiqueta na venda/nota/impressão — junto com a
-    // cor/variação, se o produto tiver uma selecionada.
-    if (produtoSelecionado.categoria === "Móveis Montados" || produtoSelecionado.categoria === "Importados") {
+    // cor/variação, se o produto tiver uma selecionada. Não repete isso
+    // quando o item vem do Depósito ou de outra loja: a etiqueta de origem
+    // já deixa claro de onde saiu, "MONTADO" só polui a notinha nesse caso.
+    const vemDeOutroLugar = !!lojaBuscaProdutos && lojaBuscaProdutos !== lojaAtual;
+    if (!vemDeOutroLugar && (produtoSelecionado.categoria === "Móveis Montados" || produtoSelecionado.categoria === "Importados")) {
       base = base ? `${base} — MONTADO` : "MONTADO";
     }
     if (precisaModelo() && modeloSel) {
