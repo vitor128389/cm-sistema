@@ -321,6 +321,7 @@ export interface Venda {
   ajuste: number;
   total: number;
   prazo_entrega_maximo: string | null;
+  prazo_dias_uteis?: number | null;
   forma_recebimento: FormaRecebimento | null;
   cancelada?: boolean;
   motivo_cancelamento?: string | null;
