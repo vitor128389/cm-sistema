@@ -205,9 +205,13 @@ function ViaComprovante({
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const cpfFormatado = formatarCpf(cliente.cpf);
-  const temPrazo =
-    itens.some((i) => i.tipo_entrega === "encomenda" || i.status_entrega === "encomenda") &&
-    !!prazoEntregaMaximo;
+  // Mostra o prazo sempre que ele foi preenchido — o formulário já só
+  // pede/mostra esse campo quando é relevante (encomenda, ou entrega
+  // dividida com retirada), então bastar ter um valor aqui já garante que
+  // faz sentido mostrar. Antes isso exigia também ter algum item marcado
+  // como "encomenda", o que escondia o prazo em vendas mistas (retirada +
+  // entrega) mesmo com o prazo preenchido e salvo.
+  const temPrazo = !!prazoEntregaMaximo;
 
   const itensRetirada = itens.filter((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) > 0);
   const itensEntrega = itens.filter(
