@@ -12,6 +12,8 @@ export interface VendaDetalhadaRelatorio {
   subtotal: number;
   ajuste: number;
   total: number;
+  cancelada: boolean;
+  motivo_cancelamento: string | null;
   cliente_nome: string | null;
   cliente_cpf: string | null;
   cliente_telefone: string | null;
@@ -111,9 +113,14 @@ export async function gerarRelatorioDetalhadoCaixaPdf(
     garantirEspaco(14); // reserva um respiro pro cabeçalho da venda não ficar sozinho no fim da página
 
     linha(
-      `PEDIDO #${v.numero_pedido} — ${new Date(v.criado_em).toLocaleString("pt-BR")}`,
-      { negrito: true, tamanho: 10, espaco: 1, cor: [18, 60, 46] }
+      `PEDIDO #${v.numero_pedido} — ${new Date(v.criado_em).toLocaleString("pt-BR")}${
+        v.cancelada ? "  ❌ CANCELADA" : ""
+      }`,
+      { negrito: true, tamanho: 10, espaco: 1, cor: v.cancelada ? [158, 37, 37] : [18, 60, 46] }
     );
+    if (v.cancelada && v.motivo_cancelamento) {
+      linha(`Motivo do cancelamento: ${v.motivo_cancelamento}`, { tamanho: 8, espaco: 0.5, cor: [158, 37, 37] });
+    }
 
     const linhaCliente = [
       v.cliente_nome ? `Cliente: ${v.cliente_nome}` : null,
@@ -177,15 +184,23 @@ export async function gerarRelatorioDetalhadoCaixaPdf(
   garantirEspaco(60);
   linha("RESUMO DO CAIXA", { negrito: true, tamanho: 11, espaco: 2, cor: [18, 60, 46] });
 
-  const brutoVendido = vendas.reduce((s, v) => s + v.subtotal + v.ajuste, 0);
-  const descontoTotalCaixa = vendas.reduce(
+  // O resumo conta só as vendas válidas — as canceladas aparecem na
+  // listagem acima (marcadas), mas não entram nesses totais, porque não
+  // são dinheiro que realmente entrou no caixa.
+  const vendasValidas = vendas.filter((v) => !v.cancelada);
+  const qtdCanceladas = vendas.length - vendasValidas.length;
+  const brutoVendido = vendasValidas.reduce((s, v) => s + v.subtotal + v.ajuste, 0);
+  const descontoTotalCaixa = vendasValidas.reduce(
     (s, v) => s + v.itens.reduce((si, i) => si + (i.desconto || 0), 0),
     0
   );
-  const liquidoVendido = vendas.reduce((s, v) => s + v.total, 0);
+  const liquidoVendido = vendasValidas.reduce((s, v) => s + v.total, 0);
   const totalSangrias = sangrias.reduce((s, sg) => s + sg.valor, 0);
 
-  linha(`Quantidade de vendas: ${vendas.length}`, { tamanho: 9, espaco: 0.5 });
+  linha(`Quantidade de vendas: ${vendasValidas.length}`, { tamanho: 9, espaco: 0.5 });
+  if (qtdCanceladas > 0) {
+    linha(`Vendas canceladas nesse caixa: ${qtdCanceladas}`, { tamanho: 9, espaco: 0.5, cor: [158, 37, 37] });
+  }
   linha(`Valor bruto vendido: ${formatarMoeda(brutoVendido)}`, { tamanho: 9, espaco: 0.5 });
   linha(`Total de descontos concedidos: ${formatarMoeda(descontoTotalCaixa)}`, { tamanho: 9, espaco: 0.5 });
   linha(`Valor líquido das vendas: ${formatarMoeda(liquidoVendido)}`, { tamanho: 9, espaco: 0.5 });
