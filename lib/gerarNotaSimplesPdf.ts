@@ -123,8 +123,11 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   linha(`Forma de pagamento: ${venda.forma_pagamento}`, { tamanho: 9 });
 
   if (venda.prazo_entrega_maximo) {
+    const dataFormatada = new Date(`${venda.prazo_entrega_maximo}T00:00:00`).toLocaleDateString("pt-BR");
     linha(
-      `Prazo máximo de entrega: ${new Date(`${venda.prazo_entrega_maximo}T00:00:00`).toLocaleDateString("pt-BR")}`,
+      venda.prazo_dias_uteis
+        ? `PRAZO MÁXIMO: ${venda.prazo_dias_uteis} DIAS ÚTEIS — ATÉ ${dataFormatada}`
+        : `Prazo máximo de entrega: ${dataFormatada}`,
       { tamanho: 9 }
     );
   }
