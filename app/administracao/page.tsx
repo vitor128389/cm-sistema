@@ -2584,10 +2584,9 @@ function AbaMovimentoGeral() {
       const { data: vendasData, error } = await supabase
         .from("vendas")
         .select(
-          "numero_pedido, criado_em, forma_pagamento, parcelas, subtotal, ajuste, total, clientes(nome, cpf, telefone), venda_itens(nome_produto, variante, quantidade, total, tipo_entrega, desconto, origem_loja_id), venda_pagamentos(forma_pagamento, parcelas, valor)"
+          "numero_pedido, criado_em, forma_pagamento, parcelas, subtotal, ajuste, total, cancelada, motivo_cancelamento, clientes(nome, cpf, telefone), venda_itens(nome_produto, variante, quantidade, total, tipo_entrega, desconto, origem_loja_id), venda_pagamentos(forma_pagamento, parcelas, valor)"
         )
         .eq("turno_caixa_id", turno.id)
-        .eq("cancelada", false)
         .order("numero_pedido", { ascending: true });
       if (error) throw error;
 
@@ -2598,6 +2597,8 @@ function AbaMovimentoGeral() {
           criado_em: v.criado_em,
           forma_pagamento: v.forma_pagamento,
           parcelas: v.parcelas,
+          cancelada: v.cancelada || false,
+          motivo_cancelamento: v.motivo_cancelamento || null,
           subtotal: v.subtotal,
           ajuste: v.ajuste,
           total: v.total,
