@@ -547,9 +547,41 @@ function AbaEstoque() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaEstoqueEfetiva]);
 
-  const categorias = Array.from(
-    new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig])
-  );
+  // Agrupamento por tipo de móvel (Roupeiros, Armários, Painéis...) — só
+  // usado quando o modo Depósito está ativo, porque lá quase tudo está na
+  // mesma categoria "Móveis Montados" e isso não ajuda a organizar. É a
+  // mesma lógica usada na tela de Depósito, baseada no nome do produto —
+  // não mexe na categoria "oficial" usada no resto do sistema.
+  function tipoMovelDeposito(nome: string): string {
+    const n = nome.toUpperCase();
+    if (n.includes("ROUPEIRO INFANTIL")) return "Roupeiros infantis";
+    if (n.includes("ROUPEIRO")) return "Roupeiros";
+    if (n.includes("ARMÁRIO") || n.includes("ARMARIO")) return "Armários";
+    if (n.includes("CAMA INFANTIL")) return "Camas infantis";
+    if (n.includes("CAMA")) return "Camas";
+    if (n.includes("BERÇO") || n.includes("BERCO")) return "Berços";
+    if (n.includes("CÔMODA") || n.includes("COMODA")) return "Cômodas";
+    if (n.includes("PAINEL") || n.includes("PAINÉL")) return "Painéis";
+    if (n.includes("APARADOR") || n.includes("CENTRO")) return "Aparador e Centro";
+    if (n.includes("RACK")) return "Racks";
+    if (n.includes("ESTANTE")) return "Estantes";
+    if (n.includes("SAPATEIRA")) return "Sapateiras";
+    if (n.includes("SALA")) return "Salas de jantar";
+    if (n.includes("MESA")) return "Mesas";
+    if (n.includes("CADEIRA")) return "Cadeiras";
+    if (n.includes("POLTRONA")) return "Poltronas";
+    if (n.includes("NAMORADEIRA")) return "Namoradeiras";
+    if (n.includes("SOFÁ") || n.includes("SOFA")) return "Sofás";
+    if (n.includes("COLCHÃO") || n.includes("COLCHAO")) return "Colchões";
+    if (n.includes("CABECEIRA")) return "Cabeceiras";
+    if (n.includes("BAÚ") || n.includes("BAU")) return "Baús";
+    if (n.includes("PUFF")) return "Puffs";
+    return "Outros";
+  }
+
+  const categorias = usandoDeposito
+    ? Array.from(new Set(produtos.map((p) => tipoMovelDeposito(p.nome)))).sort()
+    : Array.from(new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig]));
 
   // A partir de agora, é a categoria (configurada no banco, escolhida na hora
   // de cadastrar) que decide se o produto usa tecido, espessura ou nenhum
@@ -563,7 +595,7 @@ function AbaEstoque() {
   const [buscaProduto, setBuscaProduto] = useState("");
 
   const produtosFiltrados = produtos
-    .filter((p) => !categoriaFiltro || p.categoria === categoriaFiltro)
+    .filter((p) => !categoriaFiltro || (usandoDeposito ? tipoMovelDeposito(p.nome) : p.categoria) === categoriaFiltro)
     .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)))
     .filter((p) => {
       // No modo Depósito, sem busca ativa, só mostra quem já tem estoque
@@ -1261,7 +1293,7 @@ function AbaEstoque() {
             {produtosFiltrados.map((p) => (
               <tr key={p.id} className="border-t border-estofado-100 align-top">
                 <td className="px-4 py-2">{p.nome}</td>
-                <td className="px-4 py-2">{p.categoria}</td>
+                <td className="px-4 py-2">{usandoDeposito ? tipoMovelDeposito(p.nome) : p.categoria}</td>
                 {(() => {
                   // Monta uma linha por tecido/espessura (mesma ordem usada
                   // na coluna Estoque), pra Custo e Preço de venda mostrarem
