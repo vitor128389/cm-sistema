@@ -414,7 +414,7 @@ function ViaComprovante({
         </p>
       )}
       {temPrazo && (
-        <p style={{ margin: "2px 0", color: COR_TEXTO }}>
+        <p style={{ margin: "2px 0", color: "#fff", backgroundColor: "#000" }}>
           Prazo máximo: {new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}
         </p>
       )}
