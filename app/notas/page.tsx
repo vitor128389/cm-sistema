@@ -696,6 +696,7 @@ export default function NotasPage() {
             total={notaImprimindo.total}
             formaPagamento={notaImprimindo.forma_pagamento}
             prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
+            prazoDiasUteis={notaImprimindo.prazo_dias_uteis ?? null}
             itens={notaImprimindo.venda_itens || []}
           />
         )}
@@ -723,6 +724,7 @@ export default function NotasPage() {
               valorAPagar: p.valor,
             }))}
             prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
+            prazoDiasUteis={notaImprimindo.prazo_dias_uteis ?? null}
             itens={notaImprimindo.venda_itens || []}
           />
         )}
