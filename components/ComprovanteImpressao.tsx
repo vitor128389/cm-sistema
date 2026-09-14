@@ -36,6 +36,7 @@ interface Props {
   formaPagamento: string;
   pagamentos?: PagamentoResumo[];
   prazoEntregaMaximo?: string | null;
+  prazoDiasUteis?: number | null;
   loja?: LojaCompleta | null;
   tag?: string;
   lojasPorId?: Record<string, string>;
@@ -202,6 +203,7 @@ function ViaComprovante({
   formaPagamento,
   pagamentos,
   prazoEntregaMaximo,
+  prazoDiasUteis,
   loja,
   tag,
   lojasPorId,
@@ -431,7 +433,11 @@ function ViaComprovante({
             borderRadius: 3,
           }}
         >
-          Prazo máximo: {new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}
+          {prazoDiasUteis
+            ? `PRAZO MÁXIMO: ${prazoDiasUteis} DIAS ÚTEIS — ATÉ ${new Date(
+                `${prazoEntregaMaximo}T00:00:00`
+              ).toLocaleDateString("pt-BR")}`
+            : `Prazo máximo: ${new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}`}
         </p>
       )}
 
