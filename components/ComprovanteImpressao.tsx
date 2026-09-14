@@ -105,9 +105,16 @@ function mesclarConjuntosSofa(itens: VendaItem[]): VendaItem[] {
         const par = itens[idxPar];
         usados.add(i);
         usados.add(idxPar);
+        // se o nome do produto já diz "2 e 3 Lugares" (caso comum desse
+        // tipo de sofá), não repete isso de novo na variante — só o
+        // tecido mesmo, ou nada se não tiver tecido.
+        const jaTemNoNome = item.nome_produto.toUpperCase().includes("2 E 3 LUGARES");
+        const varianteFinal = jaTemNoNome
+          ? prefixo.replace(/\s*—\s*$/, "").trim() || null
+          : `${prefixo}2 e 3 Lugares`;
         resultado.push({
           ...item,
-          variante: `${prefixo}2 e 3 Lugares`,
+          variante: varianteFinal,
           total: item.total + par.total,
           desconto: (item.desconto || 0) + (par.desconto || 0),
         });
@@ -414,7 +421,16 @@ function ViaComprovante({
         </p>
       )}
       {temPrazo && (
-        <p style={{ margin: "2px 0", color: "#fff", backgroundColor: "#000" }}>
+        <p
+          style={{
+            margin: "2px 0",
+            color: "#fff",
+            backgroundColor: "#000",
+            display: "inline-block",
+            padding: "1px 6px",
+            borderRadius: 3,
+          }}
+        >
           Prazo máximo: {new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}
         </p>
       )}
