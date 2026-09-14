@@ -1,5 +1,49 @@
 import { formatarMoeda } from "@/lib/format";
-import type { Venda, LojaCompleta } from "@/types";
+import type { Venda, LojaCompleta, VendaItem } from "@/types";
+
+// Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
+// (uma peça de 2 e outra de 3 lugares) porque cada peça baixa do estoque
+// separadamente — mas na impressão isso deve aparecer como 1 produto só.
+function mesclarConjuntosSofa(itens: VendaItem[]): VendaItem[] {
+  const resultado: VendaItem[] = [];
+  const usados = new Set<number>();
+
+  itens.forEach((item, i) => {
+    if (usados.has(i)) return;
+    const variante = item.variante || "";
+    if (variante.endsWith("— 2 Lugares")) {
+      const prefixo = variante.slice(0, -"2 Lugares".length);
+      const idxPar = itens.findIndex(
+        (outro, j) =>
+          j !== i &&
+          !usados.has(j) &&
+          outro.nome_produto === item.nome_produto &&
+          (outro.variante || "") === `${prefixo}3 Lugares` &&
+          outro.tipo_entrega === item.tipo_entrega &&
+          outro.retirada === item.retirada
+      );
+      if (idxPar !== -1) {
+        const par = itens[idxPar];
+        usados.add(i);
+        usados.add(idxPar);
+        const jaTemNoNome = item.nome_produto.toUpperCase().includes("2 E 3 LUGARES");
+        const varianteFinal = jaTemNoNome
+          ? prefixo.replace(/\s*—\s*$/, "").trim() || null
+          : `${prefixo}2 e 3 Lugares`;
+        resultado.push({
+          ...item,
+          variante: varianteFinal,
+          total: item.total + par.total,
+          desconto: (item.desconto || 0) + (par.desconto || 0),
+        });
+        return;
+      }
+    }
+    resultado.push(item);
+  });
+
+  return resultado;
+}
 
 // Gera um PDF enxuto do pedido — só produto, cliente, endereço (com
 // "Cidade: X" explícito) e total. Sem via da loja/cliente e sem
@@ -53,7 +97,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   }
 
   // Itens
-  const itensVenda = venda.venda_itens || [];
+  const itensVenda = mesclarConjuntosSofa(venda.venda_itens || []);
   const todosRetirada =
     itensVenda.length > 0 &&
     itensVenda.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade);
