@@ -28,6 +28,26 @@ const TECIDOS = ["Suede", "Linho", "Veludo"];
 // lista de sugestões (pedido do Vitor), sem apagar nenhum cliente antigo.
 const DATA_CORTE_SUGESTOES_ENDERECO = "2026-09-14T00:00:00Z";
 
+// Soma N dias úteis a partir de hoje, pulando sábado e domingo — usado nas
+// opções rápidas de prazo (6/10/15 dias úteis). Retorna no formato
+// YYYY-MM-DD, igual o campo de data espera.
+function somarDiasUteis(quantidade: number): string {
+  const data = new Date();
+  data.setHours(0, 0, 0, 0);
+  let restantes = quantidade;
+  while (restantes > 0) {
+    data.setDate(data.getDate() + 1);
+    const diaSemana = data.getDay(); // 0 = domingo, 6 = sábado
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      restantes--;
+    }
+  }
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 // Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
 // tecidos (Napa, Atoalhado, etc.) ficam depois, na ordem que vierem.
 function ordemTecido(nome: string): number {
@@ -137,6 +157,7 @@ function VenderPageConteudo() {
 
   const [salvando, setSalvando] = useState(false);
   const [prazoEntregaMaximo, setPrazoEntregaMaximo] = useState("");
+  const [prazoDiasUteis, setPrazoDiasUteis] = useState<number | null>(null);
   const [formaRecebimento, setFormaRecebimento] = useState<FormaRecebimento>("retirada");
   const [vendaSemCliente, setVendaSemCliente] = useState(false);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
@@ -1093,6 +1114,7 @@ function VenderPageConteudo() {
           ajuste: acrescimo,
           total,
           prazo_entrega_maximo: prazoEntregaMaximo || null,
+          prazo_dias_uteis: prazoDiasUteis,
           forma_recebimento: formaRecebimento,
           loja_id: lojaAtual,
         })
@@ -1239,6 +1261,7 @@ function VenderPageConteudo() {
     setCarrinho([]);
     setPagamentos([{ forma: "", parcelas: 1, valor: 0 }]);
     setPrazoEntregaMaximo("");
+    setPrazoDiasUteis(null);
     setVendaConcluida(null);
     setFormatoImpressao("a4");
     setLojaBuscaProdutos(lojaAtual);
@@ -2123,20 +2146,6 @@ function VenderPageConteudo() {
                 </p>
               )}
 
-              {(carrinho.some((i) => i.tipoEntrega === "encomenda" || i.quantidadeEntrega > 0 || i.retirada)) && (
-                <label className="block mt-3">
-                  <span className="text-xs text-madeira-600 mb-1 block">
-                    Prazo máximo de entrega
-                    {precisaPrazoObrigatorio() ? " *" : " (deixe hoje se o cliente já vai levar agora)"}
-                  </span>
-                  <input
-                    className="input-base"
-                    type="date"
-                    value={prazoEntregaMaximo}
-                    onChange={(e) => setPrazoEntregaMaximo(e.target.value)}
-                  />
-                </label>
-              )}
             </div>
 
             <div className="card p-5">
@@ -2169,6 +2178,43 @@ function VenderPageConteudo() {
                   <span>{formatarMoeda(total)}</span>
                 </div>
               </div>
+
+              {(carrinho.some((i) => i.tipoEntrega === "encomenda" || i.quantidadeEntrega > 0 || i.retirada)) && (
+                <div className="mt-4 pt-4 border-t border-estofado-100">
+                  <span className="text-xs text-madeira-600 mb-1 block">
+                    Prazo máximo de entrega
+                    {precisaPrazoObrigatorio() ? " *" : " (deixe hoje se o cliente já vai levar agora)"}
+                  </span>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {[6, 10, 15].map((dias) => (
+                      <button
+                        key={dias}
+                        type="button"
+                        className={`text-xs px-3 py-1.5 rounded-full border ${
+                          prazoDiasUteis === dias
+                            ? "bg-madeira-700 text-white border-madeira-700"
+                            : "border-madeira-300 text-madeira-600"
+                        }`}
+                        onClick={() => {
+                          setPrazoDiasUteis(dias);
+                          setPrazoEntregaMaximo(somarDiasUteis(dias));
+                        }}
+                      >
+                        {dias} dias úteis
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    className="input-base"
+                    type="date"
+                    value={prazoEntregaMaximo}
+                    onChange={(e) => {
+                      setPrazoEntregaMaximo(e.target.value);
+                      setPrazoDiasUteis(null); // escolheu uma data manual — não é mais um preset de dias úteis
+                    }}
+                  />
+                </div>
+              )}
 
               {pagamentos.length > 1 && (
                 <div className="mt-4 pt-4 border-t border-estofado-100 space-y-1">
@@ -2311,6 +2357,7 @@ function VenderPageConteudo() {
             total={vendaConcluida.total}
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
+            prazoDiasUteis={prazoDiasUteis}
             itens={carrinho.map((item, idx) => ({
               id: String(idx),
               venda_id: "",
@@ -2362,6 +2409,7 @@ function VenderPageConteudo() {
               valorAPagar: p.valor,
             }))}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
+            prazoDiasUteis={prazoDiasUteis}
             itens={carrinho.map((item, idx) => ({
               id: String(idx),
               venda_id: "",
