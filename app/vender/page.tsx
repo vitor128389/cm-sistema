@@ -36,6 +36,8 @@ function VenderPageConteudo() {
   const [passo, setPasso] = useState<1 | 2 | 3 | 4>(1);
   const { lojaAtual } = useLoja();
   const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
+  const [cidadesConhecidas, setCidadesConhecidas] = useState<string[]>([]);
+  const [povoadosConhecidos, setPovoadosConhecidos] = useState<string[]>([]);
 
   // ---------- Cliente ----------
   const [nome, setNome] = useState("");
@@ -171,6 +173,28 @@ function VenderPageConteudo() {
     }
     carregarTodasLojas();
   }, []);
+
+  // Cidades e povoados que essa loja já usou em clientes cadastrados —
+  // sugestão automática nos campos de endereço, sempre só com o que essa
+  // loja específica já digitou antes (não mistura com outras lojas).
+  useEffect(() => {
+    async function carregarCidadesEPovoados() {
+      if (!lojaAtual) return;
+      const { data } = await supabase
+        .from("clientes")
+        .select("cidade, povoado")
+        .eq("loja_id", lojaAtual);
+      const cidades = new Set<string>();
+      const povoados = new Set<string>();
+      (data || []).forEach((c) => {
+        if (c.cidade?.trim()) cidades.add(c.cidade.trim());
+        if (c.povoado?.trim()) povoados.add(c.povoado.trim());
+      });
+      setCidadesConhecidas(Array.from(cidades).sort());
+      setPovoadosConhecidos(Array.from(povoados).sort());
+    }
+    carregarCidadesEPovoados();
+  }, [lojaAtual]);
 
   // Sempre carrega o id da loja "Depósito" (pra poder oferecer como opção
   // de origem de estoque no seletor, mesmo sem vir pelo botão da tela de
@@ -508,6 +532,18 @@ function VenderPageConteudo() {
     }
 
     setClienteIdExistente(clienteId);
+
+    // deixa a cidade/povoado dessa venda já disponível como sugestão pro
+    // próximo cliente, sem precisar recarregar a página
+    if (cidade.trim()) {
+      setCidadesConhecidas((atual) => (atual.includes(cidade.trim()) ? atual : [...atual, cidade.trim()].sort()));
+    }
+    if (povoado.trim()) {
+      setPovoadosConhecidos((atual) =>
+        atual.includes(povoado.trim()) ? atual : [...atual, povoado.trim()].sort()
+      );
+    }
+
     return clienteId;
   }
 
@@ -1363,7 +1399,17 @@ function VenderPageConteudo() {
               <>
                 <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
-                  <input className="input-base" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                  <input
+                    className="input-base"
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    list="lista-cidades-conhecidas"
+                  />
+                  <datalist id="lista-cidades-conhecidas">
+                    {cidadesConhecidas.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </label>
 
                 <label className="block">
@@ -1373,7 +1419,13 @@ function VenderPageConteudo() {
                     value={povoado}
                     onChange={(e) => setPovoado(e.target.value)}
                     placeholder="Deixe em branco se não for povoado"
+                    list="lista-povoados-conhecidos"
                   />
+                  <datalist id="lista-povoados-conhecidos">
+                    {povoadosConhecidos.map((p) => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
                 </label>
 
                 <label className="block">
