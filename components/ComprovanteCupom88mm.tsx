@@ -22,6 +22,50 @@ interface Props {
   loja?: LojaCompleta | null;
 }
 
+// Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
+// (uma peça de 2 e outra de 3 lugares) porque cada peça baixa do estoque
+// separadamente — mas na impressão isso deve aparecer como 1 produto só.
+function mesclarConjuntosSofa(itens: VendaItem[]): VendaItem[] {
+  const resultado: VendaItem[] = [];
+  const usados = new Set<number>();
+
+  itens.forEach((item, i) => {
+    if (usados.has(i)) return;
+    const variante = item.variante || "";
+    if (variante.endsWith("— 2 Lugares")) {
+      const prefixo = variante.slice(0, -"2 Lugares".length);
+      const idxPar = itens.findIndex(
+        (outro, j) =>
+          j !== i &&
+          !usados.has(j) &&
+          outro.nome_produto === item.nome_produto &&
+          (outro.variante || "") === `${prefixo}3 Lugares` &&
+          outro.tipo_entrega === item.tipo_entrega &&
+          outro.retirada === item.retirada
+      );
+      if (idxPar !== -1) {
+        const par = itens[idxPar];
+        usados.add(i);
+        usados.add(idxPar);
+        const jaTemNoNome = item.nome_produto.toUpperCase().includes("2 E 3 LUGARES");
+        const varianteFinal = jaTemNoNome
+          ? prefixo.replace(/\s*—\s*$/, "").trim() || null
+          : `${prefixo}2 e 3 Lugares`;
+        resultado.push({
+          ...item,
+          variante: varianteFinal,
+          total: item.total + par.total,
+          desconto: (item.desconto || 0) + (par.desconto || 0),
+        });
+        return;
+      }
+    }
+    resultado.push(item);
+  });
+
+  return resultado;
+}
+
 // Cupom enxuto pra impressora térmica de 88mm — sem via da loja/cliente,
 // sem assinatura, só o essencial: produto, endereço, total. Pensado pra
 // caber na largura estreita do rolo (sem tabela, tudo em linhas simples).
@@ -34,6 +78,7 @@ export default function ComprovanteCupom88mm({
   prazoEntregaMaximo,
   loja,
 }: Props) {
+  itens = mesclarConjuntosSofa(itens);
   const linha = "-".repeat(32);
 
   return (
