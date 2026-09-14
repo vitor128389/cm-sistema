@@ -19,6 +19,7 @@ interface Props {
   total: number;
   formaPagamento: string;
   prazoEntregaMaximo?: string | null;
+  prazoDiasUteis?: number | null;
   loja?: LojaCompleta | null;
 }
 
@@ -76,6 +77,7 @@ export default function ComprovanteCupom88mm({
   total,
   formaPagamento,
   prazoEntregaMaximo,
+  prazoDiasUteis,
   loja,
 }: Props) {
   itens = mesclarConjuntosSofa(itens);
@@ -149,7 +151,11 @@ export default function ComprovanteCupom88mm({
       <p style={{ margin: "2px 0" }}>Pagamento: {formaPagamento}</p>
       {prazoEntregaMaximo && (
         <p style={{ margin: "2px 0" }}>
-          Prazo máximo: {new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}
+          {prazoDiasUteis
+            ? `PRAZO MÁXIMO: ${prazoDiasUteis} DIAS ÚTEIS — ATÉ ${new Date(
+                `${prazoEntregaMaximo}T00:00:00`
+              ).toLocaleDateString("pt-BR")}`
+            : `Prazo máximo: ${new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}`}
         </p>
       )}
       <p style={{ margin: "6px 0 0", textAlign: "center" }}>Obrigado pela preferência!</p>
