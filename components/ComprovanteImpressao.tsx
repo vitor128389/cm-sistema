@@ -77,6 +77,49 @@ function valorPagoItem(item: VendaItem, todos: VendaItem[], totalPago: number): 
   return Math.round(totalPago * (item.total / somaListada) * 100) / 100;
 }
 
+// Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
+// (uma peça de 2 e outra de 3 lugares) porque cada peça baixa do estoque
+// separadamente — mas na impressão isso deve aparecer como 1 produto só,
+// com o nome "... — 2 e 3 Lugares" e o valor somado. Só mescla quando os 2
+// realmente formam um par certinho (mesmo produto, mesmo tecido, não
+// mistura pronta entrega com encomenda nem retirada com entrega).
+function mesclarConjuntosSofa(itens: VendaItem[]): VendaItem[] {
+  const resultado: VendaItem[] = [];
+  const usados = new Set<number>();
+
+  itens.forEach((item, i) => {
+    if (usados.has(i)) return;
+    const variante = item.variante || "";
+    if (variante.endsWith("— 2 Lugares")) {
+      const prefixo = variante.slice(0, -"2 Lugares".length); // ex: "Suede — "
+      const idxPar = itens.findIndex(
+        (outro, j) =>
+          j !== i &&
+          !usados.has(j) &&
+          outro.nome_produto === item.nome_produto &&
+          (outro.variante || "") === `${prefixo}3 Lugares` &&
+          outro.tipo_entrega === item.tipo_entrega &&
+          outro.retirada === item.retirada
+      );
+      if (idxPar !== -1) {
+        const par = itens[idxPar];
+        usados.add(i);
+        usados.add(idxPar);
+        resultado.push({
+          ...item,
+          variante: `${prefixo}2 e 3 Lugares`,
+          total: item.total + par.total,
+          desconto: (item.desconto || 0) + (par.desconto || 0),
+        });
+        return;
+      }
+    }
+    resultado.push(item);
+  });
+
+  return resultado;
+}
+
 function linhaItem(
   item: VendaItem,
   itens: VendaItem[],
@@ -158,6 +201,7 @@ function ViaComprovante({
   rotulo,
 }: Props & { rotulo: string }) {
   const ehViaLoja = rotulo === "Via da loja";
+  itens = mesclarConjuntosSofa(itens);
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const cpfFormatado = formatarCpf(cliente.cpf);
@@ -400,8 +444,9 @@ function ViaComprovante({
         >
           <p style={{ margin: "0 0 2px", fontWeight: 700, color: COR_AVISO }}>DEVOLUÇÃO DE VALORES</p>
           <p style={{ margin: 0 }}>
-            Em compras presenciais, não devolvemos dinheiro ou diferença de valor por arrependimento ou troca
-            por produto mais barato, salvo nos casos previstos em lei.
+            Compras presenciais não possuem devolução por arrependimento ou desistência. O direito de
+            arrependimento de 7 dias aplica-se apenas às compras realizadas fora da loja, conforme Art. 49 do CDC
+            (Lei nº 8.078/90). Casos de defeito seguem o Art. 18 do CDC.
           </p>
         </div>
       )}
