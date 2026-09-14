@@ -23,6 +23,11 @@ import type {
 
 const TECIDOS = ["Suede", "Linho", "Veludo"];
 
+// A partir dessa data, só cadastros de cliente feitos DEPOIS disso entram
+// nas sugestões de cidade/povoado ao digitar o endereço — reinicia a
+// lista de sugestões (pedido do Vitor), sem apagar nenhum cliente antigo.
+const DATA_CORTE_SUGESTOES_ENDERECO = "2026-09-14T00:00:00Z";
+
 // Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
 // tecidos (Napa, Atoalhado, etc.) ficam depois, na ordem que vierem.
 function ordemTecido(nome: string): number {
@@ -183,7 +188,8 @@ function VenderPageConteudo() {
       const { data } = await supabase
         .from("clientes")
         .select("cidade, povoado")
-        .eq("loja_id", lojaAtual);
+        .eq("loja_id", lojaAtual)
+        .gte("criado_em", DATA_CORTE_SUGESTOES_ENDERECO); // só cadastros feitos a partir de agora
       const cidades = new Set<string>();
       const povoados = new Set<string>();
       (data || []).forEach((c) => {
