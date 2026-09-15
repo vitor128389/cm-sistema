@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
+import { registrarAuditoria } from "@/lib/auditoria";
 import { useLoja } from "@/contexts/LojaContext";
 import type { Caixa, TurnoCaixa, LojaCompleta, Sangria } from "@/types";
 
@@ -106,6 +107,13 @@ export default function CaixaPage() {
       loja_id: lojaAtual,
     });
     if (!error) {
+      registrarAuditoria({
+        categoria: "Caixa",
+        acao: "criacao",
+        registroTipo: "caixa",
+        descricao: `Caixa aberto com fundo inicial de ${formatarMoeda(parseFloat(fundoInicial) || 0)}`,
+        dadosDepois: { fundo_inicial: parseFloat(fundoInicial) || 0 },
+      });
       setFundoInicial("0");
       carregarTurno();
     } else {
@@ -121,6 +129,15 @@ export default function CaixaPage() {
       .update({ status: "fechado", fechado_em: new Date().toISOString() })
       .eq("id", turno.id);
     if (!error) {
+      registrarAuditoria({
+        categoria: "Caixa",
+        acao: "alteracao",
+        registroTipo: "caixa",
+        registroId: turno.id,
+        descricao: `Caixa fechado — total vendido: ${formatarMoeda(turno.total_vendido || 0)}`,
+        dadosAntes: { status: "aberto" },
+        dadosDepois: { status: "fechado", total_vendido: turno.total_vendido || 0 },
+      });
       carregarTurno();
       setModoFinalizado(true);
     } else {
@@ -217,6 +234,16 @@ export default function CaixaPage() {
         usuario_id: user?.id || null,
       });
       if (error) throw error;
+
+      registrarAuditoria({
+        categoria: "Sangrias",
+        acao: "saida_estoque",
+        registroTipo: "caixa",
+        registroId: turno.id,
+        descricao: `Sangria de ${formatarMoeda(valor)} registrada`,
+        motivo: motivoSangria.trim(),
+        dadosDepois: { valor },
+      });
 
       setMostrarModalSangria(false);
       carregarTurno();
