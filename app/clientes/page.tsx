@@ -12,6 +12,30 @@ interface ClienteResumo extends ClienteCompleto {
   valorTotal: number;
 }
 
+// Link universal do WhatsApp (wa.me) — deixa escolher entre WhatsApp
+// normal e Business, igual já é usado em Notas.
+function linkWhatsApp(telefone: string, mensagem: string): string {
+  const numero = telefone.replace(/\D/g, "");
+  const comDDI = numero.length <= 11 ? `55${numero}` : numero;
+  return `https://wa.me/${comDDI}?text=${encodeURIComponent(mensagem)}`;
+}
+
+// Quantos dias faltam pro próximo aniversário (0 = hoje) — considera só
+// dia/mês, ignora o ano de nascimento.
+function diasParaAniversario(dataNascimento: string): number {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const nasc = new Date(dataNascimento + "T00:00:00");
+  const proximo = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate());
+  if (proximo < hoje) proximo.setFullYear(hoje.getFullYear() + 1);
+  return Math.round((proximo.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function mensagemAniversario(nome: string): string {
+  const primeiroNome = nome.trim().split(" ")[0];
+  return `Olá, ${primeiroNome}! 🎉 A equipe da Caruaru Móveis e Estofados deseja um feliz aniversário pra você! Um dia muito especial, cheio de alegria. 🎂`;
+}
+
 const FORM_VAZIO = {
   nome: "",
   cpf: "",
@@ -22,12 +46,14 @@ const FORM_VAZIO = {
   cidade: "",
   povoado: "",
   bairro: "",
+  dataNascimento: "",
 };
 
 export default function ClientesPage() {
   const { lojaAtual } = useLoja();
   const [clientes, setClientes] = useState<ClienteResumo[]>([]);
   const [busca, setBusca] = useState("");
+  const [mostrarAniversariantes, setMostrarAniversariantes] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<Venda[]>([]);
@@ -99,6 +125,7 @@ export default function ClientesPage() {
       cidade: (c as { cidade?: string | null }).cidade || "",
       povoado: (c as { povoado?: string | null }).povoado || "",
       bairro: (c as { bairro?: string | null }).bairro || "",
+      dataNascimento: c.data_nascimento || "",
     });
     const { data: cels } = await supabase
       .from("cliente_celulares")
@@ -133,6 +160,7 @@ export default function ClientesPage() {
       cidade: form.cidade || null,
       povoado: form.povoado || null,
       bairro: form.bairro || null,
+      data_nascimento: form.dataNascimento || null,
     };
 
     let clienteId = editandoId;
@@ -180,6 +208,7 @@ export default function ClientesPage() {
           cidade: clienteAntes.cidade,
           povoado: clienteAntes.povoado,
           bairro: clienteAntes.bairro,
+          data_nascimento: clienteAntes.data_nascimento,
         },
         dados
       );
@@ -249,6 +278,12 @@ export default function ClientesPage() {
       (c.telefone || "").includes(busca)
   );
 
+  const aniversariantesDaSemana = clientes
+    .filter((c) => c.data_nascimento && c.telefone)
+    .map((c) => ({ cliente: c, dias: diasParaAniversario(c.data_nascimento as string) }))
+    .filter((a) => a.dias <= 7)
+    .sort((a, b) => a.dias - b.dias);
+
   return (
     <div className="p-8">
       <div className="flex items-start justify-between mb-6">
@@ -272,6 +307,15 @@ export default function ClientesPage() {
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">CPF</span>
               <input className="input-base" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Data de nascimento (opcional)</span>
+              <input
+                className="input-base"
+                type="date"
+                value={form.dataNascimento}
+                onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })}
+              />
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
@@ -354,7 +398,7 @@ export default function ClientesPage() {
         </div>
       )}
 
-      <label className="block max-w-sm mb-6">
+      <label className="block max-w-sm mb-3">
         <span className="text-xs text-madeira-600 mb-1 block">Buscar cliente</span>
         <input
           className="input-base"
@@ -363,6 +407,65 @@ export default function ClientesPage() {
           placeholder="Nome, CPF ou telefone..."
         />
       </label>
+
+      <button
+        className={`text-xs px-3 py-1.5 rounded-full border mb-6 ${
+          mostrarAniversariantes ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+        }`}
+        onClick={() => setMostrarAniversariantes((atual) => !atual)}
+      >
+        🎂 Aniversariantes da semana{aniversariantesDaSemana.length > 0 ? ` (${aniversariantesDaSemana.length})` : ""}
+      </button>
+
+      {mostrarAniversariantes && (
+        <div className="mb-6">
+          {aniversariantesDaSemana.length === 0 ? (
+            <div className="card p-6 text-center text-madeira-500 text-sm">
+              Nenhum aniversariante nos próximos 7 dias — só aparece aqui quem já tem data de nascimento
+              cadastrada (a consulta automática de CPF preenche isso sozinha).
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-madeira-50 text-left">
+                  <tr>
+                    <th className="px-4 py-2">Cliente</th>
+                    <th className="px-4 py-2">Data</th>
+                    <th className="px-4 py-2">Quando</th>
+                    <th className="px-4 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aniversariantesDaSemana.map(({ cliente, dias }) => (
+                    <tr key={cliente.id} className="border-t border-estofado-100">
+                      <td className="px-4 py-2">{cliente.nome}</td>
+                      <td className="px-4 py-2 text-madeira-600">
+                        {new Date(`${cliente.data_nascimento}T00:00:00`).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-4 py-2 text-madeira-600">
+                        {dias === 0 ? "Hoje 🎉" : dias === 1 ? "Amanhã" : `Em ${dias} dias`}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <a
+                          className="btn-secundario text-xs px-3 py-1 inline-block"
+                          href={linkWhatsApp(cliente.telefone as string, mensagemAniversario(cliente.nome))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          WhatsApp
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {carregando ? (
         <p className="text-madeira-500 text-sm">Carregando...</p>
