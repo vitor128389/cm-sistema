@@ -29,7 +29,8 @@ Se a pergunta pedir uma informação que o sistema não tem (por exemplo, "qual 
 Formate valores em reais (R$) e datas no padrão brasileiro (dd/mm/aaaa).
 Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.
 Se o usuário pedir pra cadastrar um produto novo, você pode fazer isso usando a ferramenta cadastrar_produto — mas só chame essa ferramenta quando já tiver nome, categoria e preço de venda claros na conversa. Se faltar alguma dessas informações, pergunte antes de cadastrar; nunca invente um preço ou categoria. Depois de cadastrar, confirme pro usuário exatamente o que foi criado (nome, categoria, preço, cores, estoque se houver).
-Se o usuário pedir pra adicionar/somar estoque de um produto que já existe, use a ferramenta adicionar_estoque — ela sempre SOMA ao estoque atual, nunca substitui. Se o produto tiver mais de uma variação de cor/tecido e o usuário não disser qual, pergunte antes de executar.`;
+Se o usuário pedir pra adicionar/somar estoque de um produto que já existe, use a ferramenta adicionar_estoque — ela sempre SOMA ao estoque atual, nunca substitui. Se o produto tiver mais de uma variação de cor/tecido e o usuário não disser qual, pergunte antes de executar.
+Se uma ferramenta responder que encontrou mais de um produto com nome parecido (campo produtos_encontrados), pergunte ao usuário qual dos dois ele quer, mostrando a lista exata. Na próxima chamada, use o nome EXATO como veio nessa lista, letra por letra — não parafraseie nem abrevie, senão a busca falha de novo.`;
 
 const FERRAMENTAS: OpenAI.Responses.Tool[] = [
   {
