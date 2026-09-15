@@ -9,6 +9,7 @@ import {
   consultarEncomendas,
   consultarClientes,
   consultarFinanceiro,
+  cadastrarProduto,
   type ContextoIA,
 } from "@/lib/ia-tools";
 
@@ -25,7 +26,8 @@ Use as ferramentas disponíveis pra buscar dados reais — nunca invente vendas,
 Se uma ferramenta retornar "erro" ou não encontrar o que foi pedido, diga isso claramente ao usuário, sem inventar um resultado.
 Se a pergunta pedir uma informação que o sistema não tem (por exemplo, "qual vendedor vendeu mais" — o sistema não registra vendedor por venda), explique essa limitação em vez de adivinhar.
 Formate valores em reais (R$) e datas no padrão brasileiro (dd/mm/aaaa).
-Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.`;
+Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.
+Se o usuário pedir pra cadastrar um produto novo, você pode fazer isso usando a ferramenta cadastrar_produto — mas só chame essa ferramenta quando já tiver nome, categoria e preço de venda claros na conversa. Se faltar alguma dessas informações, pergunte antes de cadastrar; nunca invente um preço ou categoria. Depois de cadastrar, confirme pro usuário exatamente o que foi criado (nome, categoria, preço, cores, estoque se houver).`;
 
 const FERRAMENTAS: OpenAI.Responses.Tool[] = [
   {
@@ -133,6 +135,35 @@ const FERRAMENTAS: OpenAI.Responses.Tool[] = [
   },
 ];
 
+// Ferramenta de ESCRITA — só é oferecida à IA quando o usuário é admin ou
+// gerente (ver montagem de "tools" mais abaixo). Vendedor/produção/caixa
+// nunca recebem essa ferramenta na lista, então a IA nem tenta usá-la.
+const FERRAMENTA_CADASTRAR_PRODUTO: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "cadastrar_produto",
+  description:
+    "Cadastra um produto novo no catálogo. Use só quando o usuário pedir claramente pra cadastrar/criar um produto E você já tiver nome, categoria e preço de venda — se faltar alguma dessas 3 informações, pergunte antes de chamar essa ferramenta, não invente valores.",
+  parameters: {
+    type: "object",
+    properties: {
+      nome: { type: "string", description: "Nome do produto." },
+      categoria: { type: "string", description: "Categoria do produto (ex.: Sofás, Móveis Montados)." },
+      preco_venda: { type: "number", description: "Preço de venda à vista." },
+      custo: { type: "number", description: "Custo do produto, se informado." },
+      cores: {
+        type: "array",
+        items: { type: "string" },
+        description: "Lista de cores/tecidos, se o produto tiver variação de cor (ex.: ['Suede','Linho']). Omita se for um produto de cor única.",
+      },
+      estoque_inicial: { type: "number", description: "Quantidade inicial em estoque, se informado." },
+      loja: { type: "string", description: "Loja onde lançar o estoque inicial, se estoque_inicial foi informado." },
+    },
+    required: ["nome", "categoria", "preco_venda"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
 async function executarFerramenta(
   nome: string,
   args: Record<string, unknown>,
@@ -152,6 +183,9 @@ async function executarFerramenta(
       return consultarClientes(supabaseAdmin, ctx, args);
     case "consultar_financeiro":
       return consultarFinanceiro(supabaseAdmin, ctx, args);
+    case "cadastrar_produto":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return cadastrarProduto(supabaseAdmin, ctx, args);
     default:
       return { erro: `Ferramenta desconhecida: ${nome}` };
   }
@@ -192,6 +226,13 @@ export async function POST(request: Request) {
     lojaId: perfil.loja_id,
     podeVerFinanceiro,
   };
+
+  // só admin/gerente recebem a ferramenta de cadastrar produto — pra
+  // vendedor/produção/caixa, ela nem aparece como opção pra IA usar
+  const ferramentasDisponiveis: OpenAI.Responses.Tool[] =
+    perfil.funcao === "admin" || perfil.funcao === "gerente"
+      ? [...FERRAMENTAS, FERRAMENTA_CADASTRAR_PRODUTO]
+      : FERRAMENTAS;
 
   let lojaNome: string | null = null;
   if (perfil.loja_id) {
@@ -235,7 +276,7 @@ export async function POST(request: Request) {
       model: MODELO,
       instructions: INSTRUCOES_SISTEMA,
       input: inputInicial,
-      tools: FERRAMENTAS,
+      tools: ferramentasDisponiveis,
     });
     tokensEntrada += resposta.usage?.input_tokens || 0;
     tokensSaida += resposta.usage?.output_tokens || 0;
@@ -257,6 +298,34 @@ export async function POST(request: Request) {
           // argumentos inválidos — segue com objeto vazio
         }
         const resultado = await executarFerramenta(chamada.name, args, supabaseAdmin, ctx);
+
+        // ação que muda dado de verdade (cadastro de produto) — registra
+        // na Auditoria, deixando claro que foi via Assistente IA
+        if (chamada.name === "cadastrar_produto" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as { produto_criado: string; categoria: string; preco_venda: number };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Produtos",
+              acao: "criacao",
+              tipo_execucao: "manual",
+              registro_tipo: "produto",
+              registro_nome: r.produto_criado,
+              descricao: `Produto "${r.produto_criado}" cadastrado via Assistente IA (pedido: "${mensagem}")`,
+              dados_depois: { nome: r.produto_criado, categoria: r.categoria, preco_venda: r.preco_venda },
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+
         saidas.push({
           type: "function_call_output",
           call_id: chamada.call_id,
@@ -269,7 +338,7 @@ export async function POST(request: Request) {
         instructions: INSTRUCOES_SISTEMA,
         previous_response_id: resposta.id,
         input: saidas,
-        tools: FERRAMENTAS,
+        tools: ferramentasDisponiveis,
       });
       tokensEntrada += resposta.usage?.input_tokens || 0;
       tokensSaida += resposta.usage?.output_tokens || 0;
