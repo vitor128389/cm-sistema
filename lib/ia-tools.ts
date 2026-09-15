@@ -13,6 +13,17 @@ function ehAdminOuGerente(ctx: ContextoIA): boolean {
   return ctx.funcao === "admin" || ctx.funcao === "gerente";
 }
 
+// Normaliza texto pra comparação sem se importar com acento, maiúscula ou
+// espaço sobrando — "gloria", "Glória" e "GLÓRIA " todos viram a mesma
+// coisa. Usado pra IA achar loja/produto mesmo sem digitar "certinho".
+function normalizarTexto(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 // -------------------- cadastrar_produto (ação — cria dado de verdade) --------------------
 export async function cadastrarProduto(
   supabase: SupabaseClient,
@@ -119,17 +130,34 @@ export async function adicionarEstoque(
     .eq("ativo", true)
     .limit(5);
 
-  const produtos =
-    exatos && exatos.length > 0
-      ? exatos
-      : (
-          await supabase
-            .from("produtos")
-            .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
-            .ilike("nome", `%${args.produto.trim()}%`)
-            .eq("ativo", true)
-            .limit(5)
-        ).data;
+  let produtos = exatos && exatos.length > 0 ? exatos : null;
+
+  if (!produtos) {
+    const { data: parciais } = await supabase
+      .from("produtos")
+      .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
+      .ilike("nome", `%${args.produto.trim()}%`)
+      .eq("ativo", true)
+      .limit(5);
+    produtos = parciais && parciais.length > 0 ? parciais : null;
+  }
+
+  if (!produtos) {
+    // último recurso: compara sem se importar com acento — pega todos os
+    // produtos ativos (só id/nome, leve) e filtra aqui mesmo
+    const { data: todos } = await supabase.from("produtos").select("id, nome").eq("ativo", true);
+    const termo = normalizarTexto(args.produto);
+    const idsEncontrados = (todos || [])
+      .filter((p) => normalizarTexto(p.nome).includes(termo))
+      .map((p) => p.id);
+    if (idsEncontrados.length > 0) {
+      const { data: comDados } = await supabase
+        .from("produtos")
+        .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
+        .in("id", idsEncontrados.slice(0, 5));
+      produtos = comDados && comDados.length > 0 ? comDados : null;
+    }
+  }
 
   if (!produtos || produtos.length === 0) {
     return { erro: `Não encontrei nenhum produto chamado "${args.produto}".` };
@@ -232,13 +260,15 @@ async function resolverLojaIds(
     return { ids: [ctx.lojaId], nomes: data ? [data.nome] : [] };
   }
   // admin/gerente: se pediu uma loja específica, filtra por ela; senão, todas
-  if (nomeLojaPedida && nomeLojaPedida.toLowerCase() !== "todas") {
-    const { data } = await supabase
-      .from("lojas")
-      .select("id, nome")
-      .ilike("nome", `%${nomeLojaPedida}%`)
-      .eq("eh_deposito", false);
-    return { ids: (data || []).map((l) => l.id), nomes: (data || []).map((l) => l.nome) };
+  if (nomeLojaPedida && normalizarTexto(nomeLojaPedida) !== "todas") {
+    // busca sem se importar com acento/maiúscula — a lista de lojas é
+    // pequena, então tudo bem trazer todas e comparar aqui
+    const { data: todas } = await supabase.from("lojas").select("id, nome").eq("eh_deposito", false);
+    const termo = normalizarTexto(nomeLojaPedida);
+    const encontradas = (todas || []).filter(
+      (l) => normalizarTexto(l.nome).includes(termo) || termo.includes(normalizarTexto(l.nome))
+    );
+    return { ids: encontradas.map((l) => l.id), nomes: encontradas.map((l) => l.nome) };
   }
   const { data } = await supabase.from("lojas").select("id, nome").eq("eh_deposito", false).eq("ativo", true);
   return { ids: (data || []).map((l) => l.id), nomes: (data || []).map((l) => l.nome) };
