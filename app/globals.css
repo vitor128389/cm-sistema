@@ -98,21 +98,21 @@ body {
   display: none;
   font-family: sans-serif;
   color: #222;
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--escala-impressao, 1));
   line-height: 1.22;
 }
 #area-impressao table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--escala-impressao, 1));
 }
 #area-impressao th {
   text-align: left;
   border-bottom: 1px solid #222;
-  padding: 3px 4px;
+  padding: calc(3px * var(--escala-impressao, 1)) calc(4px * var(--escala-impressao, 1));
 }
 #area-impressao td {
-  padding: 3px 4px;
+  padding: calc(3px * var(--escala-impressao, 1)) calc(4px * var(--escala-impressao, 1));
   border-bottom: 1px solid #eee;
 }
 #area-impressao .imp-numero-pedido {
