@@ -66,6 +66,7 @@ export default function DepositoPage() {
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
+  const [mostrarZerados, setMostrarZerados] = useState(true);
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
   const [movendo, setMovendo] = useState<LinhaDeposito | null>(null);
   const [qtdMover, setQtdMover] = useState("1");
@@ -107,29 +108,28 @@ export default function DepositoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Achata produto+variantes numa linha por item que realmente tem
-  // quantidade no Depósito — é isso que aparece na listagem.
+  // Achata produto+variantes numa linha por item — mostra tudo, mesmo o
+  // que está com 0 no Depósito no momento, pra não sumir da lista quando
+  // zera (só fica bem visível que está sem estoque).
   const linhas: LinhaDeposito[] = [];
   produtos.forEach((p) => {
     if (p.produto_variantes.length > 0) {
       [...p.produto_variantes]
         .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
         .forEach((v) => {
-          if (v.estoque > 0) {
-            linhas.push({
-              produtoId: p.id,
-              varianteId: v.id,
-              nome: p.nome,
-              categoria: p.categoria,
-              tipoMovel: tipoMovelDeposito(p.nome),
-              variante: v.nome_variante,
-              quantidade: v.estoque,
-              custo: v.custo || 0,
-              precoVenda: v.preco_avista,
-            });
-          }
+          linhas.push({
+            produtoId: p.id,
+            varianteId: v.id,
+            nome: p.nome,
+            categoria: p.categoria,
+            tipoMovel: tipoMovelDeposito(p.nome),
+            variante: v.nome_variante,
+            quantidade: v.estoque,
+            custo: v.custo || 0,
+            precoVenda: v.preco_avista,
+          });
         });
-    } else if ((p.quantidade_estoque || 0) > 0) {
+    } else {
       linhas.push({
         produtoId: p.id,
         varianteId: null,
@@ -147,6 +147,7 @@ export default function DepositoPage() {
   const categorias = Array.from(new Set(linhas.map((l) => l.tipoMovel))).sort();
 
   const linhasFiltradas = linhas.filter((l) => {
+    if (!mostrarZerados && l.quantidade === 0) return false;
     if (categoriaFiltro && l.tipoMovel !== categoriaFiltro) return false;
     if (busca) {
       const alvo = normalizarBusca(`${l.nome} ${l.tipoMovel} ${l.variante || ""}`);
@@ -255,6 +256,11 @@ export default function DepositoPage() {
         />
       </label>
 
+      <label className="flex items-center gap-2 mb-4 text-sm text-madeira-700 cursor-pointer">
+        <input type="checkbox" checked={mostrarZerados} onChange={(e) => setMostrarZerados(e.target.checked)} />
+        Mostrar itens com 0 unidades
+      </label>
+
       <div className="flex flex-wrap gap-2 mb-6">
         <button
           className={`text-xs px-3 py-1.5 rounded-full border ${
@@ -316,18 +322,35 @@ export default function DepositoPage() {
                       </thead>
                       <tbody>
                         {itensDoGrupo.map((l) => (
-                          <tr key={`${l.produtoId}-${l.varianteId}`} className="border-t border-estofado-100">
+                          <tr
+                            key={`${l.produtoId}-${l.varianteId}`}
+                            className={`border-t border-estofado-100 ${l.quantidade === 0 ? "opacity-50" : ""}`}
+                          >
                             <td className="px-4 py-3 text-madeira-900">{l.nome}</td>
                             <td className="px-4 py-3 text-madeira-600">{l.variante || "—"}</td>
-                            <td className="px-4 py-3 text-madeira-900 font-medium">{l.quantidade}</td>
+                            <td className="px-4 py-3 text-madeira-900 font-medium">
+                              {l.quantidade === 0 ? (
+                                <span className="text-red-600">0 — sem estoque</span>
+                              ) : (
+                                l.quantidade
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.custo)}</td>
                             <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.precoVenda)}</td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2">
-                                <button className="btn-secundario text-xs px-2 py-1" onClick={() => abrirMover(l)}>
+                                <button
+                                  className="btn-secundario text-xs px-2 py-1"
+                                  onClick={() => abrirMover(l)}
+                                  disabled={l.quantidade === 0}
+                                >
                                   Mover para loja
                                 </button>
-                                <button className="btn-primario text-xs px-2 py-1" onClick={() => irVender(l)}>
+                                <button
+                                  className="btn-primario text-xs px-2 py-1"
+                                  onClick={() => irVender(l)}
+                                  disabled={l.quantidade === 0}
+                                >
                                   Vender
                                 </button>
                               </div>
