@@ -376,7 +376,7 @@ function ViaComprovante({
         const descontoTotal = itens.reduce((s, i) => s + (i.desconto || 0), 0);
         if (descontoTotal <= 0) return null;
         return (
-          <p style={{ margin: "4px 0 0", color: COR_TEXTO, fontSize: "0.85rem" }}>
+          <p style={{ margin: "2px 0 0", color: COR_TEXTO, fontSize: "0.8rem" }}>
             Subtotal: {formatarMoeda(total + descontoTotal)} — Desconto:{" "}
             <strong style={{ color: COR_AVISO }}>{formatarMoeda(descontoTotal)}</strong>
           </p>
