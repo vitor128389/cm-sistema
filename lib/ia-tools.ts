@@ -12,6 +12,97 @@ function ehAdminOuGerente(ctx: ContextoIA): boolean {
   return ctx.funcao === "admin" || ctx.funcao === "gerente";
 }
 
+// -------------------- cadastrar_produto (ação — cria dado de verdade) --------------------
+export async function cadastrarProduto(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: {
+    nome: string;
+    categoria: string;
+    preco_venda: number;
+    custo?: number;
+    cores?: string[];
+    estoque_inicial?: number;
+    loja?: string;
+  }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra cadastrar produtos — só admin e gerente podem." };
+  }
+  if (!args.nome?.trim() || !args.categoria?.trim() || !args.preco_venda) {
+    return { erro: "Faltam informações — preciso de nome, categoria e preço de venda pra cadastrar." };
+  }
+
+  const temCores = args.cores && args.cores.length > 0;
+  const { data: produto, error: erroProduto } = await supabase
+    .from("produtos")
+    .insert({
+      nome: args.nome.trim().toUpperCase(),
+      categoria: args.categoria.trim(),
+      custo: args.custo || 0,
+      preco_venda: args.preco_venda,
+      tipo_estoque: "pronta_entrega",
+      tipo_precificacao: temCores ? "tecido" : "simples",
+      ativo: true,
+      quantidade_estoque: 0,
+    })
+    .select("id, nome")
+    .single();
+  if (erroProduto) return { erro: erroProduto.message };
+
+  if (temCores) {
+    await supabase.from("produto_variantes").insert(
+      (args.cores as string[]).map((cor) => ({
+        produto_id: produto.id,
+        nome_variante: cor,
+        preco_avista: args.preco_venda,
+        custo: args.custo || 0,
+      }))
+    );
+  }
+
+  let estoqueLancado: { loja: string; quantidade: number } | null = null;
+  if (args.estoque_inicial && args.estoque_inicial > 0) {
+    const { ids: lojaIds, nomes: lojaNomes } = await resolverLojaIds(supabase, ctx, args.loja);
+    if (lojaIds && lojaIds.length === 1) {
+      if (temCores) {
+        const { data: variantes } = await supabase
+          .from("produto_variantes")
+          .select("id")
+          .eq("produto_id", produto.id)
+          .limit(1);
+        if (variantes && variantes[0]) {
+          await supabase
+            .from("estoque_loja")
+            .update({ quantidade: args.estoque_inicial })
+            .eq("loja_id", lojaIds[0])
+            .eq("variante_id", variantes[0].id);
+        }
+      } else {
+        await supabase
+          .from("estoque_loja")
+          .update({ quantidade: args.estoque_inicial })
+          .eq("loja_id", lojaIds[0])
+          .eq("produto_id", produto.id)
+          .eq("chave_variante", "simples");
+      }
+      estoqueLancado = { loja: lojaNomes[0], quantidade: args.estoque_inicial };
+    }
+  }
+
+  return {
+    sucesso: true,
+    produto_criado: produto.nome,
+    categoria: args.categoria,
+    preco_venda: args.preco_venda,
+    cores_cadastradas: args.cores || null,
+    estoque_lancado: estoqueLancado,
+    observacao: temCores
+      ? "Produto criado com as cores informadas — cada cor começa com estoque zero em todas as lojas, exceto onde foi lançado estoque inicial."
+      : undefined,
+  };
+}
+
 // Resolve qual(is) loja_id realmente usar numa consulta: se o usuário não
 // é admin/gerente, SEMPRE força a loja dele, ignorando qualquer loja que a
 // IA (ou a pergunta) tenha tentado passar — isso é o que impede um
