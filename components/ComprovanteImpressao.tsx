@@ -134,7 +134,8 @@ function linhaItem(
   total: number,
   qtd: number,
   ehViaLoja: boolean,
-  lojasPorId?: Record<string, string>
+  lojasPorId: Record<string, string> | undefined,
+  mostrarColunaVU: boolean
 ) {
   const totalLinha = Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100;
   const valorUnitario = qtd > 0 ? Math.round((totalLinha / qtd) * 100) / 100 : 0;
@@ -185,7 +186,9 @@ function linhaItem(
         )}
       </td>
       <td style={{ color: COR_TEXTO }}>{qtd}</td>
-      <td style={{ color: COR_TEXTO }}>{qtd >= 2 ? formatarMoeda(valorUnitario) : ""}</td>
+      {mostrarColunaVU && (
+        <td style={{ color: COR_TEXTO }}>{qtd >= 2 ? formatarMoeda(valorUnitario) : ""}</td>
+      )}
       <td style={{ color: COR_TEXTO }}>{formatarMoeda(totalLinha)}</td>
     </tr>
   );
@@ -207,6 +210,10 @@ function ViaComprovante({
 }: Props & { rotulo: string }) {
   const ehViaLoja = rotulo === "Via da loja";
   itens = mesclarConjuntosSofa(itens);
+  // a coluna de valor unitário só aparece quando o pedido tem mais de um
+  // produto — com um produto só, o valor unitário não ajuda muito, já dá
+  // pra ver óbvio no total.
+  const mostrarColunaVU = itens.length > 1;
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const cpfFormatado = formatarCpf(cliente.cpf);
@@ -281,9 +288,11 @@ function ViaComprovante({
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Qtd.
                 </th>
-                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
-                  V.U.
-                </th>
+                {mostrarColunaVU && (
+                  <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                    V.U.
+                  </th>
+                )}
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
                 </th>
@@ -291,7 +300,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensRetirada.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade, ehViaLoja, lojasPorId)
+                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU)
               )}
             </tbody>
           </table>
@@ -318,9 +327,11 @@ function ViaComprovante({
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Qtd.
                 </th>
-                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
-                  V.U.
-                </th>
+                {mostrarColunaVU && (
+                  <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                    V.U.
+                  </th>
+                )}
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
                 </th>
@@ -328,7 +339,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensEntrega.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade, ehViaLoja, lojasPorId)
+                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU)
               )}
             </tbody>
           </table>
@@ -364,15 +375,17 @@ function ViaComprovante({
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Qtd.
                 </th>
-                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
-                  V.U.
-                </th>
+                {mostrarColunaVU && (
+                  <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                    V.U.
+                  </th>
+                )}
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
                 </th>
               </tr>
             </thead>
-            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade, ehViaLoja, lojasPorId))}</tbody>
+            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU))}</tbody>
           </table>
         </>
       )}
