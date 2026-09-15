@@ -177,7 +177,12 @@ export async function adicionarEstoque(
   const lojaId = lojaIds[0];
 
   type VarianteProduto = { id: string; nome_variante: string; estoque: number };
-  const variantes = (produto.produto_variantes || []) as VarianteProduto[];
+  // só trata como "produto com variante" quando o tipo de precificação
+  // realmente é por variante — alguns produtos "simples" antigos têm uma
+  // variante técnica chamada "Padrão" sobrando no cadastro, e isso não
+  // conta (senão o estoque vai pro lugar errado, sem aparecer na tela).
+  const variantes =
+    produto.tipo_precificacao !== "simples" ? ((produto.produto_variantes || []) as VarianteProduto[]) : [];
 
   if (variantes.length > 0) {
     let variante: VarianteProduto | undefined;
