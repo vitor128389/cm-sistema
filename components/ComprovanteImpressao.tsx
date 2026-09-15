@@ -183,13 +183,9 @@ function linhaItem(
             </strong>
           </>
         )}
-        {qtd >= 2 && (
-          <div style={{ fontSize: "0.78rem", color: COR_SECUNDARIO }}>
-            Valor unitário: {formatarMoeda(valorUnitario)}
-          </div>
-        )}
       </td>
       <td style={{ color: COR_TEXTO }}>{qtd}</td>
+      <td style={{ color: COR_TEXTO }}>{qtd >= 2 ? formatarMoeda(valorUnitario) : ""}</td>
       <td style={{ color: COR_TEXTO }}>{formatarMoeda(totalLinha)}</td>
     </tr>
   );
@@ -286,6 +282,9 @@ function ViaComprovante({
                   Qtd.
                 </th>
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  V.U.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
                 </th>
               </tr>
@@ -318,6 +317,9 @@ function ViaComprovante({
                 </th>
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Qtd.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  V.U.
                 </th>
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
@@ -361,6 +363,9 @@ function ViaComprovante({
                 </th>
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Qtd.
+                </th>
+                <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  V.U.
                 </th>
                 <th style={{ backgroundColor: COR_VERDE_FUNDO, color: COR_VERDE_ESCURO, fontWeight: 700 }}>
                   Total
