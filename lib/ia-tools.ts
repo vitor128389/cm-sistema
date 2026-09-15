@@ -103,6 +103,121 @@ export async function cadastrarProduto(
   };
 }
 
+// -------------------- adicionar_estoque (ação — soma no estoque existente) --------------------
+export async function adicionarEstoque(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { produto: string; loja: string; cor?: string; quantidade: number }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra ajustar estoque — só admin e gerente podem." };
+  }
+  if (!args.produto?.trim() || !args.loja?.trim() || !args.quantidade || args.quantidade <= 0) {
+    return { erro: "Preciso do nome do produto, da loja e de uma quantidade maior que zero pra adicionar." };
+  }
+
+  const { data: produtos } = await supabase
+    .from("produtos")
+    .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
+    .ilike("nome", `%${args.produto}%`)
+    .eq("ativo", true)
+    .limit(5);
+
+  if (!produtos || produtos.length === 0) {
+    return { erro: `Não encontrei nenhum produto chamado "${args.produto}".` };
+  }
+  if (produtos.length > 1) {
+    return {
+      erro: "Encontrei mais de um produto com esse nome — seja mais específico.",
+      produtos_encontrados: produtos.map((p) => p.nome),
+    };
+  }
+  const produto = produtos[0];
+
+  const { ids: lojaIds, nomes: lojaNomes } = await resolverLojaIds(supabase, ctx, args.loja);
+  if (!lojaIds || lojaIds.length !== 1) {
+    return { erro: `Não encontrei a loja "${args.loja}", ou você não tem acesso a ela.` };
+  }
+  const lojaId = lojaIds[0];
+
+  type VarianteProduto = { id: string; nome_variante: string; estoque: number };
+  const variantes = (produto.produto_variantes || []) as VarianteProduto[];
+
+  if (variantes.length > 0) {
+    let variante: VarianteProduto | undefined;
+    if (args.cor) {
+      variante = variantes.find((v) => v.nome_variante.toLowerCase().includes(args.cor!.toLowerCase()));
+      if (!variante) {
+        return {
+          erro: `"${produto.nome}" não tem a variação "${args.cor}". As variações existentes são: ${variantes
+            .map((v) => v.nome_variante)
+            .join(", ")}.`,
+        };
+      }
+    } else if (variantes.length === 1) {
+      variante = variantes[0];
+    } else {
+      return {
+        erro: `"${produto.nome}" tem mais de uma variação — diga qual (tecido/cor). Opções: ${variantes
+          .map((v) => v.nome_variante)
+          .join(", ")}.`,
+      };
+    }
+
+    const { data: linhaAtual } = await supabase
+      .from("estoque_loja")
+      .select("quantidade")
+      .eq("loja_id", lojaId)
+      .eq("variante_id", variante.id)
+      .maybeSingle();
+    const estoqueAntes = linhaAtual?.quantidade || 0;
+    const novoEstoque = estoqueAntes + args.quantidade;
+    const { error } = await supabase
+      .from("estoque_loja")
+      .update({ quantidade: novoEstoque })
+      .eq("loja_id", lojaId)
+      .eq("variante_id", variante.id);
+    if (error) return { erro: error.message };
+
+    return {
+      sucesso: true,
+      produto: produto.nome,
+      variante: variante.nome_variante,
+      loja: lojaNomes[0],
+      estoque_antes: estoqueAntes,
+      quantidade_adicionada: args.quantidade,
+      novo_estoque: novoEstoque,
+    };
+  }
+
+  // produto simples, sem variante
+  const { data: linhaAtual } = await supabase
+    .from("estoque_loja")
+    .select("quantidade")
+    .eq("loja_id", lojaId)
+    .eq("produto_id", produto.id)
+    .eq("chave_variante", "simples")
+    .maybeSingle();
+  const estoqueAntes = linhaAtual?.quantidade || 0;
+  const novoEstoque = estoqueAntes + args.quantidade;
+  const { error } = await supabase
+    .from("estoque_loja")
+    .update({ quantidade: novoEstoque })
+    .eq("loja_id", lojaId)
+    .eq("produto_id", produto.id)
+    .eq("chave_variante", "simples");
+  if (error) return { erro: error.message };
+
+  return {
+    sucesso: true,
+    produto: produto.nome,
+    loja: lojaNomes[0],
+    estoque_antes: estoqueAntes,
+    quantidade_adicionada: args.quantidade,
+    novo_estoque: novoEstoque,
+  };
+}
+
 // Resolve qual(is) loja_id realmente usar numa consulta: se o usuário não
 // é admin/gerente, SEMPRE força a loja dele, ignorando qualquer loja que a
 // IA (ou a pergunta) tenha tentado passar — isso é o que impede um
