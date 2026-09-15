@@ -21,6 +21,7 @@ type Aba =
   | "relatorio"
   | "movimento-geral"
   | "auditoria"
+  | "ia"
   | "cancelar";
 
 const TELAS = [
@@ -35,6 +36,7 @@ const TELAS = [
   { chave: "movimento", label: "Movimento" },
   { chave: "deposito", label: "Depósito" },
   { chave: "administracao", label: "Administração" },
+  { chave: "ia", label: "Assistente IA" },
 ];
 const FUNCOES = ["vendedor", "producao", "caixa", "gerente", "admin"] as const;
 
@@ -89,6 +91,7 @@ export default function AdministracaoPage() {
             ["relatorio", "Relatório"],
             ["movimento-geral", "Movimento Geral"],
             ["auditoria", "Auditoria"],
+            ["ia", "IA"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -111,6 +114,7 @@ export default function AdministracaoPage() {
       {aba === "relatorio" && <AbaRelatorio />}
       {aba === "movimento-geral" && <AbaMovimentoGeral />}
       {aba === "auditoria" && <AbaAuditoria />}
+      {aba === "ia" && <AbaIA />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -3586,6 +3590,115 @@ function AbaAuditoria() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ==================== IA — painel de uso ==================== */
+function AbaIA() {
+  const [dados, setDados] = useState<{
+    ativa: boolean;
+    modelo: string;
+    hoje: { quantidade: number; tokensEntrada: number; tokensSaida: number; custo: number };
+    mes: { quantidade: number; tokensEntrada: number; tokensSaida: number; custo: number };
+    ultimasConsultas: {
+      criado_em: string;
+      usuario_nome: string | null;
+      loja_nome: string | null;
+      pergunta: string;
+      ferramentas_usadas: string[] | null;
+      erro: string | null;
+    }[];
+  } | null>(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/ia/uso")
+      .then((r) => r.json())
+      .then((d) => setDados(d))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-madeira-700 mb-1">Assistente IA — uso e custo</p>
+      <p className="text-xs text-madeira-500 mb-4">
+        O custo mostrado é uma estimativa baseada no preço por token do modelo, não é uma cobrança oficial da OpenAI.
+      </p>
+
+      {carregando ? (
+        <p className="text-madeira-500 text-sm">Carregando...</p>
+      ) : !dados ? (
+        <div className="card p-8 text-center text-madeira-500 text-sm">Não foi possível carregar o uso da IA.</div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 mb-6">
+            <span
+              className={`text-xs px-2 py-1 rounded font-medium ${
+                dados.ativa ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+              }`}
+            >
+              {dados.ativa ? "● Ativada" : "● Desativada (falta OPENAI_API_KEY)"}
+            </span>
+            <span className="text-xs text-madeira-500">Modelo: {dados.modelo}</span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="card p-4">
+              <p className="text-xs text-madeira-500 mb-1">Consultas hoje</p>
+              <p className="font-display text-xl">{dados.hoje.quantidade}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-madeira-500 mb-1">Tokens hoje</p>
+              <p className="font-display text-xl">{(dados.hoje.tokensEntrada + dados.hoje.tokensSaida).toLocaleString("pt-BR")}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-madeira-500 mb-1">Consultas no mês</p>
+              <p className="font-display text-xl">{dados.mes.quantidade}</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs text-madeira-500 mb-1">Custo estimado no mês</p>
+              <p className="font-display text-xl">US$ {dados.mes.custo.toFixed(4)}</p>
+            </div>
+          </div>
+
+          <p className="text-sm font-semibold text-madeira-700 mb-2">Últimas consultas</p>
+          {dados.ultimasConsultas.length === 0 ? (
+            <div className="card p-6 text-center text-madeira-500 text-sm">Nenhuma consulta ainda.</div>
+          ) : (
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-madeira-50 text-left">
+                  <tr>
+                    <th className="px-3 py-2">Data/Hora</th>
+                    <th className="px-3 py-2">Usuário</th>
+                    <th className="px-3 py-2">Loja</th>
+                    <th className="px-3 py-2">Pergunta</th>
+                    <th className="px-3 py-2">Ferramentas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dados.ultimasConsultas.map((c, i) => (
+                    <tr key={i} className="border-t border-estofado-100">
+                      <td className="px-3 py-2 whitespace-nowrap text-madeira-600">
+                        {new Date(c.criado_em).toLocaleString("pt-BR")}
+                      </td>
+                      <td className="px-3 py-2">{c.usuario_nome || "—"}</td>
+                      <td className="px-3 py-2">{c.loja_nome || "—"}</td>
+                      <td className="px-3 py-2 max-w-xs truncate">
+                        {c.erro ? <span className="text-red-700">Erro: {c.erro}</span> : c.pergunta}
+                      </td>
+                      <td className="px-3 py-2 text-madeira-500 text-xs">
+                        {(c.ferramentas_usadas || []).join(", ") || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
