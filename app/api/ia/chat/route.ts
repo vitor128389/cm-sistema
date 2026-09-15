@@ -1,0 +1,329 @@
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  consultarVendas,
+  consultarEstoque,
+  consultarProdutos,
+  consultarEncomendas,
+  consultarClientes,
+  consultarFinanceiro,
+  type ContextoIA,
+} from "@/lib/ia-tools";
+
+const MODELO = "gpt-5.6-luna";
+
+// Preço aproximado por 1M de tokens desse modelo — só pra dar uma
+// estimativa de custo no painel, não é um valor de cobrança oficial.
+const PRECO_ENTRADA_POR_MILHAO = 0.2;
+const PRECO_SAIDA_POR_MILHAO = 1.2;
+
+const INSTRUCOES_SISTEMA = `Você é o assistente de gestão do sistema da Caruaru Móveis e Estofados (rede de lojas de móveis).
+Responda sempre em português brasileiro, de forma clara, direta e objetiva.
+Use as ferramentas disponíveis pra buscar dados reais — nunca invente vendas, valores, estoque, clientes, pedidos, lucros ou datas.
+Se uma ferramenta retornar "erro" ou não encontrar o que foi pedido, diga isso claramente ao usuário, sem inventar um resultado.
+Se a pergunta pedir uma informação que o sistema não tem (por exemplo, "qual vendedor vendeu mais" — o sistema não registra vendedor por venda), explique essa limitação em vez de adivinhar.
+Formate valores em reais (R$) e datas no padrão brasileiro (dd/mm/aaaa).
+Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.`;
+
+const FERRAMENTAS: OpenAI.Responses.Tool[] = [
+  {
+    type: "function",
+    name: "consultar_vendas",
+    description: "Consulta vendas realizadas — total vendido, quantidade, ticket médio, por loja e por forma de pagamento.",
+    parameters: {
+      type: "object",
+      properties: {
+        periodo: {
+          type: "string",
+          enum: ["hoje", "ontem", "7dias", "30dias", "mes_atual", "personalizado"],
+          description: "Período a consultar. Padrão: hoje.",
+        },
+        de: { type: "string", description: "Data inicial (YYYY-MM-DD), só se periodo=personalizado." },
+        ate: { type: "string", description: "Data final (YYYY-MM-DD), só se periodo=personalizado." },
+        loja: { type: "string", description: "Nome da loja, ou 'todas'. Se omitido, considera todas as lojas que o usuário pode ver." },
+        forma_pagamento: { type: "string", description: "Filtra por forma de pagamento específica (ex.: Dinheiro, Pix, Crédito)." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function",
+    name: "consultar_estoque",
+    description: "Consulta o estoque de produtos — quantidade por produto/variante/loja. Use apenas_estoque_baixo=true pra achar produtos acabando.",
+    parameters: {
+      type: "object",
+      properties: {
+        produto: { type: "string", description: "Nome do produto (busca parcial)." },
+        loja: { type: "string", description: "Nome da loja, ou 'todas'." },
+        apenas_estoque_baixo: { type: "boolean", description: "Se true, só mostra itens com 3 unidades ou menos." },
+        limite: { type: "number", description: "Máximo de itens a retornar (padrão 25)." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function",
+    name: "consultar_produtos",
+    description: "Consulta o catálogo de produtos — nome, categoria, preço, variantes de tecido/cor.",
+    parameters: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Nome do produto (busca parcial)." },
+        categoria: { type: "string", description: "Categoria do produto." },
+        limite: { type: "number", description: "Máximo de itens a retornar (padrão 20)." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function",
+    name: "consultar_encomendas",
+    description: "Consulta pedidos de encomenda em aberto — prazo, cliente, se está atrasado ou próximo do prazo.",
+    parameters: {
+      type: "object",
+      properties: {
+        filtro: { type: "string", enum: ["abertas", "atrasadas", "proximas", "todas"], description: "Padrão: abertas." },
+        loja: { type: "string", description: "Nome da loja, ou 'todas'." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function",
+    name: "consultar_clientes",
+    description: "Consulta clientes cadastrados — histórico de compras, quantidade, total gasto, última compra.",
+    parameters: {
+      type: "object",
+      properties: {
+        nome: { type: "string", description: "Nome do cliente (busca parcial)." },
+        loja: { type: "string", description: "Nome da loja, ou 'todas'." },
+        limite: { type: "number", description: "Máximo de clientes a retornar (padrão 20)." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: "function",
+    name: "consultar_financeiro",
+    description: "Consulta dados financeiros — faturamento, lucro aproximado, descontos, sangrias. Só funciona se o usuário tiver permissão financeira.",
+    parameters: {
+      type: "object",
+      properties: {
+        periodo: { type: "string", enum: ["hoje", "ontem", "7dias", "30dias", "mes_atual", "personalizado"] },
+        de: { type: "string" },
+        ate: { type: "string" },
+        loja: { type: "string", description: "Nome da loja, ou 'todas'." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+];
+
+async function executarFerramenta(
+  nome: string,
+  args: Record<string, unknown>,
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  ctx: ContextoIA
+): Promise<unknown> {
+  switch (nome) {
+    case "consultar_vendas":
+      return consultarVendas(supabaseAdmin, ctx, args);
+    case "consultar_estoque":
+      return consultarEstoque(supabaseAdmin, ctx, args);
+    case "consultar_produtos":
+      return consultarProdutos(supabaseAdmin, ctx, args);
+    case "consultar_encomendas":
+      return consultarEncomendas(supabaseAdmin, ctx, args);
+    case "consultar_clientes":
+      return consultarClientes(supabaseAdmin, ctx, args);
+    case "consultar_financeiro":
+      return consultarFinanceiro(supabaseAdmin, ctx, args);
+    default:
+      return { erro: `Ferramenta desconhecida: ${nome}` };
+  }
+}
+
+export async function POST(request: Request) {
+  // 1. confirma quem está logado — nunca confia em nada vindo do cliente
+  const supabaseServidor = await createClient();
+  const {
+    data: { user },
+  } = await supabaseServidor.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+
+  const { data: perfil } = await supabaseServidor
+    .from("usuarios")
+    .select("nome, funcao, loja_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!perfil) {
+    return NextResponse.json({ error: "Usuário não encontrado." }, { status: 403 });
+  }
+
+  let podeVerFinanceiro = perfil.funcao === "admin";
+  if (!podeVerFinanceiro) {
+    const { data: permissao } = await supabaseServidor
+      .from("permissoes")
+      .select("pode_acessar")
+      .eq("funcao", perfil.funcao)
+      .eq("tela", "movimento")
+      .maybeSingle();
+    podeVerFinanceiro = !!permissao?.pode_acessar;
+  }
+
+  const ctx: ContextoIA = {
+    funcao: perfil.funcao,
+    lojaId: perfil.loja_id,
+    podeVerFinanceiro,
+  };
+
+  let lojaNome: string | null = null;
+  if (perfil.loja_id) {
+    const { data: loja } = await supabaseServidor.from("lojas").select("nome").eq("id", perfil.loja_id).maybeSingle();
+    lojaNome = loja?.nome || null;
+  }
+
+  const body = await request.json();
+  const { mensagem, historico } = body as {
+    mensagem: string;
+    historico?: { role: "user" | "assistant"; content: string }[];
+  };
+  if (!mensagem || !mensagem.trim()) {
+    return NextResponse.json({ error: "Mensagem vazia." }, { status: 400 });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { resposta: "Assistente IA temporariamente indisponível. Tente novamente.", indisponivel: true },
+      { status: 200 }
+    );
+  }
+
+  const supabaseAdmin = createAdminClient();
+  const openai = new OpenAI({ apiKey });
+
+  // mantém só as últimas mensagens do histórico, pra não gastar tokens à toa
+  const historicoCurto = (historico || []).slice(-8);
+  const inputInicial: OpenAI.Responses.ResponseInput = [
+    ...historicoCurto.map((h) => ({ role: h.role, content: h.content }) as OpenAI.Responses.EasyInputMessage),
+    { role: "user", content: mensagem },
+  ];
+
+  const ferramentasUsadas: string[] = [];
+  let tokensEntrada = 0;
+  let tokensSaida = 0;
+
+  try {
+    let resposta = await openai.responses.create({
+      model: MODELO,
+      instructions: INSTRUCOES_SISTEMA,
+      input: inputInicial,
+      tools: FERRAMENTAS,
+    });
+    tokensEntrada += resposta.usage?.input_tokens || 0;
+    tokensSaida += resposta.usage?.output_tokens || 0;
+
+    // até 5 rodadas de chamada de ferramenta, pra evitar loop infinito
+    for (let rodada = 0; rodada < 5; rodada++) {
+      const chamadas = resposta.output.filter(
+        (item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === "function_call"
+      );
+      if (chamadas.length === 0) break;
+
+      const saidas: OpenAI.Responses.ResponseInputItem[] = [];
+      for (const chamada of chamadas) {
+        ferramentasUsadas.push(chamada.name);
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(chamada.arguments || "{}");
+        } catch {
+          // argumentos inválidos — segue com objeto vazio
+        }
+        const resultado = await executarFerramenta(chamada.name, args, supabaseAdmin, ctx);
+        saidas.push({
+          type: "function_call_output",
+          call_id: chamada.call_id,
+          output: JSON.stringify(resultado),
+        });
+      }
+
+      resposta = await openai.responses.create({
+        model: MODELO,
+        instructions: INSTRUCOES_SISTEMA,
+        previous_response_id: resposta.id,
+        input: saidas,
+        tools: FERRAMENTAS,
+      });
+      tokensEntrada += resposta.usage?.input_tokens || 0;
+      tokensSaida += resposta.usage?.output_tokens || 0;
+    }
+
+    const textoResposta = resposta.output_text || "Não consegui gerar uma resposta.";
+    const custoEstimado =
+      (tokensEntrada / 1_000_000) * PRECO_ENTRADA_POR_MILHAO + (tokensSaida / 1_000_000) * PRECO_SAIDA_POR_MILHAO;
+
+    // registra o uso (não trava a resposta se der erro aqui)
+    supabaseAdmin
+      .from("ia_consultas")
+      .insert({
+        usuario_id: user.id,
+        usuario_nome: perfil.nome,
+        usuario_funcao: perfil.funcao,
+        loja_id: perfil.loja_id,
+        loja_nome: lojaNome,
+        pergunta: mensagem,
+        resposta: textoResposta,
+        ferramentas_usadas: ferramentasUsadas,
+        modelo: MODELO,
+        tokens_entrada: tokensEntrada,
+        tokens_saida: tokensSaida,
+        custo_estimado_usd: Math.round(custoEstimado * 1_000_000) / 1_000_000,
+      })
+      .then(
+        () => {},
+        () => {}
+      );
+
+    return NextResponse.json({ resposta: textoResposta });
+  } catch (erro) {
+    console.error("Erro no Assistente IA:", erro);
+    supabaseAdmin
+      .from("ia_consultas")
+      .insert({
+        usuario_id: user.id,
+        usuario_nome: perfil.nome,
+        usuario_funcao: perfil.funcao,
+        loja_id: perfil.loja_id,
+        loja_nome: lojaNome,
+        pergunta: mensagem,
+        modelo: MODELO,
+        erro: (erro as Error).message?.slice(0, 500) || "erro desconhecido",
+      })
+      .then(
+        () => {},
+        () => {}
+      );
+
+    return NextResponse.json(
+      { resposta: "Assistente IA temporariamente indisponível. Tente novamente.", indisponivel: true },
+      { status: 200 }
+    );
+  }
+}
