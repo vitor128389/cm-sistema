@@ -634,6 +634,7 @@ function AbaEstoque() {
       return;
     }
     registrarAuditoria({
+      lojaId: lojaEstoqueEfetiva,
       categoria: "Estoque",
       acao: valor > estoqueAntes ? "entrada_estoque" : valor < estoqueAntes ? "saida_estoque" : "alteracao",
       registroTipo: "produto",
@@ -657,6 +658,7 @@ function AbaEstoque() {
       return;
     }
     registrarAuditoria({
+      lojaId: lojaEstoqueEfetiva,
       categoria: "Estoque",
       acao: valor > estoqueAntes ? "entrada_estoque" : valor < estoqueAntes ? "saida_estoque" : "alteracao",
       registroTipo: "produto",
@@ -774,6 +776,7 @@ function AbaEstoque() {
             alert("Erro ao desativar: " + erroDesativar.message);
           } else {
             registrarAuditoria({
+              lojaId: lojaEstoqueEfetiva,
               categoria: "Produtos",
               acao: "exclusao",
               registroTipo: "produto",
@@ -791,6 +794,7 @@ function AbaEstoque() {
       }
     } else {
       registrarAuditoria({
+        lojaId: lojaEstoqueEfetiva,
         categoria: "Produtos",
         acao: "exclusao",
         registroTipo: "produto",
@@ -1084,6 +1088,7 @@ function AbaEstoque() {
       );
       if (diferenca) {
         registrarAuditoria({
+          lojaId: lojaEstoqueEfetiva,
           categoria: "Produtos",
           acao: "alteracao",
           registroTipo: "produto",
@@ -1096,6 +1101,7 @@ function AbaEstoque() {
       }
     } else {
       registrarAuditoria({
+        lojaId: lojaEstoqueEfetiva,
         categoria: "Produtos",
         acao: "criacao",
         registroTipo: "produto",
@@ -3716,6 +3722,7 @@ function AbaCancelarNota() {
           (avisos.length > 0 ? "\n\nAtenção:\n" + avisos.join("\n") : "")
       );
       registrarAuditoria({
+        lojaId: venda.loja_id,
         categoria: "Vendas",
         acao: "cancelamento",
         registroTipo: "venda",
