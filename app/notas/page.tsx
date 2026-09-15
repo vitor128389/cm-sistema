@@ -9,6 +9,7 @@ import ComprovanteTroca from "@/components/ComprovanteTroca";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import { definirTamanhoPagina } from "@/lib/imprimir";
+import { registrarAuditoria } from "@/lib/auditoria";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -275,6 +276,14 @@ export default function NotasPage() {
       .from("venda_itens")
       .update({ status_entrega: "entregue", data_entregue: new Date().toISOString() })
       .eq("id", itemId);
+    registrarAuditoria({
+      categoria: "Entregas",
+      acao: "alteracao",
+      registroTipo: "venda_item",
+      registroId: itemId,
+      descricao: "Item marcado como entregue",
+      dadosDepois: { status_entrega: "entregue" },
+    });
     carregar();
   }
 
