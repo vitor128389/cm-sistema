@@ -62,6 +62,23 @@ export default function ClientesPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_VAZIO);
+  // campos separados de dia/mês/ano pra data de nascimento — evita
+  // confusão de formato (dd/mm vs mm/dd) que o campo nativo de data dava
+  // dependendo da configuração do aparelho
+  const [diaNasc, setDiaNasc] = useState("");
+  const [mesNasc, setMesNasc] = useState("");
+  const [anoNasc, setAnoNasc] = useState("");
+
+  function atualizarDataNascimento(dia: string, mes: string, ano: string) {
+    setDiaNasc(dia);
+    setMesNasc(mes);
+    setAnoNasc(ano);
+    if (dia.length === 2 && mes.length === 2 && ano.length === 4) {
+      setForm((atual) => ({ ...atual, dataNascimento: `${ano}-${mes}-${dia}` }));
+    } else {
+      setForm((atual) => ({ ...atual, dataNascimento: "" }));
+    }
+  }
   const [celulares, setCelulares] = useState<{ numero: string; responsavel: string }[]>([
     { numero: "", responsavel: "" },
   ]);
@@ -109,6 +126,9 @@ export default function ClientesPage() {
   function abrirNovo() {
     setForm(FORM_VAZIO);
     setCelulares([{ numero: "", responsavel: "" }]);
+    setDiaNasc("");
+    setMesNasc("");
+    setAnoNasc("");
     setEditandoId(null);
     setMostrarForm(true);
   }
@@ -127,6 +147,16 @@ export default function ClientesPage() {
       bairro: (c as { bairro?: string | null }).bairro || "",
       dataNascimento: c.data_nascimento || "",
     });
+    if (c.data_nascimento) {
+      const [ano, mes, dia] = c.data_nascimento.split("-");
+      setDiaNasc(dia);
+      setMesNasc(mes);
+      setAnoNasc(ano);
+    } else {
+      setDiaNasc("");
+      setMesNasc("");
+      setAnoNasc("");
+    }
     const { data: cels } = await supabase
       .from("cliente_celulares")
       .select("celular, nome_responsavel")
@@ -241,6 +271,9 @@ export default function ClientesPage() {
     setMostrarForm(false);
     setForm(FORM_VAZIO);
     setCelulares([{ numero: "", responsavel: "" }]);
+    setDiaNasc("");
+    setMesNasc("");
+    setAnoNasc("");
     setEditandoId(null);
     carregar();
   }
@@ -310,12 +343,32 @@ export default function ClientesPage() {
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Data de nascimento (opcional)</span>
-              <input
-                className="input-base"
-                type="date"
-                value={form.dataNascimento}
-                onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })}
-              />
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  className="input-base"
+                  placeholder="Dia"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={diaNasc}
+                  onChange={(e) => atualizarDataNascimento(e.target.value.replace(/\D/g, "").slice(0, 2), mesNasc, anoNasc)}
+                />
+                <input
+                  className="input-base"
+                  placeholder="Mês"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={mesNasc}
+                  onChange={(e) => atualizarDataNascimento(diaNasc, e.target.value.replace(/\D/g, "").slice(0, 2), anoNasc)}
+                />
+                <input
+                  className="input-base"
+                  placeholder="Ano"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={anoNasc}
+                  onChange={(e) => atualizarDataNascimento(diaNasc, mesNasc, e.target.value.replace(/\D/g, "").slice(0, 4))}
+                />
+              </div>
             </label>
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
