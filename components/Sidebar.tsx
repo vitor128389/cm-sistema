@@ -20,6 +20,7 @@ const ITENS: { href: string; label: string; tela: Tela }[] = [
   { href: "/movimento", label: "Movimento", tela: "movimento" },
   { href: "/deposito", label: "Depósito", tela: "deposito" },
   { href: "/administracao", label: "Administração", tela: "administracao" },
+  { href: "/ia", label: "Assistente IA", tela: "ia" },
 ];
 
 export default function Sidebar() {
