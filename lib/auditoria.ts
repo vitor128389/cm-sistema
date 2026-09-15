@@ -38,6 +38,13 @@ export interface EntradaAuditoria {
   dadosAntes?: Record<string, unknown> | null;
   dadosDepois?: Record<string, unknown> | null;
   motivo?: string;
+  // Loja em que a ação foi realizada de fato. Pra usuário comum (que tem
+  // uma loja fixa no cadastro) isso não precisa ser passado — o sistema já
+  // sabe. Mas pra ADMIN (que não tem loja fixa, e troca de loja pelo menu
+  // lateral) é obrigatório passar isso explicitamente, senão a auditoria
+  // não tem como saber em qual loja a ação foi feita.
+  lojaId?: string | null;
+  lojaNome?: string | null;
 }
 
 // Cache simples do perfil de quem está logado — evita buscar de novo em
@@ -75,6 +82,19 @@ async function obterPerfilAtual() {
   return perfilCache;
 }
 
+// Cache simples de nome de loja por id — evita buscar de novo toda hora
+// quando a mesma loja é passada repetidamente (ex.: várias vendas seguidas
+// na mesma loja).
+const nomeLojaCache = new Map<string, string | null>();
+
+async function nomeDaLoja(lojaId: string): Promise<string | null> {
+  if (nomeLojaCache.has(lojaId)) return nomeLojaCache.get(lojaId) || null;
+  const { data } = await supabase.from("lojas").select("nome").eq("id", lojaId).maybeSingle();
+  const nome = data?.nome || null;
+  nomeLojaCache.set(lojaId, nome);
+  return nome;
+}
+
 // Registra uma ação na Auditoria — sempre identifica automaticamente quem
 // está logado (nunca aceita um "responsável" escolhido manualmente). Se
 // der qualquer erro, só avisa no console: um problema na auditoria NUNCA
@@ -84,13 +104,22 @@ export async function registrarAuditoria(entrada: EntradaAuditoria): Promise<voi
     const perfil = await obterPerfilAtual();
     if (!perfil) return; // sem sessão — não tem quem registrar (ex.: script/seed)
 
+    // A loja "de verdade" da ação: se foi passada explicitamente (caso do
+    // admin, que não tem loja fixa e trabalha com a loja ativa do menu),
+    // usa ela — senão cai pra loja fixa do perfil (usuário comum).
+    let lojaId = entrada.lojaId !== undefined ? entrada.lojaId : perfil.lojaId;
+    let lojaNome = entrada.lojaNome !== undefined ? entrada.lojaNome : perfil.lojaNome;
+    if (lojaId && !lojaNome) {
+      lojaNome = await nomeDaLoja(lojaId);
+    }
+
     await supabase.from("auditoria").insert({
       usuario_id: perfil.userId,
       usuario_nome: perfil.nome,
       usuario_email: perfil.email,
       usuario_funcao: perfil.funcao,
-      loja_id: perfil.lojaId,
-      loja_nome: perfil.lojaNome,
+      loja_id: lojaId,
+      loja_nome: lojaNome,
       categoria: entrada.categoria,
       acao: entrada.acao,
       tipo_execucao: entrada.tipoExecucao || "manual",
