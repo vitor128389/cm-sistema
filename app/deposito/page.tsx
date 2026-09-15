@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
+import { registrarAuditoria } from "@/lib/auditoria";
 import type { ProdutoComVariantes } from "@/types";
 
 // Ordem fixa Suede/Linho/Veludo primeiro, igual o resto do sistema.
@@ -194,6 +195,19 @@ export default function DepositoPage() {
         destino_loja_id: lojaDestino,
         quantidade: qtd,
         tipo: "transferencia",
+      });
+
+      const nomeLojaDestino = lojas.find((l) => l.id === lojaDestino)?.nome || "loja";
+      registrarAuditoria({
+        categoria: "Estoque",
+        acao: "transferencia",
+        registroTipo: "produto",
+        registroId: movendo.produtoId,
+        registroNome: movendo.variante ? `${movendo.nome} — ${movendo.variante}` : movendo.nome,
+        descricao: `${qtd} unidade(s) de "${movendo.nome}${
+          movendo.variante ? ` — ${movendo.variante}` : ""
+        }" transferida(s) do Depósito para ${nomeLojaDestino}`,
+        dadosDepois: { quantidade: qtd, destino: nomeLojaDestino },
       });
 
       setMovendo(null);
