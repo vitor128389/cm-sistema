@@ -80,6 +80,7 @@ function VenderPageConteudo() {
   const [cidade, setCidade] = useState("");
   const [povoado, setPovoado] = useState("");
   const [cpfInfo, setCpfInfo] = useState("");
+  const [dataNascimentoCliente, setDataNascimentoCliente] = useState<string | null>(null);
   const [cpfInfoCor, setCpfInfoCor] = useState("text-madeira-500");
   const [clienteIdExistente, setClienteIdExistente] = useState<string | null>(null);
   const [erroPasso1, setErroPasso1] = useState("");
@@ -374,15 +375,18 @@ function VenderPageConteudo() {
       preencherCliente(clienteExistente);
       setCpfInfo(`Cliente já cadastrado: ${clienteExistente.nome}`);
       setCpfInfoCor("text-green-700");
+      setDataNascimentoCliente((clienteExistente as { data_nascimento?: string | null }).data_nascimento || null);
       return;
     }
 
     setClienteIdExistente(null);
+    setDataNascimentoCliente(null);
     const resultado = await consultarCpf(digitos);
     if (resultado.encontrado && resultado.nome) {
       setNome(resultado.nome);
       setCpfInfo(`Nome encontrado: ${resultado.nome} (cliente novo)`);
       setCpfInfoCor("text-green-700");
+      setDataNascimentoCliente(resultado.dataNascimento || null);
     } else if (resultado.erro) {
       // A consulta automática falhou de verdade (serviço fora do ar,
       // créditos esgotados, etc.) — diferente de "CPF não encontrado".
@@ -519,13 +523,18 @@ function VenderPageConteudo() {
       povoado: povoado || null,
       bairro: bairro || null,
     };
+    // só entra no insert/update quando a gente realmente tem uma data (não
+    // sobrescreve com null uma data que o cliente já tinha salva de antes)
+    const dadosComNascimento = dataNascimentoCliente
+      ? { ...dadosCliente, data_nascimento: dataNascimentoCliente }
+      : dadosCliente;
 
     let clienteId = clienteIdExistente;
 
     if (!clienteId) {
       const { data: novoCliente, error: erroCliente } = await supabase
         .from("clientes")
-        .insert({ ...dadosCliente, loja_id: lojaAtual })
+        .insert({ ...dadosComNascimento, loja_id: lojaAtual })
         .select("id")
         .single();
       if (erroCliente) throw erroCliente;
@@ -555,7 +564,7 @@ function VenderPageConteudo() {
       // cliente já existia (ou já tinha sido salvo agora há pouco, ao
       // avançar de tela) — atualiza o cadastro com os dados mais recentes
       const { data: clienteAntes } = await supabase.from("clientes").select("*").eq("id", clienteId).maybeSingle();
-      const { error: erroAtualizar } = await supabase.from("clientes").update(dadosCliente).eq("id", clienteId);
+      const { error: erroAtualizar } = await supabase.from("clientes").update(dadosComNascimento).eq("id", clienteId);
       if (erroAtualizar) throw erroAtualizar;
 
       // ressincroniza os celulares (evita duplicar, sempre reflete o que está na tela)
@@ -1302,6 +1311,7 @@ function VenderPageConteudo() {
     setCidade("");
     setPovoado("");
     setClienteIdExistente(null);
+    setDataNascimentoCliente(null);
     setVendaSemCliente(false);
     setClienteRetira(false);
     setFormaRecebimento("retirada");
