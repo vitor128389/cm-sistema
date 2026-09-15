@@ -542,6 +542,7 @@ function VenderPageConteudo() {
       }
 
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Clientes",
         acao: "criacao",
         registroTipo: "cliente",
@@ -573,6 +574,7 @@ function VenderPageConteudo() {
         const diferenca = apenasCamposAlterados(clienteAntes, dadosCliente);
         if (diferenca) {
           registrarAuditoria({
+            lojaId: lojaAtual,
             categoria: "Clientes",
             acao: "alteracao",
             registroTipo: "cliente",
@@ -1251,6 +1253,7 @@ function VenderPageConteudo() {
       setLojaInfo(lojaData as LojaCompleta | null);
 
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Vendas",
         acao: "criacao",
         registroTipo: "venda",
