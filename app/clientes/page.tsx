@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
+import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import type { ClienteCompleto, Venda } from "@/types";
 
 interface ClienteResumo extends ClienteCompleto {
@@ -135,6 +136,7 @@ export default function ClientesPage() {
     };
 
     let clienteId = editandoId;
+    const clienteAntes = editandoId ? clientes.find((c) => c.id === editandoId) : null;
     if (editandoId) {
       const { error } = await supabase.from("clientes").update(dados).eq("id", editandoId);
       if (error) {
@@ -166,6 +168,45 @@ export default function ClientesPage() {
       );
     }
 
+    if (editandoId && clienteAntes) {
+      const diferenca = apenasCamposAlterados(
+        {
+          nome: clienteAntes.nome,
+          cpf: clienteAntes.cpf,
+          telefone: clienteAntes.telefone,
+          endereco: clienteAntes.endereco,
+          numero: clienteAntes.numero,
+          complemento: clienteAntes.complemento,
+          cidade: clienteAntes.cidade,
+          povoado: clienteAntes.povoado,
+          bairro: clienteAntes.bairro,
+        },
+        dados
+      );
+      if (diferenca) {
+        registrarAuditoria({
+          categoria: "Clientes",
+          acao: "alteracao",
+          registroTipo: "cliente",
+          registroId: editandoId,
+          registroNome: dados.nome,
+          descricao: `Cliente "${clienteAntes.nome}" atualizado`,
+          dadosAntes: diferenca.antes,
+          dadosDepois: diferenca.depois,
+        });
+      }
+    } else if (!editandoId) {
+      registrarAuditoria({
+        categoria: "Clientes",
+        acao: "criacao",
+        registroTipo: "cliente",
+        registroId: clienteId as string,
+        registroNome: dados.nome,
+        descricao: `Cliente "${dados.nome}" cadastrado`,
+        dadosDepois: dados,
+      });
+    }
+
     setMostrarForm(false);
     setForm(FORM_VAZIO);
     setCelulares([{ numero: "", responsavel: "" }]);
@@ -186,6 +227,14 @@ export default function ClientesPage() {
       }
       return;
     }
+    registrarAuditoria({
+      categoria: "Clientes",
+      acao: "exclusao",
+      registroTipo: "cliente",
+      registroId: id,
+      registroNome: nome,
+      descricao: `Cliente "${nome}" excluído`,
+    });
     carregar();
   }
 
