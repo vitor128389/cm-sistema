@@ -12,6 +12,7 @@ export const TELAS_PROTEGIDAS = [
   "movimento",
   "deposito",
   "administracao",
+  "ia",
 ] as const;
 
 export type Tela = (typeof TELAS_PROTEGIDAS)[number];
@@ -28,6 +29,7 @@ const ROTA_PARA_TELA: Record<string, Tela> = {
   "/movimento": "movimento",
   "/deposito": "deposito",
   "/administracao": "administracao",
+  "/ia": "ia",
 };
 
 export function telaDaRota(pathname: string): Tela | null {
