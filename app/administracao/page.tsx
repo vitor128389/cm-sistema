@@ -594,6 +594,15 @@ function AbaEstoque() {
 
   const [buscaProduto, setBuscaProduto] = useState("");
 
+  // ---------------- Adicionar produtos ao estoque (soma, não substitui) ----------------
+  const [buscaAdicionar, setBuscaAdicionar] = useState("");
+  const [dropdownAdicionarAberto, setDropdownAdicionarAberto] = useState(false);
+  const [produtoParaAdicionar, setProdutoParaAdicionar] = useState<ProdutoComVariantes | null>(null);
+  const [varianteParaAdicionar, setVarianteParaAdicionar] = useState<string | null>(null);
+  const [quantidadeAdicionar, setQuantidadeAdicionar] = useState("");
+  const [salvandoAdicionar, setSalvandoAdicionar] = useState(false);
+  const [mensagemAdicionar, setMensagemAdicionar] = useState<string | null>(null);
+
   const produtosFiltrados = produtos
     .filter((p) => !categoriaFiltro || (usandoDeposito ? tipoMovelDeposito(p.nome) : p.categoria) === categoriaFiltro)
     .filter((p) => !buscaProduto || normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto)))
@@ -641,6 +650,66 @@ function AbaEstoque() {
     ]);
     if (r1.error || r2.error) alert("Erro ao salvar o estoque: " + (r1.error || r2.error)?.message);
     carregar();
+  }
+
+  // ---------------- Adicionar produtos ao estoque (soma) ----------------
+  function selecionarProdutoParaAdicionar(p: ProdutoComVariantes) {
+    setProdutoParaAdicionar(p);
+    setBuscaAdicionar(p.nome);
+    setDropdownAdicionarAberto(false);
+    setVarianteParaAdicionar(p.produto_variantes.length > 0 ? p.produto_variantes[0].id : null);
+    setQuantidadeAdicionar("");
+    setMensagemAdicionar(null);
+  }
+
+  function estoqueAtualParaAdicionar(): number {
+    if (!produtoParaAdicionar) return 0;
+    if (produtoParaAdicionar.produto_variantes.length > 0) {
+      const v = produtoParaAdicionar.produto_variantes.find((vv) => vv.id === varianteParaAdicionar);
+      return v?.estoque || 0;
+    }
+    return produtoParaAdicionar.quantidade_estoque || 0;
+  }
+
+  async function confirmarAdicionarAoEstoque() {
+    if (!produtoParaAdicionar) return;
+    const quantidade = parseInt(quantidadeAdicionar) || 0;
+    if (quantidade <= 0) {
+      alert("Digite uma quantidade maior que zero pra adicionar.");
+      return;
+    }
+    const estoqueAtual = estoqueAtualParaAdicionar();
+    const novoEstoque = estoqueAtual + quantidade;
+
+    setSalvandoAdicionar(true);
+    try {
+      if (produtoParaAdicionar.produto_variantes.length > 0) {
+        if (!varianteParaAdicionar) {
+          alert("Selecione a variação (tecido/cor) antes de adicionar.");
+          return;
+        }
+        await salvarEstoqueVariante(produtoParaAdicionar.id, varianteParaAdicionar, novoEstoque);
+      } else {
+        await salvarEstoqueSimples(produtoParaAdicionar.id, novoEstoque);
+      }
+      setMensagemAdicionar(`${quantidade} unidade${quantidade > 1 ? "s" : ""} adicionada${quantidade > 1 ? "s" : ""} com sucesso. Novo estoque: ${novoEstoque}.`);
+      setQuantidadeAdicionar("");
+      // atualiza o produto selecionado localmente também, pra já refletir o novo estoque atual na tela
+      setProdutoParaAdicionar((atual) => {
+        if (!atual) return atual;
+        if (atual.produto_variantes.length > 0) {
+          return {
+            ...atual,
+            produto_variantes: atual.produto_variantes.map((v) =>
+              v.id === varianteParaAdicionar ? { ...v, estoque: novoEstoque } : v
+            ),
+          };
+        }
+        return { ...atual, quantidade_estoque: novoEstoque };
+      });
+    } finally {
+      setSalvandoAdicionar(false);
+    }
   }
 
   async function excluirProduto(id: string, nome: string) {
@@ -1247,6 +1316,119 @@ function AbaEstoque() {
           )}
         </>
       )}
+
+      {/* ---------------- ADICIONAR PRODUTOS AO ESTOQUE ---------------- */}
+      <div className="card p-5 mb-6 border-2 border-madeira-200">
+        <p className="font-display text-lg mb-1">Adicionar produtos ao estoque</p>
+        <p className="text-xs text-madeira-500 mb-4">
+          A quantidade que você digitar aqui é <strong>somada</strong> ao estoque que já existe — não
+          substitui.{usandoDeposito ? " Está somando no Depósito." : ""}
+        </p>
+
+        <div className="relative mb-3 max-w-md">
+          <input
+            className="input-base"
+            placeholder="Buscar produto pelo nome (ex.: Poltrona Benny)..."
+            value={buscaAdicionar}
+            onChange={(e) => {
+              setBuscaAdicionar(e.target.value);
+              setDropdownAdicionarAberto(true);
+              if (!e.target.value) {
+                setProdutoParaAdicionar(null);
+                setVarianteParaAdicionar(null);
+              }
+            }}
+            onFocus={() => setDropdownAdicionarAberto(true)}
+          />
+          {dropdownAdicionarAberto && buscaAdicionar.trim() && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-estofado-200 rounded shadow-lg max-h-64 overflow-y-auto">
+              {produtos
+                .filter((p) => normalizarBusca(p.nome).includes(normalizarBusca(buscaAdicionar)))
+                .slice(0, 30)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    className="block w-full text-left px-3 py-2 text-sm hover:bg-madeira-50"
+                    onClick={() => selecionarProdutoParaAdicionar(p)}
+                  >
+                    {p.nome}
+                  </button>
+                ))}
+              {produtos.filter((p) => normalizarBusca(p.nome).includes(normalizarBusca(buscaAdicionar))).length ===
+                0 && <p className="px-3 py-2 text-sm text-madeira-400">Nenhum produto encontrado.</p>}
+            </div>
+          )}
+        </div>
+
+        {produtoParaAdicionar && (
+          <div className="max-w-md space-y-3">
+            {produtoParaAdicionar.produto_variantes.length > 0 && (
+              <label className="block">
+                <span className="text-xs text-madeira-600 mb-1 block">Tecido / cor / variação</span>
+                <select
+                  className="input-base"
+                  value={varianteParaAdicionar || ""}
+                  onChange={(e) => {
+                    setVarianteParaAdicionar(e.target.value);
+                    setMensagemAdicionar(null);
+                  }}
+                >
+                  {produtoParaAdicionar.produto_variantes.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.nome_variante}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Quantidade a adicionar</span>
+              <input
+                className="input-base"
+                type="number"
+                min={1}
+                value={quantidadeAdicionar}
+                onChange={(e) => {
+                  setQuantidadeAdicionar(e.target.value);
+                  setMensagemAdicionar(null);
+                }}
+              />
+            </label>
+
+            <div className="bg-madeira-50 rounded p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-madeira-600">Estoque atual</span>
+                <span className="font-medium">{estoqueAtualParaAdicionar()} unidades</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-madeira-600">Quantidade a adicionar</span>
+                <span className="font-medium">{parseInt(quantidadeAdicionar) || 0} unidades</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-estofado-200 font-semibold">
+                <span>Novo estoque</span>
+                <span className="text-green-700">
+                  {estoqueAtualParaAdicionar() + (parseInt(quantidadeAdicionar) || 0)} unidades
+                </span>
+              </div>
+            </div>
+
+            <button
+              className="btn-primario"
+              onClick={confirmarAdicionarAoEstoque}
+              disabled={salvandoAdicionar || !quantidadeAdicionar || (parseInt(quantidadeAdicionar) || 0) <= 0}
+            >
+              {salvandoAdicionar ? "Adicionando..." : "Adicionar ao estoque"}
+            </button>
+
+            {mensagemAdicionar && (
+              <p className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                ✓ {mensagemAdicionar}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       <input
         className="input-base max-w-sm mb-3"
