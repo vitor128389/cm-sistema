@@ -277,6 +277,7 @@ export default function NotasPage() {
       .update({ status_entrega: "entregue", data_entregue: new Date().toISOString() })
       .eq("id", itemId);
     registrarAuditoria({
+      lojaId: lojaAtual,
       categoria: "Entregas",
       acao: "alteracao",
       registroTipo: "venda_item",
