@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { salvarEstoqueLoja } from "@/lib/produtos";
 
 // Contexto de quem está perguntando — sempre resolvido no servidor a
 // partir da sessão autenticada, nunca confiado vindo do cliente.
@@ -72,19 +73,10 @@ export async function cadastrarProduto(
           .eq("produto_id", produto.id)
           .limit(1);
         if (variantes && variantes[0]) {
-          await supabase
-            .from("estoque_loja")
-            .update({ quantidade: args.estoque_inicial })
-            .eq("loja_id", lojaIds[0])
-            .eq("variante_id", variantes[0].id);
+          await salvarEstoqueLoja(supabase, lojaIds[0], produto.id, variantes[0].id, args.estoque_inicial);
         }
       } else {
-        await supabase
-          .from("estoque_loja")
-          .update({ quantidade: args.estoque_inicial })
-          .eq("loja_id", lojaIds[0])
-          .eq("produto_id", produto.id)
-          .eq("chave_variante", "simples");
+        await salvarEstoqueLoja(supabase, lojaIds[0], produto.id, null, args.estoque_inicial);
       }
       estoqueLancado = { loja: lojaNomes[0], quantidade: args.estoque_inicial };
     }
@@ -188,11 +180,7 @@ export async function adicionarEstoque(
       .maybeSingle();
     const estoqueAntes = linhaAtual?.quantidade || 0;
     const novoEstoque = estoqueAntes + args.quantidade;
-    const { error } = await supabase
-      .from("estoque_loja")
-      .update({ quantidade: novoEstoque })
-      .eq("loja_id", lojaId)
-      .eq("variante_id", variante.id);
+    const { error } = await salvarEstoqueLoja(supabase, lojaId, produto.id, variante.id, novoEstoque);
     if (error) return { erro: error.message };
 
     return {
@@ -216,12 +204,7 @@ export async function adicionarEstoque(
     .maybeSingle();
   const estoqueAntes = linhaAtual?.quantidade || 0;
   const novoEstoque = estoqueAntes + args.quantidade;
-  const { error } = await supabase
-    .from("estoque_loja")
-    .update({ quantidade: novoEstoque })
-    .eq("loja_id", lojaId)
-    .eq("produto_id", produto.id)
-    .eq("chave_variante", "simples");
+  const { error } = await salvarEstoqueLoja(supabase, lojaId, produto.id, null, novoEstoque);
   if (error) return { erro: error.message };
 
   return {
