@@ -185,6 +185,7 @@ export default function ClientesPage() {
       );
       if (diferenca) {
         registrarAuditoria({
+          lojaId: lojaAtual,
           categoria: "Clientes",
           acao: "alteracao",
           registroTipo: "cliente",
@@ -197,6 +198,7 @@ export default function ClientesPage() {
       }
     } else if (!editandoId) {
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Clientes",
         acao: "criacao",
         registroTipo: "cliente",
@@ -228,6 +230,7 @@ export default function ClientesPage() {
       return;
     }
     registrarAuditoria({
+      lojaId: lojaAtual,
       categoria: "Clientes",
       acao: "exclusao",
       registroTipo: "cliente",
