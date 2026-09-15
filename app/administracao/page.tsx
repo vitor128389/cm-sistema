@@ -671,6 +671,15 @@ function AbaEstoque() {
     return produtoParaAdicionar.quantidade_estoque || 0;
   }
 
+  function precoAtualParaAdicionar(): number {
+    if (!produtoParaAdicionar) return 0;
+    if (produtoParaAdicionar.produto_variantes.length > 0) {
+      const v = produtoParaAdicionar.produto_variantes.find((vv) => vv.id === varianteParaAdicionar);
+      return v?.preco_avista || 0;
+    }
+    return produtoParaAdicionar.preco_venda || 0;
+  }
+
   async function confirmarAdicionarAoEstoque() {
     if (!produtoParaAdicionar) return;
     const quantidade = parseInt(quantidadeAdicionar) || 0;
@@ -1362,6 +1371,10 @@ function AbaEstoque() {
 
         {produtoParaAdicionar && (
           <div className="max-w-md space-y-3">
+            <p className="text-sm text-madeira-700">
+              Valor à vista: <strong>{formatarMoeda(precoAtualParaAdicionar())}</strong>
+            </p>
+
             {produtoParaAdicionar.produto_variantes.length > 0 && (
               <label className="block">
                 <span className="text-xs text-madeira-600 mb-1 block">Tecido / cor / variação</span>
