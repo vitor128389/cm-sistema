@@ -199,6 +199,7 @@ export default function DepositoPage() {
 
       const nomeLojaDestino = lojas.find((l) => l.id === lojaDestino)?.nome || "loja";
       registrarAuditoria({
+        lojaId: lojaDestino,
         categoria: "Estoque",
         acao: "transferencia",
         registroTipo: "produto",
