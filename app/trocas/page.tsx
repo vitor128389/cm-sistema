@@ -6,6 +6,7 @@ import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { definirTamanhoPagina } from "@/lib/imprimir";
+import { registrarAuditoria } from "@/lib/auditoria";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import type {
   Venda,
@@ -360,6 +361,21 @@ export default function TrocasPage() {
 
       const { data: lojaData } = await supabase.from("lojas").select("*").eq("id", lojaAtual).maybeSingle();
       setLojaInfo(lojaData as LojaCompleta | null);
+
+      registrarAuditoria({
+        categoria: "Trocas",
+        acao: "criacao",
+        registroTipo: "troca",
+        registroId: grupo.id,
+        registroNome: `Troca #${grupo.numero_troca}`,
+        numeroPedido: vendaEncontrada.numero_pedido,
+        descricao: `Troca #${grupo.numero_troca} feita a partir do pedido #${vendaEncontrada.numero_pedido} — diferença: ${formatarMoeda(diferenca)}`,
+        dadosDepois: {
+          valor_devolvido: valorDevolvidoTotal,
+          valor_novo: valorNovoTotal,
+          diferenca,
+        },
+      });
 
       setConcluida({
         numeroTroca: grupo.numero_troca,
