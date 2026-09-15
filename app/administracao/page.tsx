@@ -8,6 +8,7 @@ import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } fro
 import { consultarCpf } from "@/lib/consultaCpf";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
+import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
 type Aba =
@@ -19,6 +20,7 @@ type Aba =
   | "tecidos"
   | "relatorio"
   | "movimento-geral"
+  | "auditoria"
   | "cancelar";
 
 const TELAS = [
@@ -86,6 +88,7 @@ export default function AdministracaoPage() {
             ["tecidos", "Tecidos e cores"],
             ["relatorio", "Relatório"],
             ["movimento-geral", "Movimento Geral"],
+            ["auditoria", "Auditoria"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -107,6 +110,7 @@ export default function AdministracaoPage() {
       {aba === "tecidos" && <AbaTecidos />}
       {aba === "relatorio" && <AbaRelatorio />}
       {aba === "movimento-geral" && <AbaMovimentoGeral />}
+      {aba === "auditoria" && <AbaAuditoria />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -622,15 +626,46 @@ function AbaEstoque() {
 
   async function salvarEstoqueSimples(produtoId: string, valor: number) {
     if (!lojaEstoqueEfetiva) return;
+    const produto = produtos.find((p) => p.id === produtoId);
+    const estoqueAntes = produto?.quantidade_estoque || 0;
     const { error } = await salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, null, valor);
-    if (error) alert("Erro ao salvar o estoque: " + error.message);
+    if (error) {
+      alert("Erro ao salvar o estoque: " + error.message);
+      return;
+    }
+    registrarAuditoria({
+      categoria: "Estoque",
+      acao: valor > estoqueAntes ? "entrada_estoque" : valor < estoqueAntes ? "saida_estoque" : "alteracao",
+      registroTipo: "produto",
+      registroId: produtoId,
+      registroNome: produto?.nome,
+      descricao: `Estoque de "${produto?.nome}" alterado de ${estoqueAntes} para ${valor}`,
+      dadosAntes: { estoque: estoqueAntes },
+      dadosDepois: { estoque: valor },
+    });
     carregar();
   }
 
   async function salvarEstoqueVariante(produtoId: string, varianteId: string, valor: number) {
     if (!lojaEstoqueEfetiva) return;
+    const produto = produtos.find((p) => p.id === produtoId);
+    const variante = produto?.produto_variantes.find((v) => v.id === varianteId);
+    const estoqueAntes = variante?.estoque || 0;
     const { error } = await salvarEstoqueLoja(supabase, lojaEstoqueEfetiva, produtoId, varianteId, valor);
-    if (error) alert("Erro ao salvar o estoque: " + error.message);
+    if (error) {
+      alert("Erro ao salvar o estoque: " + error.message);
+      return;
+    }
+    registrarAuditoria({
+      categoria: "Estoque",
+      acao: valor > estoqueAntes ? "entrada_estoque" : valor < estoqueAntes ? "saida_estoque" : "alteracao",
+      registroTipo: "produto",
+      registroId: produtoId,
+      registroNome: `${produto?.nome} — ${variante?.nome_variante}`,
+      descricao: `Estoque de "${produto?.nome} — ${variante?.nome_variante}" alterado de ${estoqueAntes} para ${valor}`,
+      dadosAntes: { estoque: estoqueAntes },
+      dadosDepois: { estoque: valor },
+    });
     carregar();
   }
 
@@ -723,6 +758,7 @@ function AbaEstoque() {
 
   async function excluirProduto(id: string, nome: string) {
     if (!confirm(`Excluir "${nome}" do catálogo? Isso remove o produto de TODAS as lojas — essa ação não pode ser desfeita.`)) return;
+    const produtoAntes = produtos.find((p) => p.id === id);
     const { error } = await supabase.from("produtos").delete().eq("id", id);
     if (error) {
       // Produto que já foi vendido antes não pode ser apagado de verdade
@@ -734,11 +770,37 @@ function AbaEstoque() {
         );
         if (desativar) {
           const { error: erroDesativar } = await supabase.from("produtos").update({ ativo: false }).eq("id", id);
-          if (erroDesativar) alert("Erro ao desativar: " + erroDesativar.message);
+          if (erroDesativar) {
+            alert("Erro ao desativar: " + erroDesativar.message);
+          } else {
+            registrarAuditoria({
+              categoria: "Produtos",
+              acao: "exclusao",
+              registroTipo: "produto",
+              registroId: id,
+              registroNome: nome,
+              descricao: `Produto "${nome}" desativado (já tinha vendas, não podia ser excluído de vez)`,
+              dadosAntes: produtoAntes
+                ? { nome: produtoAntes.nome, categoria: produtoAntes.categoria, preco_venda: produtoAntes.preco_venda, custo: produtoAntes.custo }
+                : null,
+            });
+          }
         }
       } else {
         alert("Erro: " + error.message);
       }
+    } else {
+      registrarAuditoria({
+        categoria: "Produtos",
+        acao: "exclusao",
+        registroTipo: "produto",
+        registroId: id,
+        registroNome: nome,
+        descricao: `Produto "${nome}" excluído do catálogo`,
+        dadosAntes: produtoAntes
+          ? { nome: produtoAntes.nome, categoria: produtoAntes.categoria, preco_venda: produtoAntes.preco_venda, custo: produtoAntes.custo }
+          : null,
+      });
     }
     carregar();
   }
@@ -814,6 +876,7 @@ function AbaEstoque() {
       alert("Preencha nome e categoria.");
       return;
     }
+    const produtoAntesDaEdicao = editandoId ? produtos.find((p) => p.id === editandoId) : null;
     if (!lojaEstoqueEfetiva) {
       alert(
         usandoDeposito
@@ -1013,6 +1076,34 @@ function AbaEstoque() {
     }
 
     const eraEdicao = !!editandoId;
+    const custoNumFinal = parseFloat(form.custo) || 0;
+    if (eraEdicao && produtoAntesDaEdicao) {
+      const diferenca = apenasCamposAlterados(
+        { nome: produtoAntesDaEdicao.nome, categoria: produtoAntesDaEdicao.categoria, custo: produtoAntesDaEdicao.custo },
+        { nome: form.nome.trim(), categoria: categoriaFinal, custo: custoNumFinal }
+      );
+      if (diferenca) {
+        registrarAuditoria({
+          categoria: "Produtos",
+          acao: "alteracao",
+          registroTipo: "produto",
+          registroId: editandoId as string,
+          registroNome: form.nome.trim(),
+          descricao: `Produto "${produtoAntesDaEdicao.nome}" alterado`,
+          dadosAntes: diferenca.antes,
+          dadosDepois: diferenca.depois,
+        });
+      }
+    } else {
+      registrarAuditoria({
+        categoria: "Produtos",
+        acao: "criacao",
+        registroTipo: "produto",
+        registroNome: form.nome.trim(),
+        descricao: `Produto "${form.nome.trim()}" criado na categoria "${categoriaFinal}"`,
+        dadosDepois: { nome: form.nome.trim(), categoria: categoriaFinal, custo: custoNumFinal },
+      });
+    }
     setForm(FORM_VAZIO);
     setMostrarForm(false);
     setEditandoId(null);
@@ -1909,6 +2000,16 @@ function AbaUsuarios() {
     setMostrarForm(false);
     limparForm();
     carregar();
+    registrarAuditoria({
+      categoria: "Usuários",
+      acao: editandoId ? "alteracao" : "criacao",
+      registroTipo: "usuario",
+      registroId: editandoId || resultado?.id || undefined,
+      registroNome: nome,
+      descricao: editandoId ? `Usuário "${nome}" alterado` : `Usuário "${nome}" criado`,
+      // nunca registra senha — só os dados de identificação/permissão, nunca credenciais
+      dadosDepois: { nome, email, funcao, ativo, loja_id: lojaId || null },
+    });
     alert(editandoId ? "Usuário atualizado!" : "Usuário cadastrado! Já pode fazer login com o e-mail e senha definidos.");
   }
 
@@ -1918,6 +2019,16 @@ function AbaUsuarios() {
       alert("Erro: " + error.message);
       return;
     }
+    registrarAuditoria({
+      categoria: "Usuários",
+      acao: "alteracao",
+      registroTipo: "usuario",
+      registroId: u.id,
+      registroNome: u.nome,
+      descricao: `Usuário "${u.nome}" ${!u.ativo ? "reativado" : "desativado"}`,
+      dadosAntes: { ativo: u.ativo },
+      dadosDepois: { ativo: !u.ativo },
+    });
     carregar();
   }
 
@@ -1933,6 +2044,14 @@ function AbaUsuarios() {
       alert("Erro: " + resultado.error);
       return;
     }
+    registrarAuditoria({
+      categoria: "Usuários",
+      acao: "exclusao",
+      registroTipo: "usuario",
+      registroId: id,
+      registroNome: nomeUsuario,
+      descricao: `Usuário "${nomeUsuario}" excluído`,
+    });
     carregar();
   }
 
@@ -3076,6 +3195,387 @@ function AbaMovimentoGeral() {
   );
 }
 
+/* ==================== AUDITORIA ==================== */
+
+const CORES_ACAO: Record<string, { bg: string; texto: string; label: string }> = {
+  criacao: { bg: "#E8F1EC", texto: "#123C2E", label: "Criação" },
+  entrada_estoque: { bg: "#E8F1EC", texto: "#123C2E", label: "Entrada de estoque" },
+  alteracao: { bg: "#E3EEF7", texto: "#1D4E7A", label: "Alteração" },
+  transferencia: { bg: "#FBEBDC", texto: "#9A5B1E", label: "Transferência" },
+  exclusao: { bg: "#FBE4E4", texto: "#9E2525", label: "Exclusão" },
+  cancelamento: { bg: "#FBE4E4", texto: "#9E2525", label: "Cancelamento" },
+  saida_estoque: { bg: "#FBE4E4", texto: "#9E2525", label: "Saída de estoque" },
+  outro: { bg: "#F2F0ED", texto: "#57534E", label: "Outro" },
+};
+
+interface RegistroAuditoria {
+  id: string;
+  criado_em: string;
+  usuario_nome: string | null;
+  usuario_email: string | null;
+  usuario_funcao: string | null;
+  loja_nome: string | null;
+  categoria: string;
+  acao: string;
+  tipo_execucao: string;
+  registro_tipo: string | null;
+  registro_nome: string | null;
+  numero_pedido: number | null;
+  descricao: string;
+  dados_antes: Record<string, unknown> | null;
+  dados_depois: Record<string, unknown> | null;
+  motivo: string | null;
+}
+
+const CATEGORIAS_AUDITORIA = [
+  "Produtos",
+  "Estoque",
+  "Vendas",
+  "Clientes",
+  "Encomendas",
+  "Entregas",
+  "Trocas",
+  "Devoluções",
+  "Caixa",
+  "Sangrias",
+  "Usuários",
+  "Permissões",
+  "Configurações",
+  "Outros",
+];
+
+const POR_PAGINA_AUDITORIA = 30;
+
+function AbaAuditoria() {
+  const [periodo, setPeriodo] = useState<"hoje" | "ontem" | "7dias" | "30dias" | "personalizado" | "todos">("7dias");
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [busca, setBusca] = useState("");
+  const [registros, setRegistros] = useState<RegistroAuditoria[]>([]);
+  const [totalRegistros, setTotalRegistros] = useState(0);
+  const [pagina, setPagina] = useState(0);
+  const [carregando, setCarregando] = useState(true);
+  const [detalheAberto, setDetalheAberto] = useState<RegistroAuditoria | null>(null);
+
+  function intervaloData(): { inicio: Date; fim: Date } | null {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    if (periodo === "todos") return null;
+    if (periodo === "hoje") {
+      const fim = new Date(hoje);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio: hoje, fim };
+    }
+    if (periodo === "ontem") {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() - 1);
+      const fim = new Date(inicio);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    if (periodo === "7dias") {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() - 6);
+      const fim = new Date();
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    if (periodo === "30dias") {
+      const inicio = new Date(hoje);
+      inicio.setDate(inicio.getDate() - 29);
+      const fim = new Date();
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+    const inicio = de ? new Date(de + "T00:00:00") : new Date(2000, 0, 1);
+    const fim = ate ? new Date(ate + "T23:59:59") : new Date(2100, 0, 1);
+    return { inicio, fim };
+  }
+
+  async function carregar() {
+    setCarregando(true);
+    let query = supabase.from("auditoria").select("*", { count: "exact" }).order("criado_em", { ascending: false });
+
+    const intervalo = intervaloData();
+    if (intervalo) {
+      query = query.gte("criado_em", intervalo.inicio.toISOString()).lte("criado_em", intervalo.fim.toISOString());
+    }
+    if (categoriaFiltro) query = query.eq("categoria", categoriaFiltro);
+    if (busca.trim()) {
+      const termo = busca.trim();
+      query = query.or(
+        `descricao.ilike.%${termo}%,registro_nome.ilike.%${termo}%,usuario_nome.ilike.%${termo}%,usuario_email.ilike.%${termo}%,numero_pedido.eq.${
+          parseInt(termo) || 0
+        }`
+      );
+    }
+
+    const inicio = pagina * POR_PAGINA_AUDITORIA;
+    const { data, count } = await query.range(inicio, inicio + POR_PAGINA_AUDITORIA - 1);
+    setRegistros((data || []) as RegistroAuditoria[]);
+    setTotalRegistros(count || 0);
+    setCarregando(false);
+  }
+
+  useEffect(() => {
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, de, ate, categoriaFiltro, pagina]);
+
+  // busca com um pequeno atraso, pra não disparar uma consulta a cada letra digitada
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPagina(0);
+      carregar();
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca]);
+
+  const totalPaginas = Math.max(1, Math.ceil(totalRegistros / POR_PAGINA_AUDITORIA));
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-madeira-700 mb-1">Histórico de alterações do sistema</p>
+      <p className="text-xs text-madeira-500 mb-4">
+        Registro permanente — ninguém consegue editar ou apagar essas entradas, nem pelo painel.
+      </p>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        {(
+          [
+            ["hoje", "Hoje"],
+            ["ontem", "Ontem"],
+            ["7dias", "Últimos 7 dias"],
+            ["30dias", "Últimos 30 dias"],
+            ["personalizado", "Personalizado"],
+            ["todos", "Todos"],
+          ] as [typeof periodo, string][]
+        ).map(([valor, label]) => (
+          <button
+            key={valor}
+            className={`text-xs px-3 py-1.5 rounded-full border ${
+              periodo === valor ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+            }`}
+            onClick={() => {
+              setPeriodo(valor);
+              setPagina(0);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        {periodo === "personalizado" && (
+          <>
+            <input className="input-base w-auto" type="date" value={de} onChange={(e) => setDe(e.target.value)} />
+            <input className="input-base w-auto" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          className={`text-xs px-3 py-1.5 rounded-full border ${
+            !categoriaFiltro ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+          }`}
+          onClick={() => {
+            setCategoriaFiltro("");
+            setPagina(0);
+          }}
+        >
+          Todas as categorias
+        </button>
+        {CATEGORIAS_AUDITORIA.map((c) => (
+          <button
+            key={c}
+            className={`text-xs px-3 py-1.5 rounded-full border ${
+              categoriaFiltro === c ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+            }`}
+            onClick={() => {
+              setCategoriaFiltro(c);
+              setPagina(0);
+            }}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <input
+        className="input-base max-w-md mb-4"
+        placeholder="Buscar por produto, cliente, pedido, usuário ou e-mail..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
+
+      {carregando ? (
+        <p className="text-madeira-500 text-sm">Carregando...</p>
+      ) : registros.length === 0 ? (
+        <div className="card p-8 text-center text-madeira-500 text-sm">Nenhum registro encontrado.</div>
+      ) : (
+        <>
+          <div className="card overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-madeira-50 text-madeira-600 text-left">
+                <tr>
+                  <th className="px-3 py-2 font-medium whitespace-nowrap">Data/Hora</th>
+                  <th className="px-3 py-2 font-medium">Usuário</th>
+                  <th className="px-3 py-2 font-medium">Loja</th>
+                  <th className="px-3 py-2 font-medium">Área</th>
+                  <th className="px-3 py-2 font-medium">Ação</th>
+                  <th className="px-3 py-2 font-medium">Registro</th>
+                  <th className="px-3 py-2 font-medium">Detalhes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registros.map((r) => {
+                  const cor = CORES_ACAO[r.acao] || CORES_ACAO.outro;
+                  return (
+                    <tr
+                      key={r.id}
+                      className="border-t border-estofado-100 cursor-pointer hover:bg-madeira-50"
+                      onClick={() => setDetalheAberto(r)}
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap text-madeira-600">
+                        {new Date(r.criado_em).toLocaleString("pt-BR")}
+                      </td>
+                      <td className="px-3 py-2">{r.usuario_nome || "—"}</td>
+                      <td className="px-3 py-2">{r.loja_nome || "—"}</td>
+                      <td className="px-3 py-2">{r.categoria}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded font-medium"
+                          style={{ backgroundColor: cor.bg, color: cor.texto }}
+                        >
+                          {cor.label}
+                          {r.tipo_execucao === "automatica" ? " · auto" : ""}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">{r.registro_nome || "—"}</td>
+                      <td className="px-3 py-2 text-madeira-600 max-w-xs truncate">{r.descricao}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between mt-3 text-sm text-madeira-600">
+            <span>
+              {totalRegistros} registro{totalRegistros !== 1 ? "s" : ""} — página {pagina + 1} de {totalPaginas}
+            </span>
+            <div className="flex gap-2">
+              <button
+                className="btn-secundario text-xs px-3 py-1"
+                disabled={pagina === 0}
+                onClick={() => setPagina((p) => Math.max(0, p - 1))}
+              >
+                Anterior
+              </button>
+              <button
+                className="btn-secundario text-xs px-3 py-1"
+                disabled={pagina + 1 >= totalPaginas}
+                onClick={() => setPagina((p) => p + 1)}
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {detalheAberto && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setDetalheAberto(null)}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <span
+                  className="text-xs px-2 py-0.5 rounded font-medium"
+                  style={{
+                    backgroundColor: (CORES_ACAO[detalheAberto.acao] || CORES_ACAO.outro).bg,
+                    color: (CORES_ACAO[detalheAberto.acao] || CORES_ACAO.outro).texto,
+                  }}
+                >
+                  {(CORES_ACAO[detalheAberto.acao] || CORES_ACAO.outro).label}
+                </span>
+                <p className="font-display text-lg mt-1">{detalheAberto.categoria}</p>
+              </div>
+              <button className="text-madeira-400 hover:text-madeira-700" onClick={() => setDetalheAberto(null)}>
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-madeira-800 mb-4">{detalheAberto.descricao}</p>
+
+            {detalheAberto.motivo && (
+              <p className="text-sm text-madeira-600 mb-4">
+                <strong>Motivo:</strong> {detalheAberto.motivo}
+              </p>
+            )}
+
+            {(detalheAberto.dados_antes || detalheAberto.dados_depois) && (
+              <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+                <div className="bg-red-50 border border-red-100 rounded p-3">
+                  <p className="font-semibold text-red-700 mb-1">ANTES</p>
+                  {detalheAberto.dados_antes ? (
+                    Object.entries(detalheAberto.dados_antes).map(([chave, valor]) => (
+                      <p key={chave} className="text-madeira-700">
+                        <strong>{chave}:</strong> {String(valor ?? "—")}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-madeira-400">—</p>
+                  )}
+                </div>
+                <div className="bg-green-50 border border-green-100 rounded p-3">
+                  <p className="font-semibold text-green-700 mb-1">DEPOIS</p>
+                  {detalheAberto.dados_depois ? (
+                    Object.entries(detalheAberto.dados_depois).map(([chave, valor]) => (
+                      <p key={chave} className="text-madeira-700">
+                        <strong>{chave}:</strong> {String(valor ?? "—")}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-madeira-400">—</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-estofado-100 pt-3">
+              <p className="text-xs font-semibold text-madeira-600 mb-1">Realizado por</p>
+              <div className="text-sm space-y-0.5">
+                <p>
+                  <strong>Nome:</strong> {detalheAberto.usuario_nome || "—"}
+                </p>
+                <p>
+                  <strong>Conta:</strong> {detalheAberto.usuario_email || "—"}
+                </p>
+                <p>
+                  <strong>Loja:</strong> {detalheAberto.loja_nome || "—"}
+                </p>
+                <p>
+                  <strong>Permissão:</strong> {detalheAberto.usuario_funcao || "—"}
+                </p>
+                <p>
+                  <strong>Data e hora:</strong> {new Date(detalheAberto.criado_em).toLocaleString("pt-BR")}
+                </p>
+                <p className="text-madeira-500">
+                  {detalheAberto.tipo_execucao === "automatica" ? "Ação automática do sistema" : "Ação manual"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AbaCancelarNota() {
   const [numeroPedido, setNumeroPedido] = useState("");
   const [buscando, setBuscando] = useState(false);
@@ -3206,6 +3706,18 @@ function AbaCancelarNota() {
         `Pedido #${venda.numero_pedido} cancelado. Produtos de pronta entrega voltaram pro estoque.` +
           (avisos.length > 0 ? "\n\nAtenção:\n" + avisos.join("\n") : "")
       );
+      registrarAuditoria({
+        categoria: "Vendas",
+        acao: "cancelamento",
+        registroTipo: "venda",
+        registroId: venda.id,
+        registroNome: `Pedido #${venda.numero_pedido}`,
+        numeroPedido: venda.numero_pedido,
+        descricao: `Venda #${venda.numero_pedido} cancelada — ${formatarMoeda(venda.total)}`,
+        motivo: motivo.trim(),
+        dadosAntes: { cancelada: false, total: venda.total },
+        dadosDepois: { cancelada: true, motivo_cancelamento: motivo.trim() },
+      });
       setVenda(null);
       setNumeroPedido("");
       setMotivo("");
