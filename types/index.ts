@@ -354,6 +354,7 @@ export interface ClienteCompleto {
   cidade: string | null;
   povoado: string | null;
   bairro: string | null;
+  data_nascimento: string | null;
   criado_em: string;
 }
 
