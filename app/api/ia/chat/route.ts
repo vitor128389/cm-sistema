@@ -10,6 +10,7 @@ import {
   consultarClientes,
   consultarFinanceiro,
   cadastrarProduto,
+  adicionarEstoque,
   type ContextoIA,
 } from "@/lib/ia-tools";
 
@@ -27,7 +28,8 @@ Se uma ferramenta retornar "erro" ou não encontrar o que foi pedido, diga isso 
 Se a pergunta pedir uma informação que o sistema não tem (por exemplo, "qual vendedor vendeu mais" — o sistema não registra vendedor por venda), explique essa limitação em vez de adivinhar.
 Formate valores em reais (R$) e datas no padrão brasileiro (dd/mm/aaaa).
 Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.
-Se o usuário pedir pra cadastrar um produto novo, você pode fazer isso usando a ferramenta cadastrar_produto — mas só chame essa ferramenta quando já tiver nome, categoria e preço de venda claros na conversa. Se faltar alguma dessas informações, pergunte antes de cadastrar; nunca invente um preço ou categoria. Depois de cadastrar, confirme pro usuário exatamente o que foi criado (nome, categoria, preço, cores, estoque se houver).`;
+Se o usuário pedir pra cadastrar um produto novo, você pode fazer isso usando a ferramenta cadastrar_produto — mas só chame essa ferramenta quando já tiver nome, categoria e preço de venda claros na conversa. Se faltar alguma dessas informações, pergunte antes de cadastrar; nunca invente um preço ou categoria. Depois de cadastrar, confirme pro usuário exatamente o que foi criado (nome, categoria, preço, cores, estoque se houver).
+Se o usuário pedir pra adicionar/somar estoque de um produto que já existe, use a ferramenta adicionar_estoque — ela sempre SOMA ao estoque atual, nunca substitui. Se o produto tiver mais de uma variação de cor/tecido e o usuário não disser qual, pergunte antes de executar.`;
 
 const FERRAMENTAS: OpenAI.Responses.Tool[] = [
   {
@@ -164,6 +166,25 @@ const FERRAMENTA_CADASTRAR_PRODUTO: OpenAI.Responses.Tool = {
   strict: false,
 };
 
+const FERRAMENTA_ADICIONAR_ESTOQUE: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "adicionar_estoque",
+  description:
+    "Adiciona (soma) uma quantidade ao estoque de um produto já existente numa loja. NUNCA substitui o estoque atual, sempre soma. Use quando o usuário pedir pra adicionar/lançar/somar estoque de um produto que já existe no catálogo.",
+  parameters: {
+    type: "object",
+    properties: {
+      produto: { type: "string", description: "Nome do produto (busca parcial)." },
+      loja: { type: "string", description: "Nome da loja onde adicionar o estoque." },
+      cor: { type: "string", description: "Tecido/cor da variação, se o produto tiver mais de uma. Omita se o produto só tem uma variação ou nenhuma." },
+      quantidade: { type: "number", description: "Quantidade a ADICIONAR (soma ao que já existe)." },
+    },
+    required: ["produto", "loja", "quantidade"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
 async function executarFerramenta(
   nome: string,
   args: Record<string, unknown>,
@@ -186,6 +207,9 @@ async function executarFerramenta(
     case "cadastrar_produto":
       // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
       return cadastrarProduto(supabaseAdmin, ctx, args);
+    case "adicionar_estoque":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return adicionarEstoque(supabaseAdmin, ctx, args);
     default:
       return { erro: `Ferramenta desconhecida: ${nome}` };
   }
@@ -231,7 +255,7 @@ export async function POST(request: Request) {
   // vendedor/produção/caixa, ela nem aparece como opção pra IA usar
   const ferramentasDisponiveis: OpenAI.Responses.Tool[] =
     perfil.funcao === "admin" || perfil.funcao === "gerente"
-      ? [...FERRAMENTAS, FERRAMENTA_CADASTRAR_PRODUTO]
+      ? [...FERRAMENTAS, FERRAMENTA_CADASTRAR_PRODUTO, FERRAMENTA_ADICIONAR_ESTOQUE]
       : FERRAMENTAS;
 
   let lojaNome: string | null = null;
@@ -319,6 +343,38 @@ export async function POST(request: Request) {
               registro_nome: r.produto_criado,
               descricao: `Produto "${r.produto_criado}" cadastrado via Assistente IA (pedido: "${mensagem}")`,
               dados_depois: { nome: r.produto_criado, categoria: r.categoria, preco_venda: r.preco_venda },
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "adicionar_estoque" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as {
+            produto: string;
+            variante?: string;
+            loja: string;
+            estoque_antes: number;
+            quantidade_adicionada: number;
+            novo_estoque: number;
+          };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Estoque",
+              acao: "entrada_estoque",
+              tipo_execucao: "manual",
+              registro_tipo: "produto",
+              registro_nome: r.variante ? `${r.produto} — ${r.variante}` : r.produto,
+              descricao: `Estoque de "${r.produto}${r.variante ? ` — ${r.variante}` : ""}" em ${r.loja} alterado de ${r.estoque_antes} para ${r.novo_estoque} via Assistente IA (pedido: "${mensagem}")`,
+              dados_antes: { estoque: r.estoque_antes },
+              dados_depois: { estoque: r.novo_estoque },
             })
             .then(
               () => {},
