@@ -363,6 +363,7 @@ export default function TrocasPage() {
       setLojaInfo(lojaData as LojaCompleta | null);
 
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Trocas",
         acao: "criacao",
         registroTipo: "troca",
