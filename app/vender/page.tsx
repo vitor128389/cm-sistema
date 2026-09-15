@@ -29,6 +29,18 @@ const TECIDOS = ["Suede", "Linho", "Veludo"];
 // lista de sugestões (pedido do Vitor), sem apagar nenhum cliente antigo.
 const DATA_CORTE_SUGESTOES_ENDERECO = "2026-09-14T00:00:00Z";
 
+// A consulta de CPF pode devolver a data de nascimento em formatos
+// diferentes dependendo da fonte (DD/MM/AAAA, ISO com hora, etc.) — o
+// banco só aceita AAAA-MM-DD. Normaliza aqui antes de guardar, pra nunca
+// mandar uma data que o Postgres rejeita.
+function normalizarDataParaIso(data: string): string | null {
+  const texto = data.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) return texto.slice(0, 10); // já é ISO (corta hora, se tiver)
+  const partesBr = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); // DD/MM/AAAA
+  if (partesBr) return `${partesBr[3]}-${partesBr[2]}-${partesBr[1]}`;
+  return null; // formato desconhecido — melhor não salvar do que salvar errado
+}
+
 // Soma N dias úteis a partir de hoje, pulando sábado e domingo — usado nas
 // opções rápidas de prazo (6/10/15 dias úteis). Retorna no formato
 // YYYY-MM-DD, igual o campo de data espera.
@@ -386,7 +398,7 @@ function VenderPageConteudo() {
       setNome(resultado.nome);
       setCpfInfo(`Nome encontrado: ${resultado.nome} (cliente novo)`);
       setCpfInfoCor("text-green-700");
-      setDataNascimentoCliente(resultado.dataNascimento || null);
+      setDataNascimentoCliente(resultado.dataNascimento ? normalizarDataParaIso(resultado.dataNascimento) : null);
     } else if (resultado.erro) {
       // A consulta automática falhou de verdade (serviço fora do ar,
       // créditos esgotados, etc.) — diferente de "CPF não encontrado".
