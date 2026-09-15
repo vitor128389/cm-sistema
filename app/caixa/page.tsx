@@ -108,6 +108,7 @@ export default function CaixaPage() {
     });
     if (!error) {
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Caixa",
         acao: "criacao",
         registroTipo: "caixa",
@@ -130,6 +131,7 @@ export default function CaixaPage() {
       .eq("id", turno.id);
     if (!error) {
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Caixa",
         acao: "alteracao",
         registroTipo: "caixa",
@@ -236,6 +238,7 @@ export default function CaixaPage() {
       if (error) throw error;
 
       registrarAuditoria({
+        lojaId: lojaAtual,
         categoria: "Sangrias",
         acao: "saida_estoque",
         registroTipo: "caixa",
