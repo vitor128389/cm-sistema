@@ -116,19 +116,35 @@ export async function adicionarEstoque(
     return { erro: "Preciso do nome do produto, da loja e de uma quantidade maior que zero pra adicionar." };
   }
 
-  const { data: produtos } = await supabase
+  // primeiro tenta um nome EXATO (sem diferenciar maiúsculo/minúsculo) —
+  // isso resolve o caso de "PUFF QUADRADO" bater tanto com ele mesmo
+  // quanto com "PUFF QUADRADO P" numa busca por "contém". Só cai pra
+  // busca parcial se não achar nada exato.
+  const { data: exatos } = await supabase
     .from("produtos")
     .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
-    .ilike("nome", `%${args.produto}%`)
+    .ilike("nome", args.produto.trim())
     .eq("ativo", true)
     .limit(5);
+
+  const produtos =
+    exatos && exatos.length > 0
+      ? exatos
+      : (
+          await supabase
+            .from("produtos")
+            .select("id, nome, tipo_precificacao, quantidade_estoque, produto_variantes(id, nome_variante, estoque)")
+            .ilike("nome", `%${args.produto.trim()}%`)
+            .eq("ativo", true)
+            .limit(5)
+        ).data;
 
   if (!produtos || produtos.length === 0) {
     return { erro: `Não encontrei nenhum produto chamado "${args.produto}".` };
   }
   if (produtos.length > 1) {
     return {
-      erro: "Encontrei mais de um produto com esse nome — seja mais específico.",
+      erro: "Encontrei mais de um produto com esse nome — seja mais específico, ou diga o nome exato como aparece no cadastro.",
       produtos_encontrados: produtos.map((p) => p.nome),
     };
   }
