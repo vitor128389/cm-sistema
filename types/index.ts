@@ -352,6 +352,8 @@ export interface ClienteCompleto {
   numero: string | null;
   complemento: string | null;
   cidade: string | null;
+  povoado: string | null;
+  bairro: string | null;
   criado_em: string;
 }
 
