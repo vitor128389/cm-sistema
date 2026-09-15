@@ -9,6 +9,8 @@ const COR_TEXTO = "#111111";
 const COR_SECUNDARIO = "#666666";
 const COR_AVISO = "#9E2525";
 const COR_LARANJA = "#C2660D";
+const COR_AZUL = "#1D4E7A";
+const COR_ROXO = "#5B3A8E";
 
 interface PagamentoResumo {
   forma: string;
@@ -140,25 +142,34 @@ function linhaItem(
   const totalLinha = Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100;
   const valorUnitario = qtd > 0 ? Math.round((totalLinha / qtd) * 100) / 100 : 0;
   const nomeLojaOrigem = item.origem_loja_id ? lojasPorId?.[item.origem_loja_id] : null;
+
+  // Origem/situação do produto — cada item verifica a própria origem
+  // individualmente, então um pedido misto mostra cada linha certinha.
+  // Prioridade: encomenda > depósito > estoque de outra loja > própria loja.
+  let situacaoTexto: string;
+  let situacaoCor: string;
+  if (item.tipo_entrega === "encomenda") {
+    situacaoTexto = "ENCOMENDA";
+    situacaoCor = COR_LARANJA;
+  } else if (item.origem_deposito) {
+    situacaoTexto = "DEPÓSITO";
+    situacaoCor = COR_AZUL;
+  } else if (nomeLojaOrigem) {
+    situacaoTexto = `LOJA ${nomeLojaOrigem.toUpperCase()}`;
+    situacaoCor = COR_ROXO;
+  } else {
+    situacaoTexto = "PRONTA ENTREGA";
+    situacaoCor = COR_VERDE_ESCURO;
+  }
+
   return (
     <tr key={item.id + "-" + qtd}>
       <td style={{ color: COR_TEXTO }}>
         {item.nome_produto}{" "}
-        {item.tipo_entrega === "encomenda" ? (
-          <span style={{ color: ehViaLoja ? COR_LARANJA : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
-            (ENCOMENDA)
-          </span>
-        ) : item.origem_deposito ? (
-          "(DEPÓSITO)"
-        ) : (
-          <span style={{ color: ehViaLoja ? COR_VERDE_ESCURO : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
-            (PRONTA ENTREGA)
-          </span>
-        )}
+        <span style={{ color: ehViaLoja ? situacaoCor : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
+          ({situacaoTexto})
+        </span>
         {item.variante ? ` — ${item.variante}` : ""}
-        {nomeLojaOrigem && (
-          <span style={{ color: COR_SECUNDARIO, fontWeight: 700 }}> ({nomeLojaOrigem})</span>
-        )}
         {item.observacao && (
           <span
             style={{
