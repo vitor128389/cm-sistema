@@ -11,6 +11,7 @@ import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { definirTamanhoPagina } from "@/lib/imprimir";
+import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import type {
   ProdutoComVariantes,
   TecidoCor,
@@ -539,9 +540,20 @@ function VenderPageConteudo() {
           }))
         );
       }
+
+      registrarAuditoria({
+        categoria: "Clientes",
+        acao: "criacao",
+        registroTipo: "cliente",
+        registroId: clienteId as string,
+        registroNome: nome,
+        descricao: `Cliente "${nome}" cadastrado`,
+        dadosDepois: dadosCliente,
+      });
     } else {
       // cliente já existia (ou já tinha sido salvo agora há pouco, ao
       // avançar de tela) — atualiza o cadastro com os dados mais recentes
+      const { data: clienteAntes } = await supabase.from("clientes").select("*").eq("id", clienteId).maybeSingle();
       const { error: erroAtualizar } = await supabase.from("clientes").update(dadosCliente).eq("id", clienteId);
       if (erroAtualizar) throw erroAtualizar;
 
@@ -555,6 +567,22 @@ function VenderPageConteudo() {
             nome_responsavel: c.responsavel.trim() || null,
           }))
         );
+      }
+
+      if (clienteAntes) {
+        const diferenca = apenasCamposAlterados(clienteAntes, dadosCliente);
+        if (diferenca) {
+          registrarAuditoria({
+            categoria: "Clientes",
+            acao: "alteracao",
+            registroTipo: "cliente",
+            registroId: clienteId as string,
+            registroNome: nome,
+            descricao: `Cliente "${nome}" atualizado`,
+            dadosAntes: diferenca.antes,
+            dadosDepois: diferenca.depois,
+          });
+        }
       }
     }
 
@@ -1221,6 +1249,22 @@ function VenderPageConteudo() {
 
       const { data: lojaData } = await supabase.from("lojas").select("*").eq("id", lojaAtual).maybeSingle();
       setLojaInfo(lojaData as LojaCompleta | null);
+
+      registrarAuditoria({
+        categoria: "Vendas",
+        acao: "criacao",
+        registroTipo: "venda",
+        registroId: venda.id,
+        registroNome: `Pedido #${venda.numero_pedido}`,
+        numeroPedido: venda.numero_pedido,
+        descricao: `Venda #${venda.numero_pedido} criada — ${formatarMoeda(total)} (${formaResumo})`,
+        dadosDepois: {
+          total,
+          forma_pagamento: formaResumo,
+          cliente: vendaSemCliente ? "Venda sem cliente" : nome,
+          quantidade_itens: carrinho.length,
+        },
+      });
 
       setVendaConcluida({ total, forma: formaResumo, numeroPedido: venda.numero_pedido, pagamentos });
       setPasso(4);
