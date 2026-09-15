@@ -2288,6 +2288,15 @@ function AbaPermissoes() {
     await supabase
       .from("permissoes")
       .upsert({ funcao, tela, pode_acessar: !atual }, { onConflict: "funcao,tela" });
+    registrarAuditoria({
+      categoria: "Permissões",
+      acao: "alteracao",
+      registroTipo: "permissao",
+      registroNome: `${funcao} — ${tela}`,
+      descricao: `Permissão de "${funcao}" pra tela "${tela}" ${!atual ? "liberada" : "removida"}`,
+      dadosAntes: { pode_acessar: atual },
+      dadosDepois: { pode_acessar: !atual },
+    });
     carregar();
   }
 
