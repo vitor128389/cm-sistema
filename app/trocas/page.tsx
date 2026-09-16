@@ -15,6 +15,7 @@ import type {
   LojaCompleta,
   TrocaItemDevolvido,
   TrocaItemNovo,
+  TecidoCor,
 } from "@/types";
 
 const ESPESSURAS = ["5cm", "7cm", "14cm"];
@@ -26,6 +27,9 @@ interface LinhaNova {
   busca: string;
   tecidoSel: string;
   espessuraSel: string;
+  pecaSel: "2" | "3";
+  corSel: string;
+  corManual: string;
   quantidade: number;
   valorAVistaUnit: number;
   valorAPrazoUnit: number;
@@ -39,6 +43,10 @@ function estoqueDaLinha(linha: LinhaNova): number {
   }
   if (linha.produto.tipo_precificacao === "espessura") {
     return linha.produto.produto_variantes.find((v) => v.nome_variante === linha.espessuraSel)?.estoque || 0;
+  }
+  if (linha.produto.tipo_precificacao === "tecido_peca") {
+    const nomeVariante = `${linha.tecidoSel} — ${linha.pecaSel} Lugares`;
+    return linha.produto.produto_variantes.find((v) => v.nome_variante === nomeVariante)?.estoque || 0;
   }
   return linha.produto.quantidade_estoque || 0;
 }
@@ -59,6 +67,7 @@ export default function TrocasPage() {
 
   const [devolvidosSelecionados, setDevolvidosSelecionados] = useState<Record<string, boolean>>({});
   const [novasLinhas, setNovasLinhas] = useState<LinhaNova[]>([]);
+  const [tecidosCores, setTecidosCores] = useState<TecidoCor[]>([]);
   const [proxChave, setProxChave] = useState(1);
   const [tipoPreco, setTipoPreco] = useState<"avista" | "aprazo">("avista");
   const [formaPagDiferenca, setFormaPagDiferenca] = useState("");
@@ -97,6 +106,8 @@ export default function TrocasPage() {
       setVendaEncontrada(data as unknown as Venda);
       const lista = await carregarProdutosComEstoque(supabase, lojaAtual);
       setProdutos(lista);
+      const { data: cores } = await supabase.from("tecidos_cores").select("*").order("codigo");
+      setTecidosCores((cores || []) as TecidoCor[]);
     }
     setBuscando(false);
   }
@@ -114,6 +125,9 @@ export default function TrocasPage() {
         busca: "",
         tecidoSel: "Suede",
         espessuraSel: "5cm",
+        pecaSel: "2",
+        corSel: "",
+        corManual: "",
         quantidade: 1,
         valorAVistaUnit: 0,
         valorAPrazoUnit: 0,
@@ -135,12 +149,16 @@ export default function TrocasPage() {
     let avista = 0;
     let tecido = "Suede";
     let espessura = "5cm";
+    let peca: "2" | "3" = "2";
     if (p.tipo_precificacao === "tecido") {
       tecido = p.produto_variantes[0]?.nome_variante || "Suede";
       avista = p.produto_variantes.find((v) => v.nome_variante === tecido)?.preco_avista || 0;
     } else if (p.tipo_precificacao === "espessura") {
       espessura = p.produto_variantes[0]?.nome_variante || "5cm";
       avista = p.produto_variantes.find((v) => v.nome_variante === espessura)?.preco_avista || 0;
+    } else if (p.tipo_precificacao === "tecido_peca") {
+      tecido = p.produto_variantes[0]?.nome_variante.split(" — ")[0] || "Suede";
+      avista = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`)?.preco_avista || 0;
     } else {
       avista = p.preco_venda;
     }
@@ -149,15 +167,32 @@ export default function TrocasPage() {
       busca: p.nome,
       tecidoSel: tecido,
       espessuraSel: espessura,
+      pecaSel: peca,
+      corSel: "",
+      corManual: "",
       valorAVistaUnit: avista,
       valorAPrazoUnit: Math.round(avista * 1.1 * 100) / 100,
     });
   }
 
-  function trocarVarianteLinha(chave: number, linha: LinhaNova, campo: "tecidoSel" | "espessuraSel", valor: string) {
+  function trocarVarianteLinha(
+    chave: number,
+    linha: LinhaNova,
+    campo: "tecidoSel" | "espessuraSel" | "pecaSel",
+    valor: string
+  ) {
     if (!linha.produto) return;
-    const v = linha.produto.produto_variantes.find((vv) => vv.nome_variante === valor);
-    const avista = v?.preco_avista || 0;
+    let avista = 0;
+    if (linha.produto.tipo_precificacao === "tecido_peca") {
+      const tecidoUsado = campo === "tecidoSel" ? valor : linha.tecidoSel;
+      const pecaUsada = campo === "pecaSel" ? valor : linha.pecaSel;
+      avista =
+        linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — ${pecaUsada} Lugares`)
+          ?.preco_avista || 0;
+    } else {
+      const v = linha.produto.produto_variantes.find((vv) => vv.nome_variante === valor);
+      avista = v?.preco_avista || 0;
+    }
     atualizarLinha(chave, {
       [campo]: valor,
       valorAVistaUnit: avista,
@@ -165,11 +200,31 @@ export default function TrocasPage() {
     } as Partial<LinhaNova>);
   }
 
+  // cor (selecionada ou digitada) é um detalhe descritivo somado ao
+  // tecido dos sofás "2 e 3 lugares" — igual já funciona na tela de
+  // Vender. O estoque continua controlado só por tecido+peça.
+  function corExtraLinha(linha: LinhaNova): string {
+    if (linha.corManual.trim()) return ` — ${linha.corManual.trim()}`;
+    const cor = tecidosCores.find((c) => c.tecido === linha.tecidoSel && c.codigo === linha.corSel);
+    return cor ? ` — Cor ${cor.codigo} (${cor.nome})` : "";
+  }
+
   function varianteNomeLinha(linha: LinhaNova): string | null {
     if (!linha.produto) return null;
     if (linha.produto.tipo_precificacao === "tecido") return linha.tecidoSel;
     if (linha.produto.tipo_precificacao === "espessura") return linha.espessuraSel;
+    if (linha.produto.tipo_precificacao === "tecido_peca") return `${linha.tecidoSel} — ${linha.pecaSel} Lugares`;
     return null;
+  }
+
+  // nome mostrado na nota — igual à varianteNomeLinha, mas com a cor
+  // descritiva somada quando existir (não afeta a busca de estoque)
+  function varianteNomeExibidoLinha(linha: LinhaNova): string | null {
+    if (!linha.produto) return null;
+    if (linha.produto.tipo_precificacao === "tecido_peca") {
+      return `${linha.tecidoSel}${corExtraLinha(linha)} — ${linha.pecaSel} Lugares`;
+    }
+    return varianteNomeLinha(linha);
   }
 
   function varianteIdLinha(linha: LinhaNova): string | null {
@@ -278,7 +333,7 @@ export default function TrocasPage() {
         produto_id: l.produto!.id,
         variante_id: varianteIdLinha(l),
         produto_nome: l.produto!.nome,
-        variante: varianteNomeLinha(l),
+        variante: varianteNomeExibidoLinha(l),
         quantidade: l.quantidade,
         valor_unitario_avista: l.valorAVistaUnit,
         valor_unitario_aprazo: l.valorAPrazoUnit,
@@ -606,6 +661,64 @@ export default function TrocasPage() {
                                 ))}
                               </div>
                             </div>
+                          )}
+                          {linha.produto.tipo_precificacao === "tecido_peca" && (
+                            <>
+                              <div className="mb-2">
+                                <span className="text-xs text-madeira-600 mb-1 block">Tecido</span>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {TECIDOS.map((t) => (
+                                    <button
+                                      key={t}
+                                      type="button"
+                                      className={`opcao-btn ${linha.tecidoSel === t ? "ativo" : ""}`}
+                                      onClick={() => trocarVarianteLinha(linha.chave, linha, "tecidoSel", t)}
+                                    >
+                                      {t}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="mb-2">
+                                <span className="text-xs text-madeira-600 mb-1 block">Peça</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {(["2", "3"] as const).map((p) => (
+                                    <button
+                                      key={p}
+                                      type="button"
+                                      className={`opcao-btn ${linha.pecaSel === p ? "ativo" : ""}`}
+                                      onClick={() => trocarVarianteLinha(linha.chave, linha, "pecaSel", p)}
+                                    >
+                                      {p} Lugares
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="mb-2">
+                                <span className="text-xs text-madeira-600 mb-1 block">Cor</span>
+                                <select
+                                  className="input-base"
+                                  value={linha.corSel}
+                                  onChange={(e) => atualizarLinha(linha.chave, { corSel: e.target.value, corManual: "" })}
+                                >
+                                  <option value="">Selecione...</option>
+                                  {tecidosCores
+                                    .filter((c) => c.tecido === linha.tecidoSel && c.disponivel)
+                                    .map((c) => (
+                                      <option key={c.id} value={c.codigo}>
+                                        {c.codigo} — {c.nome}
+                                      </option>
+                                    ))}
+                                </select>
+                                <span className="text-xs text-madeira-500 mt-1 mb-1 block">Ou digite uma cor manualmente</span>
+                                <input
+                                  className="input-base"
+                                  placeholder="Ex: Cinza personalizado"
+                                  value={linha.corManual}
+                                  onChange={(e) => atualizarLinha(linha.chave, { corManual: e.target.value, corSel: "" })}
+                                />
+                              </div>
+                            </>
                           )}
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <label className="block">
