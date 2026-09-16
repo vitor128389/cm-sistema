@@ -22,6 +22,7 @@ type Aba =
   | "movimento-geral"
   | "auditoria"
   | "ia"
+  | "categorias"
   | "cancelar";
 
 const TELAS = [
@@ -92,6 +93,7 @@ export default function AdministracaoPage() {
             ["movimento-geral", "Movimento Geral"],
             ["auditoria", "Auditoria"],
             ["ia", "IA"],
+            ["categorias", "Categorias"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -115,6 +117,7 @@ export default function AdministracaoPage() {
       {aba === "movimento-geral" && <AbaMovimentoGeral />}
       {aba === "auditoria" && <AbaAuditoria />}
       {aba === "ia" && <AbaIA />}
+      {aba === "categorias" && <AbaCategorias />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -3700,6 +3703,778 @@ function AbaIA() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ==================== CATEGORIAS (características/opções flexíveis) ==================== */
+
+interface CategoriaFlex {
+  id: string;
+  nome: string;
+  ativo: boolean;
+}
+interface CaracteristicaFlex {
+  id: string;
+  categoria_id: string;
+  nome: string;
+  ordem: number;
+  ativo: boolean;
+}
+interface OpcaoFlex {
+  id: string;
+  caracteristica_id: string;
+  nome: string;
+  ordem: number;
+  ativo: boolean;
+}
+
+function AbaCategorias() {
+  const [categorias, setCategorias] = useState<CategoriaFlex[]>([]);
+  const [caracteristicas, setCaracteristicas] = useState<CaracteristicaFlex[]>([]);
+  const [opcoes, setOpcoes] = useState<OpcaoFlex[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [buscaCategoria, setBuscaCategoria] = useState("");
+
+  const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
+  const [caracteristicaAberta, setCaracteristicaAberta] = useState<string | null>(null);
+
+  const [novaCategoria, setNovaCategoria] = useState("");
+  const [novaCaracteristica, setNovaCaracteristica] = useState("");
+  const [novaOpcao, setNovaOpcao] = useState("");
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editandoNome, setEditandoNome] = useState("");
+
+  async function carregar() {
+    setCarregando(true);
+    const [{ data: cats }, { data: caracs }, { data: ops }] = await Promise.all([
+      supabase.from("categorias").select("*").order("nome"),
+      supabase.from("caracteristicas").select("*").order("ordem"),
+      supabase.from("opcoes_caracteristica").select("*").order("ordem"),
+    ]);
+    setCategorias((cats || []) as CategoriaFlex[]);
+    setCaracteristicas((caracs || []) as CaracteristicaFlex[]);
+    setOpcoes((ops || []) as OpcaoFlex[]);
+    setCarregando(false);
+  }
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  async function criarCategoria() {
+    if (!novaCategoria.trim()) return;
+    const { error } = await supabase.from("categorias").insert({ nome: novaCategoria.trim() });
+    if (error) {
+      alert("Erro: " + error.message);
+      return;
+    }
+    registrarAuditoria({
+      categoria: "Configurações",
+      acao: "criacao",
+      registroTipo: "categoria",
+      registroNome: novaCategoria.trim(),
+      descricao: `Categoria "${novaCategoria.trim()}" criada`,
+    });
+    setNovaCategoria("");
+    carregar();
+  }
+
+  async function alternarAtivoCategoria(c: CategoriaFlex) {
+    await supabase.from("categorias").update({ ativo: !c.ativo }).eq("id", c.id);
+    carregar();
+  }
+
+  async function excluirCategoria(c: CategoriaFlex) {
+    if (!confirm(`Excluir a categoria "${c.nome}"? Isso remove também as características e opções dela.`)) return;
+    const { error } = await supabase.from("categorias").delete().eq("id", c.id);
+    if (error) {
+      alert("Erro ao excluir: " + error.message);
+      return;
+    }
+    if (categoriaAberta === c.id) setCategoriaAberta(null);
+    carregar();
+  }
+
+  async function criarCaracteristica(categoriaId: string) {
+    if (!novaCaracteristica.trim()) return;
+    const jaExistentes = caracteristicas.filter((c) => c.categoria_id === categoriaId).length;
+    const { error } = await supabase
+      .from("caracteristicas")
+      .insert({ categoria_id: categoriaId, nome: novaCaracteristica.trim(), ordem: jaExistentes });
+    if (error) {
+      alert("Erro: " + error.message);
+      return;
+    }
+    setNovaCaracteristica("");
+    carregar();
+  }
+
+  async function excluirCaracteristica(c: CaracteristicaFlex) {
+    if (!confirm(`Excluir a característica "${c.nome}"? Isso remove também as opções dela.`)) return;
+    await supabase.from("caracteristicas").delete().eq("id", c.id);
+    if (caracteristicaAberta === c.id) setCaracteristicaAberta(null);
+    carregar();
+  }
+
+  async function moverCaracteristica(c: CaracteristicaFlex, direcao: -1 | 1) {
+    const doGrupo = caracteristicas
+      .filter((x) => x.categoria_id === c.categoria_id)
+      .sort((a, b) => a.ordem - b.ordem);
+    const indice = doGrupo.findIndex((x) => x.id === c.id);
+    const vizinho = doGrupo[indice + direcao];
+    if (!vizinho) return;
+    await supabase.from("caracteristicas").update({ ordem: vizinho.ordem }).eq("id", c.id);
+    await supabase.from("caracteristicas").update({ ordem: c.ordem }).eq("id", vizinho.id);
+    carregar();
+  }
+
+  async function criarOpcao(caracteristicaId: string) {
+    if (!novaOpcao.trim()) return;
+    const jaExistentes = opcoes.filter((o) => o.caracteristica_id === caracteristicaId).length;
+    const { error } = await supabase
+      .from("opcoes_caracteristica")
+      .insert({ caracteristica_id: caracteristicaId, nome: novaOpcao.trim(), ordem: jaExistentes });
+    if (error) {
+      alert("Erro: " + error.message);
+      return;
+    }
+    setNovaOpcao("");
+    carregar();
+  }
+
+  async function alternarAtivoOpcao(o: OpcaoFlex) {
+    await supabase.from("opcoes_caracteristica").update({ ativo: !o.ativo }).eq("id", o.id);
+    carregar();
+  }
+
+  async function excluirOpcao(o: OpcaoFlex) {
+    if (!confirm(`Excluir a opção "${o.nome}"?`)) return;
+    await supabase.from("opcoes_caracteristica").delete().eq("id", o.id);
+    carregar();
+  }
+
+  async function moverOpcao(o: OpcaoFlex, direcao: -1 | 1) {
+    const doGrupo = opcoes.filter((x) => x.caracteristica_id === o.caracteristica_id).sort((a, b) => a.ordem - b.ordem);
+    const indice = doGrupo.findIndex((x) => x.id === o.id);
+    const vizinho = doGrupo[indice + direcao];
+    if (!vizinho) return;
+    await supabase.from("opcoes_caracteristica").update({ ordem: vizinho.ordem }).eq("id", o.id);
+    await supabase.from("opcoes_caracteristica").update({ ordem: o.ordem }).eq("id", vizinho.id);
+    carregar();
+  }
+
+  async function salvarNomeEditado(tabela: "categorias" | "caracteristicas" | "opcoes_caracteristica") {
+    if (!editandoId || !editandoNome.trim()) return;
+    await supabase.from(tabela).update({ nome: editandoNome.trim() }).eq("id", editandoId);
+    setEditandoId(null);
+    setEditandoNome("");
+    carregar();
+  }
+
+  const categoriasFiltradas = categorias.filter((c) =>
+    normalizarBusca(c.nome).includes(normalizarBusca(buscaCategoria))
+  );
+
+  // ---------------- Gerar variantes de um produto a partir da categoria ----------------
+  const [todosProdutosGerar, setTodosProdutosGerar] = useState<
+    { id: string; nome: string; categoria_id: string | null; preco_venda_geral: number | null; custo_geral: number | null }[]
+  >([]);
+  const [buscaProdutoGerar, setBuscaProdutoGerar] = useState("");
+  const [dropdownProdutoGerar, setDropdownProdutoGerar] = useState(false);
+  const [produtoGerarId, setProdutoGerarId] = useState<string | null>(null);
+  const [categoriaVinculada, setCategoriaVinculada] = useState<string | null>(null);
+  const [opcoesSelecionadas, setOpcoesSelecionadas] = useState<Set<string>>(new Set());
+  const [precoGeralInput, setPrecoGeralInput] = useState("");
+  const [custoGeralInput, setCustoGeralInput] = useState("");
+  const [overridesPreco, setOverridesPreco] = useState<Record<string, string>>({});
+  const [overridesCusto, setOverridesCusto] = useState<Record<string, string>>({});
+  const [gerando, setGerando] = useState(false);
+  const [mensagemGerar, setMensagemGerar] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("produtos")
+      .select("id, nome, categoria_id, preco_venda_geral, custo_geral")
+      .eq("ativo", true)
+      .then(({ data }) => setTodosProdutosGerar(data || []));
+  }, []);
+
+  function selecionarProdutoParaGerar(p: { id: string; nome: string; categoria_id: string | null; preco_venda_geral: number | null; custo_geral: number | null }) {
+    setProdutoGerarId(p.id);
+    setBuscaProdutoGerar(p.nome);
+    setDropdownProdutoGerar(false);
+    setCategoriaVinculada(p.categoria_id);
+    setPrecoGeralInput(p.preco_venda_geral ? String(p.preco_venda_geral) : "");
+    setCustoGeralInput(p.custo_geral ? String(p.custo_geral) : "");
+    setOpcoesSelecionadas(new Set());
+    setOverridesPreco({});
+    setOverridesCusto({});
+    setMensagemGerar(null);
+    // carrega opções já usadas por esse produto, se tiver
+    supabase
+      .from("produto_opcoes")
+      .select("opcao_id, preco_venda, custo")
+      .eq("produto_id", p.id)
+      .then(({ data }) => {
+        if (!data) return;
+        setOpcoesSelecionadas(new Set(data.map((d) => d.opcao_id)));
+        const precos: Record<string, string> = {};
+        const custos: Record<string, string> = {};
+        data.forEach((d) => {
+          if (d.preco_venda) precos[d.opcao_id] = String(d.preco_venda);
+          if (d.custo) custos[d.opcao_id] = String(d.custo);
+        });
+        setOverridesPreco(precos);
+        setOverridesCusto(custos);
+      });
+  }
+
+  function alternarOpcaoSelecionada(opcaoId: string) {
+    setOpcoesSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(opcaoId)) novo.delete(opcaoId);
+      else novo.add(opcaoId);
+      return novo;
+    });
+  }
+
+  async function gerarVariantes() {
+    if (!produtoGerarId || !categoriaVinculada) {
+      alert("Selecione um produto e vincule uma categoria antes.");
+      return;
+    }
+    const caracsDaCategoria = caracteristicas
+      .filter((c) => c.categoria_id === categoriaVinculada && c.ativo)
+      .sort((a, b) => a.ordem - b.ordem);
+
+    const gruposDeOpcoes: OpcaoFlex[][] = [];
+    for (const carac of caracsDaCategoria) {
+      const selecionadasDessaCarac = opcoes
+        .filter((o) => o.caracteristica_id === carac.id && opcoesSelecionadas.has(o.id))
+        .sort((a, b) => a.ordem - b.ordem);
+      if (selecionadasDessaCarac.length > 0) gruposDeOpcoes.push(selecionadasDessaCarac);
+    }
+
+    if (gruposDeOpcoes.length === 0) {
+      alert("Marque pelo menos uma opção de alguma característica antes de gerar.");
+      return;
+    }
+
+    // produto cartesiano de todos os grupos (ex.: cor x tamanho)
+    let combinacoes: OpcaoFlex[][] = [[]];
+    for (const grupo of gruposDeOpcoes) {
+      const novasCombinacoes: OpcaoFlex[][] = [];
+      for (const combo of combinacoes) {
+        for (const opcao of grupo) {
+          novasCombinacoes.push([...combo, opcao]);
+        }
+      }
+      combinacoes = novasCombinacoes;
+    }
+
+    function precoDaCombinacao(combo: OpcaoFlex[]): number {
+      for (const op of combo) {
+        const v = parseFloat(overridesPreco[op.id]);
+        if (v > 0) return v;
+      }
+      return parseFloat(precoGeralInput) || 0;
+    }
+    function custoDaCombinacao(combo: OpcaoFlex[]): number {
+      for (const op of combo) {
+        const v = parseFloat(overridesCusto[op.id]);
+        if (v > 0) return v;
+      }
+      return parseFloat(custoGeralInput) || 0;
+    }
+
+    setGerando(true);
+    try {
+      await supabase
+        .from("produtos")
+        .update({
+          categoria_id: categoriaVinculada,
+          preco_venda_geral: parseFloat(precoGeralInput) || null,
+          custo_geral: parseFloat(custoGeralInput) || null,
+          tipo_precificacao: "tecido",
+        })
+        .eq("id", produtoGerarId);
+
+      for (const combo of combinacoes) {
+        const nomeCombinado = combo.map((o) => o.nome).join(" — ");
+        await supabase.from("produto_variantes").upsert(
+          {
+            produto_id: produtoGerarId,
+            nome_variante: nomeCombinado,
+            preco_avista: precoDaCombinacao(combo),
+            custo: custoDaCombinacao(combo),
+          },
+          { onConflict: "produto_id,nome_variante" }
+        );
+      }
+
+      // salva quais opções o produto usa e os overrides (pra poder editar depois)
+      const opcoesUsadas = new Set(gruposDeOpcoes.flat().map((o) => o.id));
+      await supabase.from("produto_opcoes").delete().eq("produto_id", produtoGerarId);
+      await supabase.from("produto_opcoes").insert(
+        Array.from(opcoesUsadas).map((opcaoId) => ({
+          produto_id: produtoGerarId,
+          opcao_id: opcaoId,
+          preco_venda: overridesPreco[opcaoId] ? parseFloat(overridesPreco[opcaoId]) : null,
+          custo: overridesCusto[opcaoId] ? parseFloat(overridesCusto[opcaoId]) : null,
+        }))
+      );
+
+      registrarAuditoria({
+        categoria: "Produtos",
+        acao: "alteracao",
+        registroTipo: "produto",
+        registroId: produtoGerarId,
+        registroNome: buscaProdutoGerar,
+        descricao: `Variantes de "${buscaProdutoGerar}" geradas via categoria (${combinacoes.length} combinação${combinacoes.length !== 1 ? "ões" : ""})`,
+      });
+
+      setMensagemGerar(`✓ ${combinacoes.length} variante${combinacoes.length !== 1 ? "s" : ""} gerada${combinacoes.length !== 1 ? "s" : ""} com sucesso.`);
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-madeira-700 mb-1">Categorias, características e opções</p>
+      <p className="text-xs text-madeira-500 mb-4">
+        Crie categorias (ex.: Poltronas), e dentro delas as características que quiser (Tecido, Cor, Tamanho...) com
+        as opções de cada uma — sem precisar mexer em código. Isso alimenta o cadastro de produto.
+      </p>
+
+      <div className="flex gap-2 mb-6 max-w-md">
+        <input
+          className="input-base"
+          placeholder="Buscar categoria..."
+          value={buscaCategoria}
+          onChange={(e) => setBuscaCategoria(e.target.value)}
+        />
+      </div>
+
+      <div className="flex gap-2 mb-6 max-w-md">
+        <input
+          className="input-base"
+          placeholder="Nome da categoria nova (ex.: Poltronas)"
+          value={novaCategoria}
+          onChange={(e) => setNovaCategoria(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && criarCategoria()}
+        />
+        <button className="btn-primario whitespace-nowrap" onClick={criarCategoria}>
+          + Categoria
+        </button>
+      </div>
+
+      {carregando ? (
+        <p className="text-madeira-500 text-sm">Carregando...</p>
+      ) : categoriasFiltradas.length === 0 ? (
+        <div className="card p-6 text-center text-madeira-500 text-sm">Nenhuma categoria cadastrada ainda.</div>
+      ) : (
+        <div className="space-y-3">
+          {categoriasFiltradas.map((cat) => {
+            const caracsDaCategoria = caracteristicas
+              .filter((c) => c.categoria_id === cat.id)
+              .sort((a, b) => a.ordem - b.ordem);
+            const aberta = categoriaAberta === cat.id;
+            return (
+              <div key={cat.id} className="card p-4">
+                <div className="flex items-center justify-between">
+                  <button
+                    className="flex items-center gap-2 text-left flex-1"
+                    onClick={() => setCategoriaAberta(aberta ? null : cat.id)}
+                  >
+                    <span className="text-madeira-400">{aberta ? "▾" : "▸"}</span>
+                    {editandoId === cat.id ? (
+                      <input
+                        className="input-base py-1"
+                        value={editandoNome}
+                        onChange={(e) => setEditandoNome(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                    ) : (
+                      <span className={`font-medium ${!cat.ativo ? "text-madeira-400 line-through" : "text-madeira-900"}`}>
+                        {cat.nome}
+                      </span>
+                    )}
+                    <span className="text-xs text-madeira-400">
+                      ({caracsDaCategoria.length} característica{caracsDaCategoria.length !== 1 ? "s" : ""})
+                    </span>
+                  </button>
+                  <div className="flex gap-2">
+                    {editandoId === cat.id ? (
+                      <button
+                        className="text-xs text-green-700 font-medium"
+                        onClick={() => salvarNomeEditado("categorias")}
+                      >
+                        Salvar
+                      </button>
+                    ) : (
+                      <button
+                        className="text-xs text-madeira-600"
+                        onClick={() => {
+                          setEditandoId(cat.id);
+                          setEditandoNome(cat.nome);
+                        }}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    <button className="text-xs text-madeira-600" onClick={() => alternarAtivoCategoria(cat)}>
+                      {cat.ativo ? "Desativar" : "Ativar"}
+                    </button>
+                    <button className="text-xs text-red-600" onClick={() => excluirCategoria(cat)}>
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+
+                {aberta && (
+                  <div className="mt-4 pl-6 border-l-2 border-estofado-100 space-y-4">
+                    <div className="flex gap-2 max-w-sm">
+                      <input
+                        className="input-base py-1"
+                        placeholder="Nova característica (ex.: Tecido)"
+                        value={novaCaracteristica}
+                        onChange={(e) => setNovaCaracteristica(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && criarCaracteristica(cat.id)}
+                      />
+                      <button
+                        className="btn-secundario text-xs whitespace-nowrap"
+                        onClick={() => criarCaracteristica(cat.id)}
+                      >
+                        + Característica
+                      </button>
+                    </div>
+
+                    {caracsDaCategoria.map((carac, idx) => {
+                      const opcoesDaCarac = opcoes
+                        .filter((o) => o.caracteristica_id === carac.id)
+                        .sort((a, b) => a.ordem - b.ordem);
+                      const caracAberta = caracteristicaAberta === carac.id;
+                      return (
+                        <div key={carac.id} className="bg-madeira-50 rounded p-3">
+                          <div className="flex items-center justify-between">
+                            <button
+                              className="flex items-center gap-2 text-left flex-1"
+                              onClick={() => setCaracteristicaAberta(caracAberta ? null : carac.id)}
+                            >
+                              <span className="text-madeira-400 text-xs">{caracAberta ? "▾" : "▸"}</span>
+                              {editandoId === carac.id ? (
+                                <input
+                                  className="input-base py-1"
+                                  value={editandoNome}
+                                  onChange={(e) => setEditandoNome(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span
+                                  className={`text-sm font-medium ${!carac.ativo ? "text-madeira-400 line-through" : "text-madeira-800"}`}
+                                >
+                                  {carac.nome}
+                                </span>
+                              )}
+                              <span className="text-xs text-madeira-400">
+                                ({opcoesDaCarac.length} opç{opcoesDaCarac.length !== 1 ? "ões" : "ão"})
+                              </span>
+                            </button>
+                            <div className="flex gap-2 items-center">
+                              <button
+                                className="text-xs text-madeira-500 disabled:opacity-30"
+                                disabled={idx === 0}
+                                onClick={() => moverCaracteristica(carac, -1)}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="text-xs text-madeira-500 disabled:opacity-30"
+                                disabled={idx === caracsDaCategoria.length - 1}
+                                onClick={() => moverCaracteristica(carac, 1)}
+                              >
+                                ↓
+                              </button>
+                              {editandoId === carac.id ? (
+                                <button
+                                  className="text-xs text-green-700 font-medium"
+                                  onClick={() => salvarNomeEditado("caracteristicas")}
+                                >
+                                  Salvar
+                                </button>
+                              ) : (
+                                <button
+                                  className="text-xs text-madeira-600"
+                                  onClick={() => {
+                                    setEditandoId(carac.id);
+                                    setEditandoNome(carac.nome);
+                                  }}
+                                >
+                                  Editar
+                                </button>
+                              )}
+                              <button className="text-xs text-red-600" onClick={() => excluirCaracteristica(carac)}>
+                                Excluir
+                              </button>
+                            </div>
+                          </div>
+
+                          {caracAberta && (
+                            <div className="mt-3 pl-5 space-y-2">
+                              <div className="flex gap-2 max-w-sm">
+                                <input
+                                  className="input-base py-1"
+                                  placeholder="Nova opção (ex.: Suede)"
+                                  value={novaOpcao}
+                                  onChange={(e) => setNovaOpcao(e.target.value)}
+                                  onKeyDown={(e) => e.key === "Enter" && criarOpcao(carac.id)}
+                                />
+                                <button
+                                  className="btn-secundario text-xs whitespace-nowrap"
+                                  onClick={() => criarOpcao(carac.id)}
+                                >
+                                  + Opção
+                                </button>
+                              </div>
+                              {opcoesDaCarac.length === 0 ? (
+                                <p className="text-xs text-madeira-400">Nenhuma opção ainda.</p>
+                              ) : (
+                                opcoesDaCarac.map((op, opIdx) => (
+                                  <div key={op.id} className="flex items-center gap-2 text-sm">
+                                    <span className="text-xs text-madeira-400 w-4">{opIdx + 1}.</span>
+                                    {editandoId === op.id ? (
+                                      <input
+                                        className="input-base py-1 flex-1"
+                                        value={editandoNome}
+                                        onChange={(e) => setEditandoNome(e.target.value)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={`flex-1 ${!op.ativo ? "text-madeira-400 line-through" : "text-madeira-800"}`}>
+                                        {op.nome}
+                                      </span>
+                                    )}
+                                    <button
+                                      className="text-xs text-madeira-500 disabled:opacity-30"
+                                      disabled={opIdx === 0}
+                                      onClick={() => moverOpcao(op, -1)}
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      className="text-xs text-madeira-500 disabled:opacity-30"
+                                      disabled={opIdx === opcoesDaCarac.length - 1}
+                                      onClick={() => moverOpcao(op, 1)}
+                                    >
+                                      ↓
+                                    </button>
+                                    {editandoId === op.id ? (
+                                      <button
+                                        className="text-xs text-green-700 font-medium"
+                                        onClick={() => salvarNomeEditado("opcoes_caracteristica")}
+                                      >
+                                        Salvar
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="text-xs text-madeira-600"
+                                        onClick={() => {
+                                          setEditandoId(op.id);
+                                          setEditandoNome(op.nome);
+                                        }}
+                                      >
+                                        Editar
+                                      </button>
+                                    )}
+                                    <button className="text-xs text-madeira-600" onClick={() => alternarAtivoOpcao(op)}>
+                                      {op.ativo ? "Desativar" : "Ativar"}
+                                    </button>
+                                    <button className="text-xs text-red-600" onClick={() => excluirOpcao(op)}>
+                                      Excluir
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {caracsDaCategoria.length === 0 && (
+                      <p className="text-xs text-madeira-400">Nenhuma característica ainda nessa categoria.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ---------------- Gerar variantes de um produto pela categoria ---------------- */}
+      <div className="card p-5 mt-8 border-2 border-madeira-200">
+        <p className="font-display text-lg mb-1">Gerar variantes de um produto pela categoria</p>
+        <p className="text-xs text-madeira-500 mb-4">
+          Escolha um produto, vincula a uma categoria, marca as opções que esse produto usa, define o valor/custo
+          geral (e específico por opção se quiser) — o sistema gera as variantes automaticamente, do mesmo jeito que
+          o resto do sistema já usa pra vender e controlar estoque.
+        </p>
+
+        <div className="relative mb-3 max-w-md">
+          <input
+            className="input-base"
+            placeholder="Buscar produto..."
+            value={buscaProdutoGerar}
+            onChange={(e) => {
+              setBuscaProdutoGerar(e.target.value);
+              setDropdownProdutoGerar(true);
+              if (!e.target.value) setProdutoGerarId(null);
+            }}
+            onFocus={() => setDropdownProdutoGerar(true)}
+          />
+          {dropdownProdutoGerar && buscaProdutoGerar.trim() && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-estofado-200 rounded shadow-lg max-h-64 overflow-y-auto">
+              {todosProdutosGerar
+                .filter((p) => normalizarBusca(p.nome).includes(normalizarBusca(buscaProdutoGerar)))
+                .slice(0, 30)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    className="block w-full text-left px-3 py-2 text-sm hover:bg-madeira-50"
+                    onClick={() => selecionarProdutoParaGerar(p)}
+                  >
+                    {p.nome}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {produtoGerarId && (
+          <div className="max-w-2xl space-y-4">
+            <label className="block max-w-sm">
+              <span className="text-xs text-madeira-600 mb-1 block">Categoria vinculada</span>
+              <select
+                className="input-base"
+                value={categoriaVinculada || ""}
+                onChange={(e) => {
+                  setCategoriaVinculada(e.target.value || null);
+                  setOpcoesSelecionadas(new Set());
+                }}
+              >
+                <option value="">Selecione uma categoria...</option>
+                {categorias
+                  .filter((c) => c.ativo)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            {categoriaVinculada && (
+              <>
+                <div className="grid grid-cols-2 gap-3 max-w-sm">
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">Valor de venda geral</span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      value={precoGeralInput}
+                      onChange={(e) => setPrecoGeralInput(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">Custo geral</span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      value={custoGeralInput}
+                      onChange={(e) => setCustoGeralInput(e.target.value)}
+                    />
+                  </label>
+                </div>
+
+                {caracteristicas
+                  .filter((c) => c.categoria_id === categoriaVinculada && c.ativo)
+                  .sort((a, b) => a.ordem - b.ordem)
+                  .map((carac) => {
+                    const opcoesDaCarac = opcoes
+                      .filter((o) => o.caracteristica_id === carac.id && o.ativo)
+                      .sort((a, b) => a.ordem - b.ordem);
+                    return (
+                      <div key={carac.id} className="bg-madeira-50 rounded p-3">
+                        <p className="text-sm font-semibold text-madeira-700 mb-2">{carac.nome}</p>
+                        {opcoesDaCarac.length === 0 ? (
+                          <p className="text-xs text-madeira-400">Nenhuma opção cadastrada nessa característica.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {opcoesDaCarac.map((op) => {
+                              const marcada = opcoesSelecionadas.has(op.id);
+                              return (
+                                <div key={op.id} className="flex items-center gap-3 text-sm">
+                                  <label className="flex items-center gap-2 w-40 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={marcada}
+                                      onChange={() => alternarOpcaoSelecionada(op.id)}
+                                    />
+                                    {op.nome}
+                                  </label>
+                                  {marcada && (
+                                    <>
+                                      <input
+                                        className="input-base py-1 w-32"
+                                        type="number"
+                                        placeholder="Venda específico"
+                                        value={overridesPreco[op.id] || ""}
+                                        onChange={(e) =>
+                                          setOverridesPreco((atual) => ({ ...atual, [op.id]: e.target.value }))
+                                        }
+                                      />
+                                      <input
+                                        className="input-base py-1 w-32"
+                                        type="number"
+                                        placeholder="Custo específico"
+                                        value={overridesCusto[op.id] || ""}
+                                        onChange={(e) =>
+                                          setOverridesCusto((atual) => ({ ...atual, [op.id]: e.target.value }))
+                                        }
+                                      />
+                                      <span className="text-xs text-madeira-400">
+                                        {overridesPreco[op.id] ? "Personalizado" : "Geral"}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                <button className="btn-primario" onClick={gerarVariantes} disabled={gerando}>
+                  {gerando ? "Gerando..." : "Gerar variantes"}
+                </button>
+
+                {mensagemGerar && (
+                  <p className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                    {mensagemGerar}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
