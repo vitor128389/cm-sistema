@@ -71,15 +71,6 @@ function formatarCpf(cpf?: string | null): string | null {
   return `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`;
 }
 
-// distribui o total realmente pago (já com desconto/acréscimo da forma
-// escolhida) proporcionalmente entre os itens, pra não mostrar dois valores
-// que parecem não bater (preço "a prazo" do item vs total pago da venda)
-function valorPagoItem(item: VendaItem, todos: VendaItem[], totalPago: number): number {
-  const somaListada = todos.reduce((s, i) => s + i.total, 0);
-  if (somaListada <= 0) return 0;
-  return Math.round(totalPago * (item.total / somaListada) * 100) / 100;
-}
-
 // Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
 // (uma peça de 2 e outra de 3 lugares) porque cada peça baixa do estoque
 // separadamente — mas na impressão isso deve aparecer como 1 produto só,
@@ -139,7 +130,12 @@ function linhaItem(
   lojasPorId: Record<string, string> | undefined,
   mostrarColunaVU: boolean
 ) {
-  const totalLinha = Math.round((valorPagoItem(item, itens, total) / item.quantidade) * qtd * 100) / 100;
+  // O valor de cada linha é sempre o valor real do item, do jeito que foi
+  // vendido — nunca redistribuído proporcionalmente pelo total pago (isso
+  // causava números estranhos quando o pagamento era dividido em mais de
+  // uma forma). A divisão de pagamento aparece certinho na seção própria
+  // dela, embaixo, sem precisar mexer no valor de cada produto.
+  const totalLinha = Math.round((item.total / item.quantidade) * qtd * 100) / 100;
   const valorUnitario = qtd > 0 ? Math.round((totalLinha / qtd) * 100) / 100 : 0;
   const nomeLojaOrigem = item.origem_loja_id ? lojasPorId?.[item.origem_loja_id] : null;
 
