@@ -57,6 +57,9 @@ export default function ClientesPage() {
   const [carregando, setCarregando] = useState(true);
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<Venda[]>([]);
+  const [trocasCliente, setTrocasCliente] = useState<
+    { id: string; numero_troca: number; criado_em: string; diferenca: number; valor_cobrado_diferenca: number | null; numero_pedido_original: number | null }[]
+  >([]);
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
 
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -120,6 +123,37 @@ export default function ClientesPage() {
       .eq("cliente_id", id)
       .order("criado_em", { ascending: false });
     setHistorico((data || []) as unknown as Venda[]);
+
+    // trocas feitas a partir de qualquer pedido desse cliente
+    const idsPedidos = (data || []).map((v) => v.id);
+    if (idsPedidos.length > 0) {
+      const { data: trocas } = await supabase
+        .from("trocas_grupo")
+        .select("id, numero_troca, criado_em, diferenca, valor_cobrado_diferenca, vendas!trocas_grupo_venda_original_id_fkey(numero_pedido)")
+        .in("venda_original_id", idsPedidos)
+        .eq("cancelada", false)
+        .order("criado_em", { ascending: false });
+      type LinhaTrocaCliente = {
+        id: string;
+        numero_troca: number;
+        criado_em: string;
+        diferenca: number;
+        valor_cobrado_diferenca: number | null;
+        vendas: { numero_pedido: number } | null;
+      };
+      setTrocasCliente(
+        ((trocas || []) as unknown as LinhaTrocaCliente[]).map((t) => ({
+          id: t.id,
+          numero_troca: t.numero_troca,
+          criado_em: t.criado_em,
+          diferenca: t.diferenca,
+          valor_cobrado_diferenca: t.valor_cobrado_diferenca,
+          numero_pedido_original: t.vendas?.numero_pedido ?? null,
+        }))
+      );
+    } else {
+      setTrocasCliente([]);
+    }
     setCarregandoHistorico(false);
   }
 
@@ -604,6 +638,31 @@ export default function ClientesPage() {
                           </ul>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {trocasCliente.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-estofado-200">
+                      <p className="text-sm font-semibold text-madeira-700 mb-2">Trocas feitas</p>
+                      <div className="space-y-2">
+                        {trocasCliente.map((t) => {
+                          const valor = t.valor_cobrado_diferenca ?? t.diferenca;
+                          return (
+                            <div key={t.id} className="card p-3 flex justify-between items-center text-sm">
+                              <span>
+                                Troca #{t.numero_troca}
+                                {t.numero_pedido_original ? ` — a partir do pedido #${t.numero_pedido_original}` : ""}
+                                {" — "}
+                                {formatarData(t.criado_em)}
+                              </span>
+                              <span className={valor >= 0 ? "text-green-700" : "text-red-700"}>
+                                {valor >= 0 ? "+" : ""}
+                                {formatarMoeda(valor)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
