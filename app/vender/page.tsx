@@ -939,12 +939,25 @@ function VenderPageConteudo() {
     if (ehConjuntoSofa() && pecaSel === "conjunto") {
       // "conjunto" vira dois itens no carrinho — um pra cada peça — porque
       // cada peça tem seu próprio estoque e precisa baixar separadamente.
+      // O desconto digitado é dividido entre as 2 peças proporcionalmente
+      // ao valor de cada uma, senão ele se perdia (ficava sempre 0).
       const v2 = produtoSelecionado.produto_variantes.find(
         (v) => v.nome_variante === nomeVarianteConjunto("2")
       );
       const v3 = produtoSelecionado.produto_variantes.find(
         (v) => v.nome_variante === nomeVarianteConjunto("3")
       );
+      const preco2 = precoPecaConjunto("2");
+      const preco3 = precoPecaConjunto("3");
+      const precoTotalConjunto = preco2 + preco3;
+      const desconto2 =
+        descontoValor > 0 && precoTotalConjunto > 0
+          ? Math.round(((descontoValor * preco2) / precoTotalConjunto) * 100) / 100
+          : 0;
+      const desconto3 = descontoValor > 0 ? Math.round((descontoValor - desconto2) * 100) / 100 : 0;
+      const aVista2ComDesconto = Math.round((preco2 - desconto2 / quantidade) * 100) / 100;
+      const aVista3ComDesconto = Math.round((preco3 - desconto3 / quantidade) * 100) / 100;
+      const motivoConjunto = descontoValor > 0 ? motivoDescontoItem.trim() : null;
       setCarrinho((atual) => [
         ...atual,
         {
@@ -952,26 +965,26 @@ function VenderPageConteudo() {
           produtoId: produtoSelecionado.id,
           nome: produtoSelecionado.nome,
           quantidade,
-          valorUnitario: Math.round(precoPecaConjunto("2") * 1.1 * 100) / 100,
-          valorAVista: precoPecaConjunto("2"),
+          valorUnitario: Math.round(aVista2ComDesconto * 1.1 * 100) / 100,
+          valorAVista: aVista2ComDesconto,
           varianteId: v2?.id || null,
           varianteNome: nomeVarianteConjunto("2"),
           cor: `${tecidoSel}${corExtraTecidoPeca()} — 2 Lugares`,
-          desconto: 0,
-          motivoDesconto: null,
+          desconto: desconto2,
+          motivoDesconto: desconto2 > 0 ? motivoConjunto : null,
         },
         {
           ...itemComum,
           produtoId: produtoSelecionado.id,
           nome: produtoSelecionado.nome,
           quantidade,
-          valorUnitario: Math.round(precoPecaConjunto("3") * 1.1 * 100) / 100,
-          valorAVista: precoPecaConjunto("3"),
+          valorUnitario: Math.round(aVista3ComDesconto * 1.1 * 100) / 100,
+          valorAVista: aVista3ComDesconto,
           varianteId: v3?.id || null,
           varianteNome: nomeVarianteConjunto("3"),
           cor: `${tecidoSel}${corExtraTecidoPeca()} — 3 Lugares`,
-          desconto: 0,
-          motivoDesconto: null,
+          desconto: desconto3,
+          motivoDesconto: desconto3 > 0 ? motivoConjunto : null,
         },
       ]);
     } else {
@@ -2057,7 +2070,7 @@ function VenderPageConteudo() {
                 <div className="bg-madeira-50 rounded p-3 flex justify-between items-center mb-3">
                   <span className="text-sm text-madeira-700">Total do item</span>
                   <span className="font-display text-lg">
-                    {formatarMoeda(valorUnitario * quantidade)}
+                    {formatarMoeda(valorUnitario * quantidade - (parseFloat(descontoItem) || 0) * 1.1)}
                   </span>
                 </div>
 
