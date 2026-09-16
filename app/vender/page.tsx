@@ -825,13 +825,23 @@ function VenderPageConteudo() {
     return produtoSelecionado.categoria === "Puffs";
   }
 
+  function corExtraTecidoPeca(): string {
+    if (corManual.trim()) return ` — ${corManual.trim()}`;
+    const cor = tecidosCores.find((c) => c.tecido === tecidoSel && c.codigo === corSel);
+    return cor ? ` — Cor ${cor.codigo} (${cor.nome})` : "";
+  }
+
   function corTexto(): string | null {
     if (!produtoSelecionado) return null;
     let base: string | null = null;
     if (produtoSelecionado.tipo_precificacao === "espessura") base = `Espessura ${espessuraSel}`;
     else if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
-      if (pecaSel === "conjunto") base = `${tecidoSel} — Conjunto 2 + 3 Lugares`;
-      else if (pecaSel === "2" || pecaSel === "3") base = `${tecidoSel} — ${pecaSel} Lugares`;
+      // a cor (selecionada ou digitada) é um detalhe descritivo somado ao
+      // tecido — o estoque continua sendo controlado só por tecido+peça,
+      // igual já era, mas a cor escolhida agora aparece na nota
+      const corExtra = corExtraTecidoPeca();
+      if (pecaSel === "conjunto") base = `${tecidoSel}${corExtra} — Conjunto 2 + 3 Lugares`;
+      else if (pecaSel === "2" || pecaSel === "3") base = `${tecidoSel}${corExtra} — ${pecaSel} Lugares`;
     } else if (mostrarTecidoCor()) {
       if (corManual.trim()) base = `${tecidoSel} — ${corManual.trim()}`;
       else {
@@ -946,7 +956,7 @@ function VenderPageConteudo() {
           valorAVista: precoPecaConjunto("2"),
           varianteId: v2?.id || null,
           varianteNome: nomeVarianteConjunto("2"),
-          cor: `${tecidoSel} — 2 Lugares`,
+          cor: `${tecidoSel}${corExtraTecidoPeca()} — 2 Lugares`,
           desconto: 0,
           motivoDesconto: null,
         },
@@ -959,7 +969,7 @@ function VenderPageConteudo() {
           valorAVista: precoPecaConjunto("3"),
           varianteId: v3?.id || null,
           varianteNome: nomeVarianteConjunto("3"),
-          cor: `${tecidoSel} — 3 Lugares`,
+          cor: `${tecidoSel}${corExtraTecidoPeca()} — 3 Lugares`,
           desconto: 0,
           motivoDesconto: null,
         },
