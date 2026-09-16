@@ -6,6 +6,18 @@ import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import type { Caixa, Venda } from "@/types";
 
+interface TrocaResumo {
+  id: string;
+  numero_troca: number;
+  criado_em: string;
+  diferenca: number;
+  valor_cobrado_diferenca: number | null;
+  forma_pagamento_diferenca: string | null;
+  parcelas_diferenca: number | null;
+  numero_pedido_original: number | null;
+  cliente_nome: string | null;
+}
+
 export default function MovimentoPage() {
   const { lojaAtual } = useLoja();
   const [caixas, setCaixas] = useState<Caixa[]>([]);
@@ -14,6 +26,7 @@ export default function MovimentoPage() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [vendas, setVendas] = useState<Venda[]>([]);
+  const [trocas, setTrocas] = useState<TrocaResumo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
 
@@ -25,6 +38,7 @@ export default function MovimentoPage() {
 
   useEffect(() => {
     carregarVendas();
+    carregarTrocas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroCaixa, periodo, de, ate, lojaAtual]);
 
@@ -78,6 +92,45 @@ export default function MovimentoPage() {
     setCarregando(false);
   }
 
+  async function carregarTrocas() {
+    let query = supabase
+      .from("trocas_grupo")
+      .select("id, numero_troca, criado_em, diferenca, valor_cobrado_diferenca, forma_pagamento_diferenca, parcelas_diferenca, vendas!trocas_grupo_venda_original_id_fkey(numero_pedido, clientes(nome))")
+      .eq("cancelada", false)
+      .order("criado_em", { ascending: false });
+    if (lojaAtual) query = query.eq("loja_id", lojaAtual);
+
+    const intervalo = intervaloData();
+    if (intervalo) {
+      query = query.gte("criado_em", intervalo.inicio.toISOString()).lte("criado_em", intervalo.fim.toISOString());
+    }
+
+    const { data } = await query;
+    type LinhaTroca = {
+      id: string;
+      numero_troca: number;
+      criado_em: string;
+      diferenca: number;
+      valor_cobrado_diferenca: number | null;
+      forma_pagamento_diferenca: string | null;
+      parcelas_diferenca: number | null;
+      vendas: { numero_pedido: number; clientes: { nome: string } | null } | null;
+    };
+    setTrocas(
+      ((data || []) as unknown as LinhaTroca[]).map((t) => ({
+        id: t.id,
+        numero_troca: t.numero_troca,
+        criado_em: t.criado_em,
+        diferenca: t.diferenca,
+        valor_cobrado_diferenca: t.valor_cobrado_diferenca,
+        forma_pagamento_diferenca: t.forma_pagamento_diferenca,
+        parcelas_diferenca: t.parcelas_diferenca,
+        numero_pedido_original: t.vendas?.numero_pedido ?? null,
+        cliente_nome: t.vendas?.clientes?.nome ?? null,
+      }))
+    );
+  }
+
   const total = vendas.reduce((s, v) => s + v.total, 0);
   const ticketMedio = vendas.length > 0 ? total / vendas.length : 0;
 
@@ -95,6 +148,9 @@ export default function MovimentoPage() {
     }, 0);
   }
   const lucroTotal = vendas.reduce((s, v) => s + lucroDaVenda(v), 0);
+
+  // diferença cobrada (positiva) ou devolvida (negativa) nas trocas do período
+  const totalDiferencasTrocas = trocas.reduce((s, t) => s + (t.valor_cobrado_diferenca ?? t.diferenca), 0);
 
   return (
     <div className="p-8">
@@ -158,6 +214,18 @@ export default function MovimentoPage() {
           <p className="text-xs text-madeira-500 mb-1">Ticket médio</p>
           <p className="font-display text-xl">{formatarMoeda(ticketMedio)}</p>
         </div>
+        <div className="card p-4">
+          <p className="text-xs text-madeira-500 mb-1">Trocas no período</p>
+          <p className="font-display text-xl">
+            {trocas.length}
+            {trocas.length > 0 && (
+              <span className={`text-sm ml-2 ${totalDiferencasTrocas >= 0 ? "text-green-700" : "text-red-700"}`}>
+                ({totalDiferencasTrocas >= 0 ? "+" : ""}
+                {formatarMoeda(totalDiferencasTrocas)})
+              </span>
+            )}
+          </p>
+        </div>
       </div>
 
       {carregando ? (
@@ -220,6 +288,42 @@ export default function MovimentoPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {trocas.length > 0 && (
+        <div className="mt-8">
+          <p className="font-display text-xl text-madeira-900 mb-3">Trocas do período</p>
+          <div className="space-y-2">
+            {trocas.map((t) => {
+              const valorMostrado = t.valor_cobrado_diferenca ?? t.diferenca;
+              return (
+                <div key={t.id} className="card px-5 py-3 flex justify-between items-center">
+                  <div>
+                    <p className="font-display">
+                      Troca #{t.numero_troca}
+                      {t.numero_pedido_original ? ` — a partir do pedido #${t.numero_pedido_original}` : ""}
+                      {t.cliente_nome ? ` — ${t.cliente_nome}` : ""}
+                    </p>
+                    <p className="text-xs text-madeira-500">
+                      {new Date(t.criado_em).toLocaleString("pt-BR")}
+                      {t.forma_pagamento_diferenca ? ` · ${t.forma_pagamento_diferenca}` : ""}
+                      {t.parcelas_diferenca && t.parcelas_diferenca > 1 ? ` ${t.parcelas_diferenca}x` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`font-display text-lg block ${valorMostrado >= 0 ? "text-green-700" : "text-red-700"}`}>
+                      {valorMostrado >= 0 ? "+" : ""}
+                      {formatarMoeda(valorMostrado)}
+                    </span>
+                    <span className="text-xs text-madeira-500">
+                      {valorMostrado >= 0 ? "cobrado a mais" : "devolvido ao cliente"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
