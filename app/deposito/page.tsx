@@ -67,6 +67,7 @@ export default function DepositoPage() {
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [mostrarZerados, setMostrarZerados] = useState(true);
+  const [jaTeveEstoqueSet, setJaTeveEstoqueSet] = useState<Set<string>>(new Set());
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
   const [movendo, setMovendo] = useState<LinhaDeposito | null>(null);
   const [qtdMover, setQtdMover] = useState("1");
@@ -84,6 +85,18 @@ export default function DepositoPage() {
     if (idDeposito) {
       const data = await carregarProdutosComEstoque(supabase, idDeposito);
       setProdutos(data);
+
+      // busca separadamente quem "já teve estoque de verdade" no Depósito
+      // alguma vez — é isso que decide se um item com 0 continua
+      // aparecendo na lista, ou se ele nunca existiu ali de fato
+      const { data: jaTeve } = await supabase
+        .from("estoque_loja")
+        .select("produto_id, variante_id")
+        .eq("loja_id", idDeposito)
+        .eq("ja_teve_estoque", true);
+      setJaTeveEstoqueSet(
+        new Set((jaTeve || []).map((j) => `${j.produto_id}:${j.variante_id || "simples"}`))
+      );
     }
     const { data: mov } = await supabase
       .from("movimentacoes_estoque")
@@ -108,39 +121,46 @@ export default function DepositoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Achata produto+variantes numa linha por item — mostra tudo, mesmo o
-  // que está com 0 no Depósito no momento, pra não sumir da lista quando
-  // zera (só fica bem visível que está sem estoque).
+  // Achata produto+variantes numa linha por item — só entra na lista quem
+  // já teve estoque de verdade no Depósito alguma vez (mesmo que hoje
+  // esteja em 0) ou que tem estoque agora. Produto que nunca passou pelo
+  // Depósito não aparece — é isso que evita mostrar o catálogo inteiro.
   const linhas: LinhaDeposito[] = [];
   produtos.forEach((p) => {
     if (p.produto_variantes.length > 0) {
       [...p.produto_variantes]
         .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
         .forEach((v) => {
-          linhas.push({
-            produtoId: p.id,
-            varianteId: v.id,
-            nome: p.nome,
-            categoria: p.categoria,
-            tipoMovel: tipoMovelDeposito(p.nome),
-            variante: v.nome_variante,
-            quantidade: v.estoque,
-            custo: v.custo || 0,
-            precoVenda: v.preco_avista,
-          });
+          const chave = `${p.id}:${v.id}`;
+          if (v.estoque > 0 || jaTeveEstoqueSet.has(chave)) {
+            linhas.push({
+              produtoId: p.id,
+              varianteId: v.id,
+              nome: p.nome,
+              categoria: p.categoria,
+              tipoMovel: tipoMovelDeposito(p.nome),
+              variante: v.nome_variante,
+              quantidade: v.estoque,
+              custo: v.custo || 0,
+              precoVenda: v.preco_avista,
+            });
+          }
         });
     } else {
-      linhas.push({
-        produtoId: p.id,
-        varianteId: null,
-        nome: p.nome,
-        categoria: p.categoria,
-        tipoMovel: tipoMovelDeposito(p.nome),
-        variante: null,
-        quantidade: p.quantidade_estoque || 0,
-        custo: p.custo,
-        precoVenda: p.preco_venda,
-      });
+      const chave = `${p.id}:simples`;
+      if ((p.quantidade_estoque || 0) > 0 || jaTeveEstoqueSet.has(chave)) {
+        linhas.push({
+          produtoId: p.id,
+          varianteId: null,
+          nome: p.nome,
+          categoria: p.categoria,
+          tipoMovel: tipoMovelDeposito(p.nome),
+          variante: null,
+          quantidade: p.quantidade_estoque || 0,
+          custo: p.custo,
+          precoVenda: p.preco_venda,
+        });
+      }
     }
   });
 
