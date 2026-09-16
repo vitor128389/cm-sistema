@@ -66,6 +66,11 @@ export async function salvarEstoqueLoja(
       variante_id: varianteId,
       chave_variante: varianteId || "simples",
       quantidade,
+      // marca que esse produto já foi de fato gerenciado nessa loja — é
+      // isso que faz ele continuar aparecendo na tela mesmo depois de
+      // zerar, em vez de sumir junto com produtos que nunca tiveram
+      // estoque ali de verdade.
+      ja_teve_estoque: true,
     },
     { onConflict: "loja_id,produto_id,chave_variante" }
   );
