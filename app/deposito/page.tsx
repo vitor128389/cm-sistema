@@ -83,19 +83,27 @@ export default function DepositoPage() {
     const idDeposito = loja?.id || null;
     setDepositoLojaId(idDeposito);
     if (idDeposito) {
-      const data = await carregarProdutosComEstoque(supabase, idDeposito);
-      setProdutos(data);
+      const [dataProdutos, estoqueResp] = await Promise.all([
+        carregarProdutosComEstoque(supabase, idDeposito),
+        supabase
+          .from("estoque_loja")
+          .select("produto_id, variante_id, ja_teve_estoque")
+          .eq("loja_id", idDeposito),
+      ]);
+      setProdutos(dataProdutos);
 
-      // busca separadamente quem "já teve estoque de verdade" no Depósito
-      // alguma vez — é isso que decide se um item com 0 continua
-      // aparecendo na lista, ou se ele nunca existiu ali de fato
-      const { data: jaTeve } = await supabase
-        .from("estoque_loja")
-        .select("produto_id, variante_id")
-        .eq("loja_id", idDeposito)
-        .eq("ja_teve_estoque", true);
+      if (estoqueResp.error) {
+        console.error("Erro ao buscar histórico de estoque do Depósito:", estoqueResp.error);
+      }
+      // busca quem "já teve estoque de verdade" no Depósito alguma vez —
+      // é isso que decide se um item com 0 continua aparecendo na lista,
+      // ou se ele nunca existiu ali de fato
       setJaTeveEstoqueSet(
-        new Set((jaTeve || []).map((j) => `${j.produto_id}:${j.variante_id || "simples"}`))
+        new Set(
+          (estoqueResp.data || [])
+            .filter((e) => e.ja_teve_estoque)
+            .map((e) => `${e.produto_id}:${e.variante_id || "simples"}`)
+        )
       );
     }
     const { data: mov } = await supabase
