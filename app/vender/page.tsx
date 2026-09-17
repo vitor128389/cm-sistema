@@ -90,6 +90,11 @@ function VenderPageConteudo() {
   const [semNumero, setSemNumero] = useState(false);
   const [complemento, setComplemento] = useState("");
   const [cidade, setCidade] = useState("");
+  const [rotasDisponiveis, setRotasDisponiveis] = useState<
+    { id: string; nome: string; cidade: string; cor: string }[]
+  >([]);
+  const [rotaSelecionadaId, setRotaSelecionadaId] = useState("");
+  const [rotaSugeridaAplicada, setRotaSugeridaAplicada] = useState(false);
   const [povoado, setPovoado] = useState("");
   const [cpfInfo, setCpfInfo] = useState("");
   const [dataNascimentoCliente, setDataNascimentoCliente] = useState<string | null>(null);
@@ -181,6 +186,8 @@ function VenderPageConteudo() {
     forma: string;
     numeroPedido: number;
     pagamentos: PagamentoParte[];
+    rotaNome: string | null;
+    rotaCor: string | null;
   } | null>(
     null
   );
@@ -189,6 +196,7 @@ function VenderPageConteudo() {
     carregarNomesCategorias();
     carregarCores();
     carregarTurnoAberto();
+    carregarRotas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
@@ -206,6 +214,21 @@ function VenderPageConteudo() {
     carregarProdutos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaBuscaProdutos]);
+
+  // sugere a rota automaticamente quando a cidade digitada bate com
+  // alguma rota cadastrada — só sugere, nunca força; se o vendedor já
+  // tiver escolhido uma rota na mão, não mexe mais nela.
+  useEffect(() => {
+    if (rotaSelecionadaId || rotaSugeridaAplicada || !cidade.trim()) return;
+    const encontrada = rotasDisponiveis.find(
+      (r) => r.cidade.trim().toLowerCase() === cidade.trim().toLowerCase()
+    );
+    if (encontrada) {
+      setRotaSelecionadaId(encontrada.id);
+      setRotaSugeridaAplicada(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cidade, rotasDisponiveis]);
 
   useEffect(() => {
     async function carregarTodasLojas() {
@@ -338,6 +361,20 @@ function VenderPageConteudo() {
   async function carregarCores() {
     const { data } = await supabase.from("tecidos_cores").select("*").order("codigo");
     if (data) setTecidosCores(data as TecidoCor[]);
+  }
+
+  async function carregarRotas() {
+    if (!lojaAtual) {
+      setRotasDisponiveis([]);
+      return;
+    }
+    const { data } = await supabase
+      .from("rotas_entrega")
+      .select("id, nome, cidade, cor")
+      .eq("loja_id", lojaAtual)
+      .eq("ativo", true)
+      .order("nome");
+    setRotasDisponiveis(data || []);
   }
 
   async function carregarTurnoAberto() {
@@ -1229,6 +1266,10 @@ function VenderPageConteudo() {
           prazo_dias_uteis: prazoDiasUteis,
           forma_recebimento: formaRecebimento,
           loja_id: lojaAtual,
+          rota_id: rotaSelecionadaId || null,
+          rota_nome: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.nome || null : null,
+          rota_cidade: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cidade || null : null,
+          rota_cor: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cor || null : null,
         })
         .select("id, numero_pedido")
         .single();
@@ -1351,7 +1392,15 @@ function VenderPageConteudo() {
         },
       });
 
-      setVendaConcluida({ total, forma: formaResumo, numeroPedido: venda.numero_pedido, pagamentos });
+      const rotaEscolhida = rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId) : null;
+      setVendaConcluida({
+        total,
+        forma: formaResumo,
+        numeroPedido: venda.numero_pedido,
+        pagamentos,
+        rotaNome: rotaEscolhida?.nome || null,
+        rotaCor: rotaEscolhida?.cor || null,
+      });
       setPasso(4);
       carregarProdutos();
     } catch (erro: unknown) {
@@ -1383,6 +1432,8 @@ function VenderPageConteudo() {
     setComplemento("");
     setCidade("");
     setPovoado("");
+    setRotaSelecionadaId("");
+    setRotaSugeridaAplicada(false);
     setClienteIdExistente(null);
     setDataNascimentoCliente(null);
     setVendaSemCliente(false);
@@ -1564,7 +1615,10 @@ function VenderPageConteudo() {
                   <input
                     className="input-base"
                     value={cidade}
-                    onChange={(e) => setCidade(e.target.value)}
+                    onChange={(e) => {
+                      setCidade(e.target.value);
+                      setRotaSugeridaAplicada(false);
+                    }}
                     list="lista-cidades-conhecidas"
                   />
                   <datalist id="lista-cidades-conhecidas">
@@ -1573,6 +1627,35 @@ function VenderPageConteudo() {
                     ))}
                   </datalist>
                 </label>
+
+                {rotasDisponiveis.length > 0 && (
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">Rota de Entrega</span>
+                    <select
+                      className="input-base"
+                      value={rotaSelecionadaId}
+                      onChange={(e) => setRotaSelecionadaId(e.target.value)}
+                    >
+                      <option value="">Sem rota</option>
+                      {rotasDisponiveis.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.nome} — {r.cidade}
+                        </option>
+                      ))}
+                    </select>
+                    {rotaSelecionadaId && (
+                      <span className="text-xs text-madeira-500 mt-1 flex items-center gap-1">
+                        <span
+                          className="inline-block w-3 h-3 rounded-full"
+                          style={{
+                            backgroundColor: rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cor || "#999",
+                          }}
+                        />
+                        {rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.nome}
+                      </span>
+                    )}
+                  </label>
+                )}
 
                 <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Povoado (se for o caso)</span>
@@ -2536,6 +2619,8 @@ function VenderPageConteudo() {
         {vendaConcluida && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={vendaConcluida.numeroPedido}
+            rotaNome={vendaConcluida.rotaNome}
+            rotaCor={vendaConcluida.rotaCor}
             cliente={{
               nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
