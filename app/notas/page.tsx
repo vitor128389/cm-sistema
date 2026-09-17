@@ -719,6 +719,8 @@ export default function NotasPage() {
         {notaImprimindo && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={notaImprimindo.numero_pedido}
+            rotaNome={notaImprimindo.rota_nome ?? null}
+            rotaCor={notaImprimindo.rota_cor ?? null}
             cliente={{
               nome: notaImprimindo.clientes?.nome || "Cliente",
               cpf: notaImprimindo.clientes?.cpf,
