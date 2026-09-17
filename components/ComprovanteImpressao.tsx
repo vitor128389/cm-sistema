@@ -32,6 +32,8 @@ interface ClienteResumo {
 
 interface Props {
   numeroPedido: number;
+  rotaNome?: string | null;
+  rotaCor?: string | null;
   cliente: ClienteResumo;
   itens: VendaItem[];
   total: number;
@@ -203,6 +205,8 @@ function linhaItem(
 
 function ViaComprovante({
   numeroPedido,
+  rotaNome,
+  rotaCor,
   cliente,
   itens,
   total,
@@ -255,7 +259,26 @@ function ViaComprovante({
             <p style={{ margin: "1px 0 0", fontSize: "0.82rem", color: COR_SECUNDARIO }}>Tel: {loja.telefone}</p>
           )}
         </div>
-        <span className="imp-numero-pedido">#{numeroPedido}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+          <span className="imp-numero-pedido">#{numeroPedido}</span>
+          {rotaNome && (
+            <span
+              style={{
+                display: "block",
+                marginTop: 3,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                textAlign: "right",
+                color: rotaCor || COR_TEXTO,
+                border: `1px solid ${rotaCor || COR_TEXTO}`,
+                borderRadius: 4,
+                padding: "1px 6px",
+              }}
+            >
+              {rotaNome.toUpperCase()}
+            </span>
+          )}
+        </div>
       </div>
       <p style={{ margin: "4px 0 6px", fontSize: "0.82rem", color: COR_SECUNDARIO }}>
         {rotulo} {tag ? `· ${tag}` : ""} · {new Date().toLocaleString("pt-BR")}
