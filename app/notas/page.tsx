@@ -88,6 +88,8 @@ export default function NotasPage() {
   const [somenteRetirada, setSomenteRetirada] = useState(false);
   const [somenteEntregues, setSomenteEntregues] = useState(false);
   const [filtroDesconto, setFiltroDesconto] = useState<"todas" | "com" | "sem">("todas");
+  const [filtroRota, setFiltroRota] = useState<string>("todas");
+  const [rotasParaFiltro, setRotasParaFiltro] = useState<{ id: string; nome: string; cor: string }[]>([]);
   const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
@@ -157,8 +159,17 @@ export default function NotasPage() {
   useEffect(() => {
     carregar();
     carregarTrocas();
+    carregarRotasParaFiltro();
+    setFiltroRota("todas");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
+
+  async function carregarRotasParaFiltro() {
+    let query = supabase.from("rotas_entrega").select("id, nome, cor").order("nome");
+    if (lojaAtual) query = query.eq("loja_id", lojaAtual);
+    const { data } = await query;
+    setRotasParaFiltro(data || []);
+  }
 
   useEffect(() => {
     async function carregarTodasLojas() {
@@ -220,6 +231,7 @@ export default function NotasPage() {
       if (somenteEntregues && !pedidoEntregue(v)) return false;
       if (filtroDesconto === "com" && !temDesconto(v)) return false;
       if (filtroDesconto === "sem" && temDesconto(v)) return false;
+      if (filtroRota !== "todas" && v.rota_id !== filtroRota) return false;
       if (busca.trim()) return bateComBusca(v, busca);
       return dentroDoPeriodo(v.criado_em);
     })
@@ -435,6 +447,23 @@ export default function NotasPage() {
                 <option value="sem">Sem desconto</option>
               </select>
             </label>
+            {rotasParaFiltro.length > 0 && (
+              <label className="block">
+                <span className="text-xs text-madeira-600 mb-1 block">Rota</span>
+                <select
+                  className="input-base"
+                  value={filtroRota}
+                  onChange={(e) => setFiltroRota(e.target.value)}
+                >
+                  <option value="todas">Todas as rotas</option>
+                  {rotasParaFiltro.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {periodo === "personalizado" && (
               <>
                 <label className="block">
