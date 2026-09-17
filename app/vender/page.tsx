@@ -2528,6 +2528,8 @@ function VenderPageConteudo() {
               desconto: item.desconto || 0,
               motivo_desconto: item.motivoDesconto,
               categoria: item.categoria,
+              origem_deposito: item.origemDeposito || false,
+              origem_loja_id: item.origemLojaId || null,
             }))}
           />
         )}
@@ -2580,6 +2582,8 @@ function VenderPageConteudo() {
               desconto: item.desconto || 0,
               motivo_desconto: item.motivoDesconto,
               categoria: item.categoria,
+              origem_deposito: item.origemDeposito || false,
+              origem_loja_id: item.origemLojaId || null,
             }))}
           />
         )}
