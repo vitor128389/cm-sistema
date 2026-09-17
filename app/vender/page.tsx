@@ -131,6 +131,7 @@ function VenderPageConteudo() {
   const [espessuraSel, setEspessuraSel] = useState("5cm");
   const [corSel, setCorSel] = useState("");
   const [corManual, setCorManual] = useState("");
+  const [bracosAlmofada, setBracosAlmofada] = useState(false);
   const [corSimplesSel, setCorSimplesSel] = useState("");
   const [corSimplesManual, setCorSimplesManual] = useState("");
   const [modeloSel, setModeloSel] = useState("");
@@ -725,6 +726,7 @@ function VenderPageConteudo() {
     setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
     setPecaSel("");
+    setBracosAlmofada(false);
     setQtdRetiradaItem(formaRecebimento === "entrega" ? 0 : 1);
     setQtdEntregaItem(formaRecebimento === "entrega" ? 1 : 0);
 
@@ -786,6 +788,36 @@ function VenderPageConteudo() {
     }
     // "conjunto" não tem um único id — vira dois itens separados no carrinho
     return null;
+  }
+
+  // Braços de almofada — opcional só nesses 4 produtos específicos, soma
+  // no valor à vista (antes do acréscimo de prazo), por peça.
+  const PRODUTOS_COM_BRACOS_ALMOFADA = [
+    "SOFÁ ITÁLIA COM CHAISE",
+    "SOFÁ TURQUIA 2 LUGARES",
+    "SOFÁ TURQUIA 3 LUGARES",
+    "SOFÁ TURQUIA 2 E 3 LUGARES",
+  ];
+
+  function mostrarOpcaoBracosAlmofada(): boolean {
+    if (!produtoSelecionado) return false;
+    return PRODUTOS_COM_BRACOS_ALMOFADA.includes(produtoSelecionado.nome);
+  }
+
+  // R$100 por peça — no "Conjunto 2+3" isso soma R$200 (100 de cada peça)
+  function valorBracosAlmofadaPorPeca(): number {
+    if (!bracosAlmofada || !mostrarOpcaoBracosAlmofada()) return 0;
+    return 100;
+  }
+
+  // total do adicional já em "a prazo" (+10%), pra mostrar na prévia —
+  // no Conjunto 2+3 conta as duas peças
+  function valorAdicionalBracosAprazo(): number {
+    const porPeca = valorBracosAlmofadaPorPeca();
+    if (porPeca <= 0) return 0;
+    const multiplicador =
+      produtoSelecionado?.tipo_precificacao === "tecido_peca" && pecaSel === "conjunto" ? 2 : 1;
+    return Math.round(porPeca * multiplicador * 1.1 * 100) / 100;
   }
 
   function valorAVistaAtual(): number {
@@ -863,6 +895,9 @@ function VenderPageConteudo() {
     const vemDeOutroLugar = !!lojaBuscaProdutos && lojaBuscaProdutos !== lojaAtual;
     if (!vemDeOutroLugar && (produtoSelecionado.categoria === "Móveis Montados" || produtoSelecionado.categoria === "Importados")) {
       base = base ? `${base} — MONTADO` : "MONTADO";
+    }
+    if (mostrarOpcaoBracosAlmofada() && bracosAlmofada) {
+      base = base ? `${base} — Braços de Almofada` : "Braços de Almofada";
     }
     if (precisaModelo() && modeloSel) {
       return base ? `${base} — Modelo ${modeloSel}` : `Modelo ${modeloSel}`;
@@ -947,8 +982,8 @@ function VenderPageConteudo() {
       const v3 = produtoSelecionado.produto_variantes.find(
         (v) => v.nome_variante === nomeVarianteConjunto("3")
       );
-      const preco2 = precoPecaConjunto("2");
-      const preco3 = precoPecaConjunto("3");
+      const preco2 = precoPecaConjunto("2") + valorBracosAlmofadaPorPeca();
+      const preco3 = precoPecaConjunto("3") + valorBracosAlmofadaPorPeca();
       const precoTotalConjunto = preco2 + preco3;
       const desconto2 =
         descontoValor > 0 && precoTotalConjunto > 0
@@ -992,7 +1027,9 @@ function VenderPageConteudo() {
       // prazo" (com +10%) é recalculado por cima do à vista já descontado,
       // pra não ficar resto de centavos nem bagunçar o lucro no Movimento.
       const aVistaComDesconto =
-        Math.round((valorAVistaAtual() - descontoValor / quantidade) * 100) / 100;
+        Math.round(
+          (valorAVistaAtual() + valorBracosAlmofadaPorPeca() - descontoValor / quantidade) * 100
+        ) / 100;
       setCarrinho((atual) => [
         ...atual,
         {
@@ -1032,6 +1069,7 @@ function VenderPageConteudo() {
     setDescontoItem("");
     setMotivoDescontoItem("");
     setDividirRecebimentoItem(false);
+    setBracosAlmofada(false);
   }
 
   function removerDoCarrinho(idx: number) {
@@ -2027,11 +2065,26 @@ function VenderPageConteudo() {
                       className="input-base bg-madeira-50"
                       type="text"
                       readOnly
-                      value={formatarMoeda(valorUnitario)}
+                      value={formatarMoeda(valorUnitario + valorAdicionalBracosAprazo())}
                       title="Preço definido pelo cadastro do produto — não pode ser alterado aqui"
                     />
                   </label>
                 </div>
+
+                {mostrarOpcaoBracosAlmofada() && (
+                  <label className="flex items-center gap-2 mb-3 text-sm text-madeira-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bracosAlmofada}
+                      onChange={(e) => setBracosAlmofada(e.target.checked)}
+                    />
+                    Braços de almofada (+
+                    {formatarMoeda(
+                      produtoSelecionado?.tipo_precificacao === "tecido_peca" && pecaSel === "conjunto" ? 200 : 100
+                    )}
+                    )
+                  </label>
+                )}
 
                 <label className="block mb-3">
                   <span className="text-xs text-madeira-600 mb-1 block">Observação (opcional)</span>
@@ -2070,7 +2123,9 @@ function VenderPageConteudo() {
                 <div className="bg-madeira-50 rounded p-3 flex justify-between items-center mb-3">
                   <span className="text-sm text-madeira-700">Total do item</span>
                   <span className="font-display text-lg">
-                    {formatarMoeda(valorUnitario * quantidade - (parseFloat(descontoItem) || 0) * 1.1)}
+                    {formatarMoeda(
+                      (valorUnitario + valorAdicionalBracosAprazo()) * quantidade - (parseFloat(descontoItem) || 0) * 1.1
+                    )}
                   </span>
                 </div>
 
