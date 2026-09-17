@@ -23,6 +23,7 @@ type Aba =
   | "auditoria"
   | "ia"
   | "categorias"
+  | "rotas"
   | "cancelar";
 
 const TELAS = [
@@ -94,6 +95,7 @@ export default function AdministracaoPage() {
             ["auditoria", "Auditoria"],
             ["ia", "IA"],
             ["categorias", "Categorias"],
+            ["rotas", "Rotas de Entrega"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -118,6 +120,7 @@ export default function AdministracaoPage() {
       {aba === "auditoria" && <AbaAuditoria />}
       {aba === "ia" && <AbaIA />}
       {aba === "categorias" && <AbaCategorias />}
+      {aba === "rotas" && <AbaRotas />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -4475,6 +4478,273 @@ function AbaCategorias() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ==================== ROTAS DE ENTREGA ==================== */
+
+interface RotaEntrega {
+  id: string;
+  nome: string;
+  loja_id: string;
+  cidade: string;
+  cor: string;
+  ativo: boolean;
+}
+
+const CORES_SUGERIDAS_ROTA = [
+  { nome: "Azul", valor: "#2563EB" },
+  { nome: "Roxo", valor: "#7C3AED" },
+  { nome: "Azul-petróleo", valor: "#0891B2" },
+  { nome: "Rosa/Magenta", valor: "#DB2777" },
+  { nome: "Amarelo/Dourado", valor: "#CA8A04" },
+  { nome: "Ciano", valor: "#0284C7" },
+  { nome: "Vinho", valor: "#9F1239" },
+  { nome: "Cinza", valor: "#475569" },
+];
+
+const ROTA_FORM_VAZIO = { nome: "", lojaId: "", cidade: "", cor: CORES_SUGERIDAS_ROTA[0].valor, ativo: true };
+
+function AbaRotas() {
+  const { lojas } = useLoja();
+  const [rotas, setRotas] = useState<RotaEntrega[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [form, setForm] = useState(ROTA_FORM_VAZIO);
+
+  async function carregar() {
+    setCarregando(true);
+    const { data } = await supabase.from("rotas_entrega").select("*").order("loja_id").order("nome");
+    setRotas((data || []) as RotaEntrega[]);
+    setCarregando(false);
+  }
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  function nomeLoja(lojaId: string): string {
+    return lojas.find((l) => l.id === lojaId)?.nome || "—";
+  }
+
+  function abrirNova() {
+    setForm(ROTA_FORM_VAZIO);
+    setEditandoId(null);
+    setMostrarForm(true);
+  }
+
+  function abrirEdicao(r: RotaEntrega) {
+    setForm({ nome: r.nome, lojaId: r.loja_id, cidade: r.cidade, cor: r.cor, ativo: r.ativo });
+    setEditandoId(r.id);
+    setMostrarForm(true);
+  }
+
+  async function salvar() {
+    if (!form.nome.trim() || !form.lojaId || !form.cidade.trim()) {
+      alert("Preencha nome, loja e cidade.");
+      return;
+    }
+    const dados = {
+      nome: form.nome.trim(),
+      loja_id: form.lojaId,
+      cidade: form.cidade.trim(),
+      cor: form.cor,
+      ativo: form.ativo,
+    };
+
+    if (editandoId) {
+      const rotaAntes = rotas.find((r) => r.id === editandoId);
+      const { error } = await supabase.from("rotas_entrega").update(dados).eq("id", editandoId);
+      if (error) {
+        alert("Erro: " + error.message);
+        return;
+      }
+      if (rotaAntes) {
+        const diferenca = apenasCamposAlterados(
+          { nome: rotaAntes.nome, cidade: rotaAntes.cidade, cor: rotaAntes.cor, ativo: rotaAntes.ativo },
+          dados
+        );
+        if (diferenca) {
+          registrarAuditoria({
+            lojaId: form.lojaId,
+            categoria: "Configurações",
+            acao: rotaAntes.ativo && !form.ativo ? "exclusao" : "alteracao",
+            registroTipo: "rota_entrega",
+            registroId: editandoId,
+            registroNome: form.nome.trim(),
+            descricao:
+              rotaAntes.ativo && !form.ativo
+                ? `Rota "${form.nome.trim()}" desativada (${nomeLoja(form.lojaId)})`
+                : `Rota "${form.nome.trim()}" alterada (${nomeLoja(form.lojaId)})`,
+            dadosAntes: diferenca.antes,
+            dadosDepois: diferenca.depois,
+          });
+        }
+      }
+    } else {
+      const { data: nova, error } = await supabase.from("rotas_entrega").insert(dados).select("id").single();
+      if (error) {
+        alert("Erro: " + error.message);
+        return;
+      }
+      registrarAuditoria({
+        lojaId: form.lojaId,
+        categoria: "Configurações",
+        acao: "criacao",
+        registroTipo: "rota_entrega",
+        registroId: nova.id,
+        registroNome: form.nome.trim(),
+        descricao: `Rota "${form.nome.trim()}" criada — ${nomeLoja(form.lojaId)} / ${form.cidade.trim()}`,
+        dadosDepois: dados,
+      });
+    }
+
+    setMostrarForm(false);
+    setForm(ROTA_FORM_VAZIO);
+    setEditandoId(null);
+    carregar();
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <p className="text-sm font-semibold text-madeira-700 mb-1">Rotas de entrega</p>
+          <p className="text-xs text-madeira-500">
+            Cada loja tem suas próprias rotas — não se misturam. Rota já usada numa venda nunca é apagada de
+            verdade, só desativada, pra não alterar pedidos antigos.
+          </p>
+        </div>
+        <button className="btn-primario whitespace-nowrap" onClick={abrirNova}>
+          + Nova Rota
+        </button>
+      </div>
+
+      {mostrarForm && (
+        <div className="card p-5 mb-6 max-w-lg">
+          <p className="font-display text-lg mb-3">{editandoId ? "Editar rota" : "Nova rota"}</p>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Nome da rota</span>
+              <input
+                className="input-base"
+                placeholder="Ex: Rota 1"
+                value={form.nome}
+                onChange={(e) => setForm({ ...form, nome: e.target.value })}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Loja</span>
+              <select
+                className="input-base"
+                value={form.lojaId}
+                onChange={(e) => setForm({ ...form, lojaId: e.target.value })}
+              >
+                <option value="">Selecione...</option>
+                {lojas
+                  .filter((l) => !(l as unknown as { eh_deposito?: boolean }).eh_deposito)
+                  .map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nome}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-madeira-600 mb-1 block">Cidade</span>
+              <input
+                className="input-base"
+                placeholder="Ex: Simão Dias"
+                value={form.cidade}
+                onChange={(e) => setForm({ ...form, cidade: e.target.value })}
+              />
+            </label>
+            <div>
+              <span className="text-xs text-madeira-600 mb-1 block">Cor</span>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {CORES_SUGERIDAS_ROTA.map((c) => (
+                  <button
+                    key={c.valor}
+                    type="button"
+                    title={c.nome}
+                    className={`w-8 h-8 rounded-full border-2 ${form.cor === c.valor ? "border-madeira-900" : "border-transparent"}`}
+                    style={{ backgroundColor: c.valor }}
+                    onClick={() => setForm({ ...form, cor: c.valor })}
+                  />
+                ))}
+                <input
+                  type="color"
+                  className="w-8 h-8 rounded-full border-2 border-madeira-300 cursor-pointer"
+                  value={form.cor}
+                  onChange={(e) => setForm({ ...form, cor: e.target.value })}
+                  title="Escolher outra cor"
+                />
+              </div>
+              <span className="text-xs text-madeira-500">Cor escolhida: {form.cor}</span>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-madeira-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.ativo}
+                onChange={(e) => setForm({ ...form, ativo: e.target.checked })}
+              />
+              Rota ativa
+            </label>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button className="btn-primario" onClick={salvar}>
+              Salvar rota
+            </button>
+            <button className="btn-secundario" onClick={() => setMostrarForm(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {carregando ? (
+        <p className="text-madeira-500 text-sm">Carregando...</p>
+      ) : rotas.length === 0 ? (
+        <div className="card p-6 text-center text-madeira-500 text-sm">Nenhuma rota cadastrada ainda.</div>
+      ) : (
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-madeira-50 text-left">
+              <tr>
+                <th className="px-4 py-2">Rota</th>
+                <th className="px-4 py-2">Loja</th>
+                <th className="px-4 py-2">Cidade</th>
+                <th className="px-4 py-2">Cor</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rotas.map((r) => (
+                <tr key={r.id} className={`border-t border-estofado-100 ${!r.ativo ? "opacity-50" : ""}`}>
+                  <td className="px-4 py-2 font-medium">{r.nome}</td>
+                  <td className="px-4 py-2">{nomeLoja(r.loja_id)}</td>
+                  <td className="px-4 py-2">{r.cidade}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className="inline-block w-4 h-4 rounded-full align-middle mr-1"
+                      style={{ backgroundColor: r.cor }}
+                    />
+                  </td>
+                  <td className="px-4 py-2">{r.ativo ? "Ativa" : "Inativa"}</td>
+                  <td className="px-4 py-2">
+                    <button className="text-xs text-madeira-600" onClick={() => abrirEdicao(r)}>
+                      Editar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
