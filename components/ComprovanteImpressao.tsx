@@ -261,7 +261,7 @@ function ViaComprovante({
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
           <span className="imp-numero-pedido">#{numeroPedido}</span>
-          {rotaNome && (
+          {rotaNome && ehViaLoja && (
             <span
               style={{
                 display: "block",
