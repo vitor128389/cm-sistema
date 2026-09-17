@@ -322,6 +322,10 @@ export interface Venda {
   total: number;
   prazo_entrega_maximo: string | null;
   prazo_dias_uteis?: number | null;
+  rota_id?: string | null;
+  rota_nome?: string | null;
+  rota_cidade?: string | null;
+  rota_cor?: string | null;
   forma_recebimento: FormaRecebimento | null;
   cancelada?: boolean;
   motivo_cancelamento?: string | null;
