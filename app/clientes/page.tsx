@@ -58,7 +58,18 @@ export default function ClientesPage() {
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<Venda[]>([]);
   const [trocasCliente, setTrocasCliente] = useState<
-    { id: string; numero_troca: number; criado_em: string; diferenca: number; valor_cobrado_diferenca: number | null; numero_pedido_original: number | null }[]
+    {
+      id: string;
+      numero_troca: number;
+      criado_em: string;
+      diferenca: number;
+      valor_cobrado_diferenca: number | null;
+      forma_pagamento_diferenca: string | null;
+      parcelas_diferenca: number | null;
+      numero_pedido_original: number | null;
+      devolvidos: { produto_nome: string; variante: string | null; quantidade: number; valor_unitario_aprazo: number }[];
+      novos: { produto_nome: string; variante: string | null; quantidade: number; valor_unitario_aprazo: number; tipo_entrega: string }[];
+    }[]
   >([]);
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
 
@@ -119,7 +130,7 @@ export default function ClientesPage() {
     setCarregandoHistorico(true);
     const { data } = await supabase
       .from("vendas")
-      .select("*, venda_itens(*)")
+      .select("*, venda_itens(*), venda_pagamentos(*)")
       .eq("cliente_id", id)
       .order("criado_em", { ascending: false });
     setHistorico((data || []) as unknown as Venda[]);
@@ -129,7 +140,9 @@ export default function ClientesPage() {
     if (idsPedidos.length > 0) {
       const { data: trocas } = await supabase
         .from("trocas_grupo")
-        .select("id, numero_troca, criado_em, diferenca, valor_cobrado_diferenca, vendas!trocas_grupo_venda_original_id_fkey(numero_pedido)")
+        .select(
+          "id, numero_troca, criado_em, diferenca, valor_cobrado_diferenca, forma_pagamento_diferenca, parcelas_diferenca, vendas!trocas_grupo_venda_original_id_fkey(numero_pedido), trocas_devolvidos(produto_nome, variante, quantidade, valor_unitario_aprazo), trocas_novos(produto_nome, variante, quantidade, valor_unitario_aprazo, tipo_entrega)"
+        )
         .in("venda_original_id", idsPedidos)
         .eq("cancelada", false)
         .order("criado_em", { ascending: false });
@@ -139,7 +152,11 @@ export default function ClientesPage() {
         criado_em: string;
         diferenca: number;
         valor_cobrado_diferenca: number | null;
+        forma_pagamento_diferenca: string | null;
+        parcelas_diferenca: number | null;
         vendas: { numero_pedido: number } | null;
+        trocas_devolvidos: { produto_nome: string; variante: string | null; quantidade: number; valor_unitario_aprazo: number }[];
+        trocas_novos: { produto_nome: string; variante: string | null; quantidade: number; valor_unitario_aprazo: number; tipo_entrega: string }[];
       };
       setTrocasCliente(
         ((trocas || []) as unknown as LinhaTrocaCliente[]).map((t) => ({
@@ -148,7 +165,11 @@ export default function ClientesPage() {
           criado_em: t.criado_em,
           diferenca: t.diferenca,
           valor_cobrado_diferenca: t.valor_cobrado_diferenca,
+          forma_pagamento_diferenca: t.forma_pagamento_diferenca,
+          parcelas_diferenca: t.parcelas_diferenca,
           numero_pedido_original: t.vendas?.numero_pedido ?? null,
+          devolvidos: t.trocas_devolvidos || [],
+          novos: t.trocas_novos || [],
         }))
       );
     } else {
@@ -602,42 +623,63 @@ export default function ClientesPage() {
                     <p className="text-sm text-madeira-500">Nenhuma compra registrada ainda.</p>
                   ) : (
                     <div className="space-y-3">
-                      {historico.map((v) => (
-                        <div key={v.id} className="card p-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <p className="font-display">
-                              Pedido #{v.numero_pedido} — {formatarData(v.criado_em)}
+                      {historico.map((v) => {
+                        const pagamentos = (v as unknown as { venda_pagamentos?: { forma_pagamento: string; parcelas: number; valor: number }[] }).venda_pagamentos || [];
+                        const dividido = pagamentos.length > 1;
+                        return (
+                          <div key={v.id} className="card p-4">
+                            <div className="flex justify-between items-center mb-1">
+                              <p className="font-display">Pedido #{v.numero_pedido}</p>
+                              <p className="font-display">{formatarMoeda(v.total)}</p>
+                            </div>
+                            <p className="text-xs text-madeira-500 mb-2">
+                              {new Date(v.criado_em).toLocaleDateString("pt-BR")} às{" "}
+                              {new Date(v.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {v.prazo_entrega_maximo ? ` · prazo: ${formatarData(v.prazo_entrega_maximo)}` : ""}
                             </p>
-                            <p className="font-display">{formatarMoeda(v.total)}</p>
+                            <div className="text-xs text-madeira-600 mb-2">
+                              {dividido ? (
+                                <>
+                                  <span className="font-medium">Pagamento dividido:</span>{" "}
+                                  {pagamentos
+                                    .map((p) => `${p.forma_pagamento}${p.parcelas > 1 ? ` ${p.parcelas}x` : ""}: ${formatarMoeda(p.valor)}`)
+                                    .join(" · ")}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-medium">Pagamento:</span> {v.forma_pagamento}
+                                  {v.parcelas > 1 ? ` ${v.parcelas}x` : ""}
+                                </>
+                              )}
+                            </div>
+                            <ul className="text-sm text-madeira-600 space-y-1">
+                              {(v.venda_itens || []).map((item) => (
+                                <li key={item.id}>
+                                  {item.quantidade}x {item.nome_produto}
+                                  {item.variante ? ` — ${item.variante}` : ""} —{" "}
+                                  <span
+                                    className={
+                                      item.tipo_entrega === "encomenda" ? "tag-encomenda" : "text-green-700"
+                                    }
+                                  >
+                                    {item.tipo_entrega === "encomenda"
+                                      ? item.status_entrega === "entregue"
+                                        ? "ENCOMENDA (entregue)"
+                                        : "ENCOMENDA"
+                                      : item.origem_deposito
+                                      ? "DEPÓSITO"
+                                      : "PRONTA ENTREGA"}
+                                  </span>{" "}
+                                  — {formatarMoeda(item.total)}
+                                  {!!item.desconto && item.desconto > 0 && (
+                                    <span className="text-red-600"> (desconto {formatarMoeda(item.desconto)})</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                          <p className="text-xs text-madeira-500 mb-2">
-                            {v.forma_pagamento}
-                            {v.prazo_entrega_maximo ? ` · prazo: ${formatarData(v.prazo_entrega_maximo)}` : ""}
-                          </p>
-                          <ul className="text-sm text-madeira-600 space-y-1">
-                            {(v.venda_itens || []).map((item) => (
-                              <li key={item.id}>
-                                {item.quantidade}x {item.nome_produto}
-                                {item.variante ? ` — ${item.variante}` : ""} —{" "}
-                                <span
-                                  className={
-                                    item.tipo_entrega === "encomenda" ? "tag-encomenda" : "text-green-700"
-                                  }
-                                >
-                                  {item.tipo_entrega === "encomenda"
-                                    ? item.status_entrega === "entregue"
-                                      ? "ENCOMENDA (entregue)"
-                                      : "ENCOMENDA"
-                                    : item.origem_deposito
-                                    ? "DEPÓSITO"
-                                    : "PRONTA ENTREGA"}
-                                </span>{" "}
-                                — {formatarMoeda(item.total)}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -648,17 +690,56 @@ export default function ClientesPage() {
                         {trocasCliente.map((t) => {
                           const valor = t.valor_cobrado_diferenca ?? t.diferenca;
                           return (
-                            <div key={t.id} className="card p-3 flex justify-between items-center text-sm">
-                              <span>
-                                Troca #{t.numero_troca}
-                                {t.numero_pedido_original ? ` — a partir do pedido #${t.numero_pedido_original}` : ""}
-                                {" — "}
-                                {formatarData(t.criado_em)}
-                              </span>
-                              <span className={valor >= 0 ? "text-green-700" : "text-red-700"}>
-                                {valor >= 0 ? "+" : ""}
-                                {formatarMoeda(valor)}
-                              </span>
+                            <div key={t.id} className="card p-3 text-sm">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-medium">
+                                  Troca #{t.numero_troca}
+                                  {t.numero_pedido_original ? ` — a partir do pedido #${t.numero_pedido_original}` : ""}
+                                </span>
+                                <span className={valor >= 0 ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
+                                  {valor >= 0 ? "+" : ""}
+                                  {formatarMoeda(valor)}
+                                </span>
+                              </div>
+                              <p className="text-xs text-madeira-500 mb-2">
+                                {new Date(t.criado_em).toLocaleDateString("pt-BR")} às{" "}
+                                {new Date(t.criado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                {t.forma_pagamento_diferenca
+                                  ? ` · ${valor >= 0 ? "cobrado" : "devolvido"} via ${t.forma_pagamento_diferenca}${
+                                      t.parcelas_diferenca && t.parcelas_diferenca > 1 ? ` ${t.parcelas_diferenca}x` : ""
+                                    }`
+                                  : ""}
+                              </p>
+                              {t.devolvidos.length > 0 && (
+                                <div className="mb-1">
+                                  <span className="text-xs text-madeira-500">Devolveu:</span>
+                                  <ul className="text-madeira-600">
+                                    {t.devolvidos.map((d, i) => (
+                                      <li key={i}>
+                                        {d.quantidade}x {d.produto_nome}
+                                        {d.variante ? ` — ${d.variante}` : ""} — {formatarMoeda(d.valor_unitario_aprazo * d.quantidade)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {t.novos.length > 0 && (
+                                <div>
+                                  <span className="text-xs text-madeira-500">Levou no lugar:</span>
+                                  <ul className="text-madeira-600">
+                                    {t.novos.map((n, i) => (
+                                      <li key={i}>
+                                        {n.quantidade}x {n.produto_nome}
+                                        {n.variante ? ` — ${n.variante}` : ""} —{" "}
+                                        <span className={n.tipo_entrega === "encomenda" ? "tag-encomenda" : "text-green-700"}>
+                                          {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
+                                        </span>{" "}
+                                        — {formatarMoeda(n.valor_unitario_aprazo * n.quantidade)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
