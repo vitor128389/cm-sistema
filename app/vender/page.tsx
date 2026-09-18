@@ -1115,6 +1115,50 @@ function VenderPageConteudo() {
     setCarrinho((atual) => atual.filter((_, i) => i !== idx));
   }
 
+  // Carrega o item de volta no formulário de adicionar produto, pra poder
+  // ajustar quantidade/desconto/observação (e tecido/peça, quando dá pra
+  // reconhecer certinho) — depois é só clicar em "Adicionar produto" de
+  // novo. Remove o item antigo do carrinho ao mesmo tempo.
+  function editarItemDoCarrinho(idx: number) {
+    const item = carrinho[idx];
+    const produto = produtos.find((p) => p.id === item.produtoId);
+    if (!produto) {
+      alert("Não encontrei mais esse produto no catálogo pra editar — remova e adicione de novo.");
+      return;
+    }
+
+    selecionarProduto(produto);
+    setQuantidade(item.quantidade);
+    setTipoEntrega(item.tipoEntrega);
+    setObservacaoItem(item.observacao || "");
+    setDescontoItem(item.desconto ? String(item.desconto) : "");
+    setMotivoDescontoItem(item.motivoDesconto || "");
+
+    if (item.varianteNome) {
+      if (produto.tipo_precificacao === "espessura") {
+        setEspessuraSel(item.varianteNome);
+        const v = produto.produto_variantes.find((vv) => vv.nome_variante === item.varianteNome);
+        if (v) setValorUnitario(Math.round(v.preco_avista * 1.1 * 100) / 100);
+      } else if (produto.tipo_precificacao === "tecido") {
+        setTecidoSel(item.varianteNome);
+        const v = produto.produto_variantes.find((vv) => vv.nome_variante === item.varianteNome);
+        if (v) setValorUnitario(Math.round(v.preco_avista * 1.1 * 100) / 100);
+      } else if (produto.tipo_precificacao === "tecido_peca") {
+        const match = item.varianteNome.match(/^(.+) — (2|3) Lugares$/);
+        if (match) {
+          const [, tecido, peca] = match;
+          setTecidoSel(tecido);
+          setPecaSel(peca as "2" | "3");
+          const v = produto.produto_variantes.find((vv) => vv.nome_variante === item.varianteNome);
+          if (v) setValorUnitario(Math.round(v.preco_avista * 1.1 * 100) / 100);
+        }
+      }
+    }
+
+    removerDoCarrinho(idx);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   const subtotalCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
   const subtotalAVista = carrinho.reduce((s, i) => s + i.valorAVista * i.quantidade, 0);
 
@@ -2301,12 +2345,20 @@ function VenderPageConteudo() {
                       <strong className="font-display block">
                         {formatarMoeda(item.valorUnitario * item.quantidade)}
                       </strong>
-                      <button
-                        className="text-xs text-red-700"
-                        onClick={() => removerDoCarrinho(idx)}
-                      >
-                        remover
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          className="text-xs text-madeira-600"
+                          onClick={() => editarItemDoCarrinho(idx)}
+                        >
+                          editar
+                        </button>
+                        <button
+                          className="text-xs text-red-700"
+                          onClick={() => removerDoCarrinho(idx)}
+                        >
+                          remover
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
