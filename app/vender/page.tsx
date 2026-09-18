@@ -1238,7 +1238,17 @@ function VenderPageConteudo() {
   }
 
   function removerFormaPagamento(idx: number) {
-    setPagamentos((atual) => atual.filter((_, i) => i !== idx));
+    setPagamentos((atual) => {
+      const restante = atual.filter((_, i) => i !== idx);
+      // se voltou a ter só 1 forma, o valor dela some pro preço cheio (sem
+      // desconto nenhum "escondido" de uma tentativa de dividir que não deu
+      // certo) — evita ficar um desconto aplicado sem motivo registrado
+      if (restante.length === 1) {
+        const p = restante[0];
+        return [{ ...p, valor: valorSugerido(subtotalAVista, p.forma, p.parcelas) }];
+      }
+      return restante;
+    });
   }
 
   function precisaPrazoObrigatorio(): boolean {
@@ -1259,9 +1269,17 @@ function VenderPageConteudo() {
       alert("O valor total da venda precisa ser maior que zero.");
       return;
     }
-    if (pagamentos.length === 1 && parseFloat(descontoVendaGeral) > 0 && !motivoDescontoVendaGeral.trim()) {
-      alert("Preencha o motivo do desconto adicional antes de finalizar.");
-      return;
+    // checa o desconto de verdade (diferença entre o preço do carrinho e o
+    // total que vai ser cobrado), não o campo digitado — senão dava pra
+    // "perder" o motivo se a pessoa clicasse em Dividir pagamento e depois
+    // desfizesse, porque isso limpa o campo mas não desfaz o desconto que
+    // já ficou embutido no valor do pagamento.
+    if (pagamentos.length === 1) {
+      const descontoRealAprazo = Math.max(0, Math.round((subtotalCarrinho - total) * 100) / 100);
+      if (descontoRealAprazo > 0 && !motivoDescontoVendaGeral.trim()) {
+        alert("Preencha o motivo do desconto adicional antes de finalizar.");
+        return;
+      }
     }
     if (precisaPrazoObrigatorio() && !prazoEntregaMaximo) {
       alert("Preencha o prazo máximo de entrega — é obrigatório quando tem item de entrega ou encomenda.");
