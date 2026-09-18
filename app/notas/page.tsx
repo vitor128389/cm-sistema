@@ -620,6 +620,11 @@ export default function NotasPage() {
                                 ? "ENCOMENDA"
                                 : "AGUARDANDO ENTREGA"}
                             </span>
+                            {item.status_entrega === "entregue" && item.data_entregue && (
+                              <span className="text-xs text-madeira-500">
+                                em {new Date(item.data_entregue).toLocaleDateString("pt-BR")}
+                              </span>
+                            )}
                             {item.status_entrega !== "entregue" && (
                               <button
                                 className="btn-secundario text-xs px-2 py-1"
