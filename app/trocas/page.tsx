@@ -27,13 +27,19 @@ interface LinhaNova {
   busca: string;
   tecidoSel: string;
   espessuraSel: string;
-  pecaSel: "2" | "3";
+  pecaSel: "2" | "3" | "conjunto";
   corSel: string;
   corManual: string;
   quantidade: number;
   valorAVistaUnit: number;
   valorAPrazoUnit: number;
   tipoEntrega: "pronta" | "encomenda";
+}
+
+function estoqueDaPecaLinha(linha: LinhaNova, peca: "2" | "3"): number {
+  if (!linha.produto) return 0;
+  const nomeVariante = `${linha.tecidoSel} — ${peca} Lugares`;
+  return linha.produto.produto_variantes.find((v) => v.nome_variante === nomeVariante)?.estoque || 0;
 }
 
 function estoqueDaLinha(linha: LinhaNova): number {
@@ -45,8 +51,10 @@ function estoqueDaLinha(linha: LinhaNova): number {
     return linha.produto.produto_variantes.find((v) => v.nome_variante === linha.espessuraSel)?.estoque || 0;
   }
   if (linha.produto.tipo_precificacao === "tecido_peca") {
-    const nomeVariante = `${linha.tecidoSel} — ${linha.pecaSel} Lugares`;
-    return linha.produto.produto_variantes.find((v) => v.nome_variante === nomeVariante)?.estoque || 0;
+    if (linha.pecaSel === "conjunto") {
+      return Math.min(estoqueDaPecaLinha(linha, "2"), estoqueDaPecaLinha(linha, "3"));
+    }
+    return estoqueDaPecaLinha(linha, linha.pecaSel);
   }
   return linha.produto.quantidade_estoque || 0;
 }
@@ -194,9 +202,19 @@ export default function TrocasPage() {
     if (linha.produto.tipo_precificacao === "tecido_peca") {
       const tecidoUsado = campo === "tecidoSel" ? valor : linha.tecidoSel;
       const pecaUsada = campo === "pecaSel" ? valor : linha.pecaSel;
-      avista =
-        linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — ${pecaUsada} Lugares`)
-          ?.preco_avista || 0;
+      if (pecaUsada === "conjunto") {
+        const preco2 =
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 2 Lugares`)
+            ?.preco_avista || 0;
+        const preco3 =
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 3 Lugares`)
+            ?.preco_avista || 0;
+        avista = preco2 + preco3;
+      } else {
+        avista =
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — ${pecaUsada} Lugares`)
+            ?.preco_avista || 0;
+      }
     } else {
       const v = linha.produto.produto_variantes.find((vv) => vv.nome_variante === valor);
       avista = v?.preco_avista || 0;
@@ -211,6 +229,49 @@ export default function TrocasPage() {
   // cor (selecionada ou digitada) é um detalhe descritivo somado ao
   // tecido dos sofás "2 e 3 lugares" — igual já funciona na tela de
   // Vender. O estoque continua controlado só por tecido+peça.
+  // "Conjunto 2+3" precisa virar DUAS entradas na hora de salvar — cada
+  // peça tem seu próprio estoque e precisa baixar separadamente, igual já
+  // funciona na tela de Vender.
+  function expandirLinhaConjunto(l: LinhaNova) {
+    if (l.produto && l.produto.tipo_precificacao === "tecido_peca" && l.pecaSel === "conjunto") {
+      const corExtra = corExtraLinha(l);
+      const v2 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 2 Lugares`);
+      const v3 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 3 Lugares`);
+      return [
+        {
+          produto: l.produto,
+          varianteId: v2?.id || null,
+          varianteNome: `${l.tecidoSel}${corExtra} — 2 Lugares`,
+          quantidade: l.quantidade,
+          valorAVista: v2?.preco_avista || 0,
+          valorAPrazo: Math.round((v2?.preco_avista || 0) * 1.1 * 100) / 100,
+          tipoEntrega: l.tipoEntrega,
+        },
+        {
+          produto: l.produto,
+          varianteId: v3?.id || null,
+          varianteNome: `${l.tecidoSel}${corExtra} — 3 Lugares`,
+          quantidade: l.quantidade,
+          valorAVista: v3?.preco_avista || 0,
+          valorAPrazo: Math.round((v3?.preco_avista || 0) * 1.1 * 100) / 100,
+          tipoEntrega: l.tipoEntrega,
+        },
+      ];
+    }
+    return [
+      {
+        produto: l.produto!,
+        varianteId: varianteIdLinha(l),
+        varianteNome: varianteNomeExibidoLinha(l),
+        quantidade: l.quantidade,
+        valorAVista: l.valorAVistaUnit,
+        valorAPrazo: l.valorAPrazoUnit,
+        tipoEntrega: l.tipoEntrega,
+      },
+    ];
+  }
+
+
   function corExtraLinha(linha: LinhaNova): string {
     if (linha.corManual.trim()) return ` — ${linha.corManual.trim()}`;
     const cor = tecidosCores.find((c) => c.tecido === linha.tecidoSel && c.codigo === linha.corSel);
@@ -352,17 +413,19 @@ export default function TrocasPage() {
         .select("*");
       if (erroDevolvidos) throw erroDevolvidos;
 
-      const novosParaInserir = linhasNovasProntas.map((l) => ({
-        troca_id: grupo.id,
-        produto_id: l.produto!.id,
-        variante_id: varianteIdLinha(l),
-        produto_nome: l.produto!.nome,
-        variante: varianteNomeExibidoLinha(l),
-        quantidade: l.quantidade,
-        valor_unitario_avista: l.valorAVistaUnit,
-        valor_unitario_aprazo: l.valorAPrazoUnit,
-        tipo_entrega: l.tipoEntrega,
-      }));
+      const novosParaInserir = linhasNovasProntas.flatMap((l) =>
+        expandirLinhaConjunto(l).map((sub) => ({
+          troca_id: grupo.id,
+          produto_id: sub.produto.id,
+          variante_id: sub.varianteId,
+          produto_nome: sub.produto.nome,
+          variante: sub.varianteNome,
+          quantidade: sub.quantidade,
+          valor_unitario_avista: sub.valorAVista,
+          valor_unitario_aprazo: sub.valorAPrazo,
+          tipo_entrega: sub.tipoEntrega,
+        }))
+      );
       const { data: novosInseridos, error: erroNovos } = await supabase
         .from("trocas_novos")
         .insert(novosParaInserir)
@@ -390,7 +453,9 @@ export default function TrocasPage() {
       // encomenda não mexe no estoque agora (o produto ainda não existe na loja)
       for (const l of linhasNovasProntas) {
         if (l.tipoEntrega === "pronta") {
-          await ajustarEstoqueLoja(supabase, lojaAtual, l.produto!.id, varianteIdLinha(l), -l.quantidade);
+          for (const sub of expandirLinhaConjunto(l)) {
+            await ajustarEstoqueLoja(supabase, lojaAtual, sub.produto.id, sub.varianteId, -sub.quantidade);
+          }
         }
       }
 
@@ -705,15 +770,15 @@ export default function TrocasPage() {
                               </div>
                               <div className="mb-2">
                                 <span className="text-xs text-madeira-600 mb-1 block">Peça</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {(["2", "3"] as const).map((p) => (
+                                <div className="grid grid-cols-3 gap-2">
+                                  {(["2", "3", "conjunto"] as const).map((p) => (
                                     <button
                                       key={p}
                                       type="button"
                                       className={`opcao-btn ${linha.pecaSel === p ? "ativo" : ""}`}
                                       onClick={() => trocarVarianteLinha(linha.chave, linha, "pecaSel", p)}
                                     >
-                                      {p} Lugares
+                                      {p === "conjunto" ? "Conjunto 2+3" : `${p} Lugares`}
                                     </button>
                                   ))}
                                 </div>
