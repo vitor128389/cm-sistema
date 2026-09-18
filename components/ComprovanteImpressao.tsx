@@ -290,8 +290,16 @@ function ViaComprovante({
       {cliente.telefone && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Cel: {cliente.telefone}</p>}
       {cliente.bairro && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Bairro: {cliente.bairro}</p>}
       {enderecoCliente && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>End: {enderecoCliente}</p>}
-      {cliente.cidade && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Cidade: {cliente.cidade}</p>}
-      {cliente.povoado && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Povoado: {cliente.povoado}</p>}
+      {cliente.cidade && (
+        <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>
+          Cidade: {ehViaLoja ? <strong>{cliente.cidade}</strong> : cliente.cidade}
+        </p>
+      )}
+      {cliente.povoado && (
+        <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>
+          Povoado: {ehViaLoja ? <strong>{cliente.povoado}</strong> : cliente.povoado}
+        </p>
+      )}
 
       {ehMisto ? (
         <>
