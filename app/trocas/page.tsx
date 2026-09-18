@@ -151,13 +151,21 @@ export default function TrocasPage() {
     let espessura = "5cm";
     let peca: "2" | "3" = "2";
     if (p.tipo_precificacao === "tecido") {
-      tecido = p.produto_variantes[0]?.nome_variante || "Suede";
+      // sempre começa em Suede quando existir essa opção
+      tecido =
+        p.produto_variantes.find((v) => v.nome_variante === "Suede")?.nome_variante ||
+        p.produto_variantes[0]?.nome_variante ||
+        "Suede";
       avista = p.produto_variantes.find((v) => v.nome_variante === tecido)?.preco_avista || 0;
     } else if (p.tipo_precificacao === "espessura") {
       espessura = p.produto_variantes[0]?.nome_variante || "5cm";
       avista = p.produto_variantes.find((v) => v.nome_variante === espessura)?.preco_avista || 0;
     } else if (p.tipo_precificacao === "tecido_peca") {
-      tecido = p.produto_variantes[0]?.nome_variante.split(" — ")[0] || "Suede";
+      const variantesComSuede = p.produto_variantes.filter((v) => v.nome_variante.startsWith("Suede"));
+      tecido =
+        variantesComSuede[0]?.nome_variante.split(" — ")[0] ||
+        p.produto_variantes[0]?.nome_variante.split(" — ")[0] ||
+        "Suede";
       avista = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`)?.preco_avista || 0;
     } else {
       avista = p.preco_venda;
