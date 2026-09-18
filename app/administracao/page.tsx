@@ -594,7 +594,13 @@ function AbaEstoque() {
   }
 
   const categorias = usandoDeposito
-    ? Array.from(new Set(produtos.map((p) => tipoMovelDeposito(p.nome)))).sort()
+    ? Array.from(
+        new Set(
+          produtos
+            .filter((p) => (p.quantidade_estoque || 0) > 0 || p.produto_variantes.some((v) => v.estoque > 0))
+            .map((p) => tipoMovelDeposito(p.nome))
+        )
+      ).sort()
     : Array.from(new Set([...produtos.map((p) => p.categoria), ...nomesCategoriasConfig]));
 
   // A partir de agora, é a categoria (configurada no banco, escolhida na hora
