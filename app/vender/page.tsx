@@ -162,6 +162,8 @@ function VenderPageConteudo() {
   const [observacaoItem, setObservacaoItem] = useState("");
   const [descontoItem, setDescontoItem] = useState("");
   const [motivoDescontoItem, setMotivoDescontoItem] = useState("");
+  const [descontoVendaGeral, setDescontoVendaGeral] = useState("");
+  const [motivoDescontoVendaGeral, setMotivoDescontoVendaGeral] = useState("");
 
   // ---------- Pagamento ----------
   interface PagamentoParte {
@@ -1159,10 +1161,31 @@ function VenderPageConteudo() {
     );
   }
 
+  // Único jeito de dar desconto agora é por aqui (ou no desconto de cada
+  // produto) — o campo "quanto o cliente vai pagar" fica travado (calculado
+  // sozinho) quando só tem 1 forma de pagamento, pra não dar pra digitar
+  // qualquer valor sem deixar rastro. Esse desconto é distribuído entre os
+  // produtos na hora de fechar a venda, então aparece certinho no filtro de
+  // desconto em Notas.
+  function atualizarDescontoVendaGeral(valorTexto: string) {
+    setDescontoVendaGeral(valorTexto);
+    if (pagamentos.length !== 1) return;
+    const descontoNum = parseFloat(valorTexto) || 0;
+    const baseAjustada = Math.max(0, Math.round((subtotalAVista - descontoNum) * 100) / 100);
+    setPagamentos((atual) => {
+      const p = atual[0];
+      return [{ ...p, valor: valorSugerido(baseAjustada, p.forma, p.parcelas) }];
+    });
+  }
+
   function adicionarFormaPagamento() {
     const jaAlocado = pagamentos.reduce((s, p) => s + (p.valor || 0), 0);
     const restante = Math.max(Math.round((subtotalAVista - jaAlocado) * 100) / 100, 0);
     setPagamentos((atual) => [...atual, { forma: "", parcelas: 1, valor: restante }]);
+    // o desconto adicional só existe pra pagamento único — ao dividir, cada
+    // parte já é digitada na mão, então esconde/limpa esse campo
+    setDescontoVendaGeral("");
+    setMotivoDescontoVendaGeral("");
   }
 
   function removerFormaPagamento(idx: number) {
@@ -1185,6 +1208,10 @@ function VenderPageConteudo() {
     }
     if (total <= 0) {
       alert("O valor total da venda precisa ser maior que zero.");
+      return;
+    }
+    if (pagamentos.length === 1 && parseFloat(descontoVendaGeral) > 0 && !motivoDescontoVendaGeral.trim()) {
+      alert("Preencha o motivo do desconto adicional antes de finalizar.");
       return;
     }
     if (precisaPrazoObrigatorio() && !prazoEntregaMaximo) {
@@ -1297,40 +1324,57 @@ function VenderPageConteudo() {
       const hojeStr = new Date().toISOString().slice(0, 10);
       const prazoEhHojeOuVazio = !prazoEntregaMaximo || prazoEntregaMaximo === hojeStr;
 
-      const itensParaInserir = carrinho.map((item) => ({
-        venda_id: venda.id,
-        produto_id: item.produtoId,
-        variante_id: item.varianteId,
-        nome_produto: item.nome,
-        variante: item.cor || item.varianteNome,
-        quantidade: item.quantidade,
-        valor_unitario: item.valorUnitario,
-        total: item.valorUnitario * item.quantidade,
-        tipo_entrega: item.tipoEntrega,
-        status_entrega:
-          item.tipoEntrega === "encomenda"
-            ? "encomenda"
-            : item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0
-            ? prazoEhHojeOuVazio
-              ? "entregue"
-              : "encomenda"
-            : null,
-        data_entregue:
-          item.tipoEntrega !== "encomenda" &&
-          (item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0) &&
-          prazoEhHojeOuVazio
-            ? new Date().toISOString()
-            : null,
-        retirada: item.retirada,
-        quantidade_retirada: item.quantidadeRetirada,
-        quantidade_entrega: item.quantidadeEntrega,
-        observacao: item.observacao,
-        desconto: item.desconto || 0,
-        motivo_desconto: item.motivoDesconto,
-        categoria: item.categoria,
-        origem_deposito: item.origemDeposito || false,
-        origem_loja_id: item.origemLojaId || null,
-      }));
+      // desconto adicional dado na tela de pagamento (não por produto) —
+      // distribui proporcionalmente entre os itens, pra continuar aparecendo
+      // certinho no filtro de desconto em Notas e na nota impressa
+      const totalAprazoCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
+      const descontoGeralAprazo =
+        pagamentos.length === 1 ? Math.max(0, Math.round((totalAprazoCarrinho - total) * 100) / 100) : 0;
+
+      const itensParaInserir = carrinho.map((item) => {
+        const totalItemOriginal = item.valorUnitario * item.quantidade;
+        const shareDesconto =
+          descontoGeralAprazo > 0 && totalAprazoCarrinho > 0
+            ? Math.round(((descontoGeralAprazo * totalItemOriginal) / totalAprazoCarrinho) * 100) / 100
+            : 0;
+        const totalItemFinal = Math.round((totalItemOriginal - shareDesconto) * 100) / 100;
+        const valorUnitarioFinal =
+          item.quantidade > 0 ? Math.round((totalItemFinal / item.quantidade) * 100) / 100 : item.valorUnitario;
+        return {
+          venda_id: venda.id,
+          produto_id: item.produtoId,
+          variante_id: item.varianteId,
+          nome_produto: item.nome,
+          variante: item.cor || item.varianteNome,
+          quantidade: item.quantidade,
+          valor_unitario: valorUnitarioFinal,
+          total: totalItemFinal,
+          tipo_entrega: item.tipoEntrega,
+          status_entrega:
+            item.tipoEntrega === "encomenda"
+              ? "encomenda"
+              : item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0
+              ? prazoEhHojeOuVazio
+                ? "entregue"
+                : "encomenda"
+              : null,
+          data_entregue:
+            item.tipoEntrega !== "encomenda" &&
+            (item.quantidadeRetirada > 0 || item.quantidadeEntrega > 0) &&
+            prazoEhHojeOuVazio
+              ? new Date().toISOString()
+              : null,
+          retirada: item.retirada,
+          quantidade_retirada: item.quantidadeRetirada,
+          quantidade_entrega: item.quantidadeEntrega,
+          observacao: item.observacao,
+          desconto: Math.round(((item.desconto || 0) + shareDesconto) * 100) / 100,
+          motivo_desconto: shareDesconto > 0 ? item.motivoDesconto || motivoDescontoVendaGeral.trim() : item.motivoDesconto,
+          categoria: item.categoria,
+          origem_deposito: item.origemDeposito || false,
+          origem_loja_id: item.origemLojaId || null,
+        };
+      });
       const { error: erroItens } = await supabase.from("venda_itens").insert(itensParaInserir);
       if (erroItens) throw erroItens;
 
@@ -1443,6 +1487,8 @@ function VenderPageConteudo() {
     setPagamentos([{ forma: "", parcelas: 1, valor: 0 }]);
     setPrazoEntregaMaximo("");
     setPrazoDiasUteis(null);
+    setDescontoVendaGeral("");
+    setMotivoDescontoVendaGeral("");
     setVendaConcluida(null);
     setFormatoImpressao("a4");
     setLojaBuscaProdutos(lojaAtual);
@@ -2358,15 +2404,48 @@ function VenderPageConteudo() {
                       Quanto o cliente vai pagar nessa forma
                     </span>
                     <input
-                      className="input-base"
+                      className={`input-base ${pagamentos.length === 1 ? "bg-madeira-50" : ""}`}
                       type="number"
                       step="0.01"
                       value={p.valor}
-                      onChange={(e) => atualizarPagamento(idx, { valor: Number(e.target.value) || 0 })}
+                      readOnly={pagamentos.length === 1}
+                      title={pagamentos.length === 1 ? "Calculado automaticamente — use o desconto adicional abaixo se precisar mudar" : undefined}
+                      onChange={(e) => {
+                        if (pagamentos.length > 1) atualizarPagamento(idx, { valor: Number(e.target.value) || 0 });
+                      }}
                     />
                   </label>
                 </div>
               ))}
+
+              {pagamentos.length === 1 && (
+                <div className="mb-3 pt-3 border-t border-estofado-100">
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">
+                      Desconto adicional nessa venda (opcional)
+                    </span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={descontoVendaGeral}
+                      onChange={(e) => atualizarDescontoVendaGeral(e.target.value)}
+                    />
+                  </label>
+                  {parseFloat(descontoVendaGeral) > 0 && (
+                    <label className="block mt-2">
+                      <span className="text-xs text-madeira-600 mb-1 block">Motivo do desconto (obrigatório)</span>
+                      <input
+                        className="input-base"
+                        placeholder="Ex: cliente fidelidade, avaria, negociação"
+                        value={motivoDescontoVendaGeral}
+                        onChange={(e) => setMotivoDescontoVendaGeral(e.target.value)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
 
               {Math.abs(diferencaDoEsperado) > 0.5 && (
                 <p className="text-xs text-madeira-500 mb-2">
