@@ -209,6 +209,14 @@ export default function TrocasPage() {
     return cor ? ` — Cor ${cor.codigo} (${cor.nome})` : "";
   }
 
+  // Cabeceiras e Baús também têm cor pra escolher, igual na tela de
+  // Vender — mesmo quando o produto é "simples" (sem variante de
+  // verdade), o tecido ali é só pra filtrar a lista de cores, não muda
+  // preço nem estoque.
+  function mostrarCorCabeceira(linha: LinhaNova): boolean {
+    return linha.produto?.categoria === "Cabeceiras e Baús";
+  }
+
   function varianteNomeLinha(linha: LinhaNova): string | null {
     if (!linha.produto) return null;
     if (linha.produto.tipo_precificacao === "tecido") return linha.tecidoSel;
@@ -223,6 +231,12 @@ export default function TrocasPage() {
     if (!linha.produto) return null;
     if (linha.produto.tipo_precificacao === "tecido_peca") {
       return `${linha.tecidoSel}${corExtraLinha(linha)} — ${linha.pecaSel} Lugares`;
+    }
+    if (mostrarCorCabeceira(linha)) {
+      const corExtra = corExtraLinha(linha);
+      const base = varianteNomeLinha(linha); // tecido, se o produto for "por tecido"
+      if (corExtra) return base ? `${base}${corExtra}` : corExtra.replace(/^ — /, "");
+      return base;
     }
     return varianteNomeLinha(linha);
   }
@@ -694,6 +708,51 @@ export default function TrocasPage() {
                                   ))}
                                 </div>
                               </div>
+                              <div className="mb-2">
+                                <span className="text-xs text-madeira-600 mb-1 block">Cor</span>
+                                <select
+                                  className="input-base"
+                                  value={linha.corSel}
+                                  onChange={(e) => atualizarLinha(linha.chave, { corSel: e.target.value, corManual: "" })}
+                                >
+                                  <option value="">Selecione...</option>
+                                  {tecidosCores
+                                    .filter((c) => c.tecido === linha.tecidoSel && c.disponivel)
+                                    .map((c) => (
+                                      <option key={c.id} value={c.codigo}>
+                                        {c.codigo} — {c.nome}
+                                      </option>
+                                    ))}
+                                </select>
+                                <span className="text-xs text-madeira-500 mt-1 mb-1 block">Ou digite uma cor manualmente</span>
+                                <input
+                                  className="input-base"
+                                  placeholder="Ex: Cinza personalizado"
+                                  value={linha.corManual}
+                                  onChange={(e) => atualizarLinha(linha.chave, { corManual: e.target.value, corSel: "" })}
+                                />
+                              </div>
+                            </>
+                          )}
+                          {mostrarCorCabeceira(linha) && (
+                            <>
+                              {linha.produto.tipo_precificacao !== "tecido" && (
+                                <div className="mb-2">
+                                  <span className="text-xs text-madeira-600 mb-1 block">Tecido</span>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {TECIDOS.map((t) => (
+                                      <button
+                                        key={t}
+                                        type="button"
+                                        className={`opcao-btn ${linha.tecidoSel === t ? "ativo" : ""}`}
+                                        onClick={() => atualizarLinha(linha.chave, { tecidoSel: t, corSel: "", corManual: "" })}
+                                      >
+                                        {t}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                               <div className="mb-2">
                                 <span className="text-xs text-madeira-600 mb-1 block">Cor</span>
                                 <select
