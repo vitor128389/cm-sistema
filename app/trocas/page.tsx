@@ -268,7 +268,9 @@ export default function TrocasPage() {
 
   // Igual na venda: só parcelar em mais de 1x tem os 10% de acréscimo — em
   // 1x (à vista) ou qualquer outra forma, cobra exatamente a diferença.
-  const diferencaParcelada = formaPagDiferenca === "Crédito" && parcelasDiferenca > 1;
+  // Link de pagamento parcelado tem o mesmo acréscimo do Crédito.
+  const diferencaParcelada =
+    (formaPagDiferenca === "Crédito" || formaPagDiferenca === "Link") && parcelasDiferenca > 1;
   const diferencaCobrada = diferencaParcelada
     ? Math.round(diferenca * 1.1 * 100) / 100
     : diferenca;
@@ -316,7 +318,7 @@ export default function TrocasPage() {
           valor_novo_total: valorNovoTotal,
           diferenca,
           forma_pagamento_diferenca: diferenca !== 0 ? formaPagDiferenca : null,
-          parcelas_diferenca: diferenca !== 0 && formaPagDiferenca === "Crédito" ? parcelasDiferenca : 1,
+          parcelas_diferenca: diferenca !== 0 && (formaPagDiferenca === "Crédito" || formaPagDiferenca === "Link") ? parcelasDiferenca : 1,
           valor_cobrado_diferenca: diferenca !== 0 ? diferencaCobrada : null,
           turno_caixa_id: turno?.id || null,
           loja_id: lojaAtual,
@@ -463,7 +465,7 @@ export default function TrocasPage() {
         novos: (novosInseridos || []) as unknown as TrocaItemNovo[],
         diferenca,
         diferencaCobrada,
-        parcelasDiferenca: diferenca !== 0 && formaPagDiferenca === "Crédito" ? parcelasDiferenca : 1,
+        parcelasDiferenca: diferenca !== 0 && (formaPagDiferenca === "Crédito" || formaPagDiferenca === "Link") ? parcelasDiferenca : 1,
         formaPagDiferenca,
       });
     } catch (erro: unknown) {
@@ -920,7 +922,7 @@ export default function TrocasPage() {
                   </label>
                 )}
 
-                {diferenca > 0 && formaPagDiferenca === "Crédito" && (
+                {diferenca > 0 && (formaPagDiferenca === "Crédito" || formaPagDiferenca === "Link") && (
                   <label className="block mb-4 max-w-xs">
                     <span className="text-xs text-madeira-600 mb-1 block">Parcelar em</span>
                     <select
