@@ -1269,13 +1269,13 @@ function VenderPageConteudo() {
       alert("O valor total da venda precisa ser maior que zero.");
       return;
     }
-    // checa o desconto de verdade (diferença entre o preço do carrinho e o
-    // total que vai ser cobrado), não o campo digitado — senão dava pra
-    // "perder" o motivo se a pessoa clicasse em Dividir pagamento e depois
-    // desfizesse, porque isso limpa o campo mas não desfaz o desconto que
-    // já ficou embutido no valor do pagamento.
+    // checa o desconto de verdade — compara com o valor "esperado" pra essa
+    // forma/parcelas específica (que já é menor quando é à vista, isso é
+    // normal e não é desconto). Só conta como desconto de fato quando o
+    // valor cobrado é MENOR do que isso — daí sim precisa de motivo.
     if (pagamentos.length === 1) {
-      const descontoRealAprazo = Math.max(0, Math.round((subtotalCarrinho - total) * 100) / 100);
+      const valorEsperadoSemDesconto = valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas);
+      const descontoRealAprazo = Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100);
       if (descontoRealAprazo > 0 && !motivoDescontoVendaGeral.trim()) {
         alert("Preencha o motivo do desconto adicional antes de finalizar.");
         return;
@@ -1393,10 +1393,14 @@ function VenderPageConteudo() {
 
       // desconto adicional dado na tela de pagamento (não por produto) —
       // distribui proporcionalmente entre os itens, pra continuar aparecendo
-      // certinho no filtro de desconto em Notas e na nota impressa
+      // certinho no filtro de desconto em Notas e na nota impressa. Compara
+      // com o valor "esperado" pra forma/parcelas escolhida — pagar à vista
+      // já é mais barato que a prazo por padrão, isso não é desconto.
       const totalAprazoCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
+      const valorEsperadoSemDescontoFinal =
+        pagamentos.length === 1 ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas) : 0;
       const descontoGeralAprazo =
-        pagamentos.length === 1 ? Math.max(0, Math.round((totalAprazoCarrinho - total) * 100) / 100) : 0;
+        pagamentos.length === 1 ? Math.max(0, Math.round((valorEsperadoSemDescontoFinal - total) * 100) / 100) : 0;
 
       const itensParaInserir = carrinho.map((item) => {
         const totalItemOriginal = item.valorUnitario * item.quantidade;
