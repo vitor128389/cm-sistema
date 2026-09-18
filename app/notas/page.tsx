@@ -221,7 +221,10 @@ export default function NotasPage() {
   }
 
   function temDesconto(v: Venda): boolean {
-    return (v.venda_itens || []).some((i) => (i.desconto || 0) > 0);
+    // só conta como "com desconto" quando tiver valor E motivo preenchido —
+    // isso evita mostrar aqui os poucos casos antigos com desconto sem
+    // motivo (que já corrigimos, mas podem existir alguns registros assim)
+    return (v.venda_itens || []).some((i) => (i.desconto || 0) > 0 && !!i.motivo_desconto?.trim());
   }
 
   const vendasFiltradas = vendas
