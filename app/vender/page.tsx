@@ -779,7 +779,12 @@ function VenderPageConteudo() {
       setTecidoSel("Suede");
       setValorUnitario(0);
     } else if (p.tipo_precificacao === "tecido") {
-      const primeira = p.produto_variantes[0]?.nome_variante || "Suede";
+      // sempre começa em Suede quando o produto tiver essa opção — só cai
+      // pra primeira variante cadastrada se não tiver Suede mesmo
+      const primeira =
+        p.produto_variantes.find((v) => v.nome_variante === "Suede")?.nome_variante ||
+        p.produto_variantes[0]?.nome_variante ||
+        "Suede";
       setTecidoSel(primeira);
       atualizarValorPelaVariante(p, primeira);
     } else {
