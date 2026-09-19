@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatarMoeda as formatarMoedaAuditoria } from "@/lib/format";
 import {
   consultarVendas,
   consultarEstoque,
@@ -11,6 +12,12 @@ import {
   consultarFinanceiro,
   cadastrarProduto,
   adicionarEstoque,
+  transferirEstoque,
+  editarPrecoProduto,
+  cancelarVendaPorIA,
+  criarOuEditarClientePorIA,
+  fazerSangriaPorIA,
+  marcarItemEntreguePorIA,
   type ContextoIA,
 } from "@/lib/ia-tools";
 
@@ -30,6 +37,13 @@ Formate valores em reais (R$) e datas no padrão brasileiro (dd/mm/aaaa).
 Seja conciso — respostas de poucas frases, direto ao ponto, do jeito que alguém correndo numa loja precisa.
 Se o usuário pedir pra cadastrar um produto novo, você pode fazer isso usando a ferramenta cadastrar_produto — mas só chame essa ferramenta quando já tiver nome, categoria e preço de venda claros na conversa. Se faltar alguma dessas informações, pergunte antes de cadastrar; nunca invente um preço ou categoria. Depois de cadastrar, confirme pro usuário exatamente o que foi criado (nome, categoria, preço, cores, estoque se houver).
 Se o usuário pedir pra adicionar/somar estoque de um produto que já existe, use a ferramenta adicionar_estoque — ela sempre SOMA ao estoque atual, nunca substitui. Se o produto tiver mais de uma variação de cor/tecido e o usuário não disser qual, pergunte antes de executar.
+Se o usuário pedir pra mover/transferir produto do Depósito pra uma loja, use transferir_estoque.
+Se o usuário pedir pra mudar o preço de venda ou o custo de um produto, use editar_preco_produto — confirme os novos valores antes de executar se não estiverem claros.
+Se o usuário pedir pra cancelar uma venda, use cancelar_venda — sempre exija um motivo antes; essa ação é só pra admin.
+Se o usuário pedir pra cadastrar ou atualizar um cliente, use criar_ou_editar_cliente.
+Se o usuário pedir pra registrar uma sangria, use fazer_sangria — sempre exija o motivo.
+Se o usuário pedir pra marcar um pedido (ou item de um pedido) como entregue, use marcar_item_entregue.
+Todas essas ações mudam dado de verdade no sistema — só execute quando o pedido do usuário for claro e direto; se faltar alguma informação obrigatória (motivo, valor, produto, loja), pergunte antes de agir. Depois de executar, confirme pro usuário exatamente o que foi feito.
 Se uma ferramenta responder que encontrou mais de um produto com nome parecido (campo produtos_encontrados), pergunte ao usuário qual dos dois ele quer, mostrando a lista exata. Na próxima chamada, use o nome EXATO como veio nessa lista, letra por letra — não parafraseie nem abrevie, senão a busca falha de novo.`;
 
 const FERRAMENTAS: OpenAI.Responses.Tool[] = [
@@ -186,6 +200,116 @@ const FERRAMENTA_ADICIONAR_ESTOQUE: OpenAI.Responses.Tool = {
   strict: false,
 };
 
+const FERRAMENTA_TRANSFERIR_ESTOQUE: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "transferir_estoque",
+  description:
+    "Move uma quantidade de um produto do Depósito para uma loja específica. Baixa do Depósito e soma na loja de destino ao mesmo tempo.",
+  parameters: {
+    type: "object",
+    properties: {
+      produto: { type: "string", description: "Nome do produto (busca parcial)." },
+      cor: { type: "string", description: "Tecido/cor da variação, se o produto tiver mais de uma." },
+      loja_destino: { type: "string", description: "Nome da loja que vai receber o produto." },
+      quantidade: { type: "number", description: "Quantidade a transferir." },
+    },
+    required: ["produto", "loja_destino", "quantidade"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
+const FERRAMENTA_EDITAR_PRECO_PRODUTO: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "editar_preco_produto",
+  description: "Altera o preço de venda e/ou o custo de um produto (ou de uma variação específica dele) já existente.",
+  parameters: {
+    type: "object",
+    properties: {
+      produto: { type: "string", description: "Nome do produto (busca parcial)." },
+      cor: { type: "string", description: "Tecido/cor da variação, se o produto tiver mais de uma." },
+      novo_preco_venda: { type: "number", description: "Novo preço de venda à vista, se for alterar." },
+      novo_custo: { type: "number", description: "Novo custo, se for alterar." },
+    },
+    required: ["produto"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
+const FERRAMENTA_CANCELAR_VENDA: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "cancelar_venda",
+  description:
+    "Cancela uma venda pelo número do pedido, devolvendo pro estoque os produtos de pronta entrega (encomenda não mexe no estoque). Exige um motivo. Ação sensível — só admin pode usar.",
+  parameters: {
+    type: "object",
+    properties: {
+      numero_pedido: { type: "number", description: "Número do pedido a cancelar." },
+      motivo: { type: "string", description: "Motivo do cancelamento — obrigatório." },
+    },
+    required: ["numero_pedido", "motivo"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
+const FERRAMENTA_CRIAR_OU_EDITAR_CLIENTE: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "criar_ou_editar_cliente",
+  description: "Cadastra um cliente novo, ou atualiza um já existente (identificado pelo CPF, se informado).",
+  parameters: {
+    type: "object",
+    properties: {
+      nome: { type: "string", description: "Nome do cliente." },
+      cpf: { type: "string", description: "CPF do cliente, se informado." },
+      telefone: { type: "string", description: "Telefone/celular." },
+      endereco: { type: "string", description: "Endereço." },
+      cidade: { type: "string", description: "Cidade." },
+      loja: { type: "string", description: "Loja do cliente — só necessário se for um cadastro novo e o usuário não tiver loja fixa." },
+    },
+    required: ["nome"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
+const FERRAMENTA_FAZER_SANGRIA: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "fazer_sangria",
+  description: "Registra uma sangria (retirada de dinheiro) no caixa aberto de uma loja. Exige valor e motivo.",
+  parameters: {
+    type: "object",
+    properties: {
+      valor: { type: "number", description: "Valor da sangria." },
+      motivo: { type: "string", description: "Motivo da sangria — obrigatório." },
+      loja: { type: "string", description: "Loja onde fazer a sangria." },
+    },
+    required: ["valor", "motivo", "loja"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
+const FERRAMENTA_MARCAR_ENTREGUE: OpenAI.Responses.Tool = {
+  type: "function",
+  name: "marcar_item_entregue",
+  description: "Marca item(ns) de um pedido como entregues.",
+  parameters: {
+    type: "object",
+    properties: {
+      numero_pedido: { type: "number", description: "Número do pedido." },
+      produto: {
+        type: "string",
+        description: "Nome do produto a marcar, se o pedido tiver mais de um item pendente. Omita pra marcar todos os pendentes desse pedido.",
+      },
+    },
+    required: ["numero_pedido"],
+    additionalProperties: false,
+  },
+  strict: false,
+};
+
 async function executarFerramenta(
   nome: string,
   args: Record<string, unknown>,
@@ -211,6 +335,24 @@ async function executarFerramenta(
     case "adicionar_estoque":
       // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
       return adicionarEstoque(supabaseAdmin, ctx, args);
+    case "transferir_estoque":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return transferirEstoque(supabaseAdmin, ctx, args);
+    case "editar_preco_produto":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return editarPrecoProduto(supabaseAdmin, ctx, args);
+    case "cancelar_venda":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return cancelarVendaPorIA(supabaseAdmin, ctx, args);
+    case "criar_ou_editar_cliente":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return criarOuEditarClientePorIA(supabaseAdmin, ctx, args);
+    case "fazer_sangria":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return fazerSangriaPorIA(supabaseAdmin, ctx, args);
+    case "marcar_item_entregue":
+      // @ts-expect-error args vem tipado genérico do JSON da IA, a própria função valida os campos
+      return marcarItemEntreguePorIA(supabaseAdmin, ctx, args);
     default:
       return { erro: `Ferramenta desconhecida: ${nome}` };
   }
@@ -252,11 +394,22 @@ export async function POST(request: Request) {
     podeVerFinanceiro,
   };
 
-  // só admin/gerente recebem a ferramenta de cadastrar produto — pra
-  // vendedor/produção/caixa, ela nem aparece como opção pra IA usar
+  // ferramentas de escrita — cada nível vê só o que pode usar de verdade,
+  // a própria função ainda valida de novo no servidor (dupla checagem)
+  const ferramentasEscritaComuns = [
+    FERRAMENTA_CADASTRAR_PRODUTO,
+    FERRAMENTA_ADICIONAR_ESTOQUE,
+    FERRAMENTA_TRANSFERIR_ESTOQUE,
+    FERRAMENTA_EDITAR_PRECO_PRODUTO,
+    FERRAMENTA_CRIAR_OU_EDITAR_CLIENTE,
+    FERRAMENTA_FAZER_SANGRIA,
+    FERRAMENTA_MARCAR_ENTREGUE,
+  ];
   const ferramentasDisponiveis: OpenAI.Responses.Tool[] =
-    perfil.funcao === "admin" || perfil.funcao === "gerente"
-      ? [...FERRAMENTAS, FERRAMENTA_CADASTRAR_PRODUTO, FERRAMENTA_ADICIONAR_ESTOQUE]
+    perfil.funcao === "admin"
+      ? [...FERRAMENTAS, ...ferramentasEscritaComuns, FERRAMENTA_CANCELAR_VENDA]
+      : perfil.funcao === "gerente"
+      ? [...FERRAMENTAS, ...ferramentasEscritaComuns]
       : FERRAMENTAS;
 
   let lojaNome: string | null = null;
@@ -376,6 +529,162 @@ export async function POST(request: Request) {
               descricao: `Estoque de "${r.produto}${r.variante ? ` — ${r.variante}` : ""}" em ${r.loja} alterado de ${r.estoque_antes} para ${r.novo_estoque} via Assistente IA (pedido: "${mensagem}")`,
               dados_antes: { estoque: r.estoque_antes },
               dados_depois: { estoque: r.novo_estoque },
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+
+        if (chamada.name === "transferir_estoque" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as {
+            produto: string;
+            variante?: string | null;
+            quantidade_transferida: number;
+            loja_destino: string;
+          };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Estoque",
+              acao: "transferencia",
+              tipo_execucao: "manual",
+              registro_tipo: "produto",
+              registro_nome: r.variante ? `${r.produto} — ${r.variante}` : r.produto,
+              descricao: `${r.quantidade_transferida} unidade(s) de "${r.produto}${
+                r.variante ? ` — ${r.variante}` : ""
+              }" transferida(s) do Depósito para ${r.loja_destino} via Assistente IA (pedido: "${mensagem}")`,
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "editar_preco_produto" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as {
+            produto: string;
+            variante?: string;
+            preco_venda_antes: number;
+            preco_venda_novo: number;
+            custo_antes: number;
+            custo_novo: number;
+          };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Produtos",
+              acao: "alteracao",
+              tipo_execucao: "manual",
+              registro_tipo: "produto",
+              registro_nome: r.variante ? `${r.produto} — ${r.variante}` : r.produto,
+              descricao: `Preço/custo de "${r.produto}${r.variante ? ` — ${r.variante}` : ""}" alterado via Assistente IA (pedido: "${mensagem}")`,
+              dados_antes: { preco_venda: r.preco_venda_antes, custo: r.custo_antes },
+              dados_depois: { preco_venda: r.preco_venda_novo, custo: r.custo_novo },
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "cancelar_venda" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as { pedido: number; total: number };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Vendas",
+              acao: "cancelamento",
+              tipo_execucao: "manual",
+              registro_tipo: "venda",
+              registro_nome: `Pedido #${r.pedido}`,
+              numero_pedido: r.pedido,
+              descricao: `Venda #${r.pedido} (${formatarMoedaAuditoria(r.total)}) cancelada via Assistente IA (pedido: "${mensagem}")`,
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "criar_ou_editar_cliente" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as { acao: string; cliente: string };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Clientes",
+              acao: r.acao === "criado" ? "criacao" : "alteracao",
+              tipo_execucao: "manual",
+              registro_tipo: "cliente",
+              registro_nome: r.cliente,
+              descricao: `Cliente "${r.cliente}" ${r.acao} via Assistente IA (pedido: "${mensagem}")`,
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "fazer_sangria" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as { valor: number; loja: string; motivo: string };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: r.loja,
+              categoria: "Sangrias",
+              acao: "saida_estoque",
+              tipo_execucao: "manual",
+              registro_tipo: "caixa",
+              descricao: `Sangria de ${formatarMoedaAuditoria(r.valor)} registrada via Assistente IA (pedido: "${mensagem}")`,
+              motivo: r.motivo,
+            })
+            .then(
+              () => {},
+              () => {}
+            );
+        }
+        if (chamada.name === "marcar_item_entregue" && (resultado as { sucesso?: boolean }).sucesso) {
+          const r = resultado as { pedido: number; itens_marcados: string[] };
+          supabaseAdmin
+            .from("auditoria")
+            .insert({
+              usuario_id: user.id,
+              usuario_nome: perfil.nome,
+              usuario_email: user.email || null,
+              usuario_funcao: perfil.funcao,
+              loja_id: perfil.loja_id,
+              loja_nome: lojaNome,
+              categoria: "Entregas",
+              acao: "alteracao",
+              tipo_execucao: "manual",
+              registro_tipo: "venda_item",
+              numero_pedido: r.pedido,
+              descricao: `Item(ns) do pedido #${r.pedido} marcado(s) como entregue via Assistente IA: ${r.itens_marcados.join(", ")} (pedido: "${mensagem}")`,
             })
             .then(
               () => {},
