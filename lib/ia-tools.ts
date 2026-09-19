@@ -607,3 +607,411 @@ export async function consultarFinanceiro(
     sangrias_total: Math.round(totalSangrias * 100) / 100,
   };
 }
+
+// -------------------- busca compartilhada de produto por nome --------------------
+async function buscarProdutoUnicoPorNome(
+  supabase: SupabaseClient,
+  nomeProduto: string,
+  selectFields: string
+): Promise<{ erro: string; produtos_encontrados?: string[] } | { produto: Record<string, unknown> }> {
+  const { data: exatos } = await supabase
+    .from("produtos")
+    .select(selectFields)
+    .ilike("nome", nomeProduto.trim())
+    .eq("ativo", true)
+    .limit(5);
+
+  let produtos = exatos && exatos.length > 0 ? exatos : null;
+
+  if (!produtos) {
+    const { data: parciais } = await supabase
+      .from("produtos")
+      .select(selectFields)
+      .ilike("nome", `%${nomeProduto.trim()}%`)
+      .eq("ativo", true)
+      .limit(5);
+    produtos = parciais && parciais.length > 0 ? parciais : null;
+  }
+
+  if (!produtos) {
+    const { data: todos } = await supabase.from("produtos").select("id, nome").eq("ativo", true);
+    const termo = normalizarTexto(nomeProduto);
+    const idsEncontrados = (todos || [])
+      .filter((p) => normalizarTexto(p.nome).includes(termo))
+      .map((p) => p.id);
+    if (idsEncontrados.length > 0) {
+      const { data: comDados } = await supabase.from("produtos").select(selectFields).in("id", idsEncontrados.slice(0, 5));
+      produtos = comDados && comDados.length > 0 ? comDados : null;
+    }
+  }
+
+  if (!produtos || produtos.length === 0) {
+    return { erro: `Não encontrei nenhum produto chamado "${nomeProduto}".` };
+  }
+  if (produtos.length > 1) {
+    return {
+      erro: "Encontrei mais de um produto com esse nome — seja mais específico, ou diga o nome exato como aparece no cadastro.",
+      produtos_encontrados: produtos.map((p) => (p as unknown as { nome: string }).nome),
+    };
+  }
+  return { produto: produtos[0] as unknown as Record<string, unknown> };
+}
+
+// -------------------- transferir_estoque (Depósito -> loja) --------------------
+export async function transferirEstoque(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { produto: string; cor?: string; loja_destino: string; quantidade: number }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra transferir estoque — só admin e gerente podem." };
+  }
+  if (!args.produto?.trim() || !args.loja_destino?.trim() || !args.quantidade || args.quantidade <= 0) {
+    return { erro: "Preciso do produto, da loja de destino e de uma quantidade maior que zero." };
+  }
+
+  const busca = await buscarProdutoUnicoPorNome(
+    supabase,
+    args.produto,
+    "id, nome, tipo_precificacao, produto_variantes(id, nome_variante, estoque)"
+  );
+  if ("erro" in busca) return busca;
+  const produto = busca.produto as {
+    id: string;
+    nome: string;
+    produto_variantes: { id: string; nome_variante: string; estoque: number }[];
+  };
+
+  const { data: deposito } = await supabase.from("lojas").select("id").eq("eh_deposito", true).maybeSingle();
+  if (!deposito) return { erro: "Não encontrei o Depósito cadastrado no sistema." };
+
+  const { ids: lojaDestinoIds, nomes: lojaDestinoNomes } = await resolverLojaIds(supabase, ctx, args.loja_destino);
+  if (!lojaDestinoIds || lojaDestinoIds.length !== 1) {
+    return { erro: `Não encontrei a loja de destino "${args.loja_destino}".` };
+  }
+  const lojaDestinoId = lojaDestinoIds[0];
+
+  let varianteId: string | null = null;
+  let nomeVariante: string | null = null;
+  if (produto.produto_variantes.length > 0) {
+    if (args.cor) {
+      const v = produto.produto_variantes.find((vv) => vv.nome_variante.toLowerCase().includes(args.cor!.toLowerCase()));
+      if (!v) {
+        return {
+          erro: `"${produto.nome}" não tem a variação "${args.cor}". Opções: ${produto.produto_variantes
+            .map((x) => x.nome_variante)
+            .join(", ")}.`,
+        };
+      }
+      varianteId = v.id;
+      nomeVariante = v.nome_variante;
+    } else if (produto.produto_variantes.length === 1) {
+      varianteId = produto.produto_variantes[0].id;
+      nomeVariante = produto.produto_variantes[0].nome_variante;
+    } else {
+      return {
+        erro: `"${produto.nome}" tem mais de uma variação — diga qual. Opções: ${produto.produto_variantes
+          .map((x) => x.nome_variante)
+          .join(", ")}.`,
+      };
+    }
+  }
+
+  let queryDeposito = supabase
+    .from("estoque_loja")
+    .select("quantidade")
+    .eq("loja_id", deposito.id)
+    .eq("produto_id", produto.id);
+  queryDeposito = varianteId ? queryDeposito.eq("variante_id", varianteId) : queryDeposito.is("variante_id", null);
+  const { data: linhaDeposito } = await queryDeposito.maybeSingle();
+  const estoqueDeposito = linhaDeposito?.quantidade || 0;
+
+  if (estoqueDeposito < args.quantidade) {
+    return {
+      erro: `O Depósito só tem ${estoqueDeposito} unidade(s) de "${produto.nome}${
+        nomeVariante ? ` — ${nomeVariante}` : ""
+      }" — não dá pra transferir ${args.quantidade}.`,
+    };
+  }
+
+  await salvarEstoqueLoja(supabase, deposito.id, produto.id, varianteId, estoqueDeposito - args.quantidade);
+
+  let queryDestino = supabase
+    .from("estoque_loja")
+    .select("quantidade")
+    .eq("loja_id", lojaDestinoId)
+    .eq("produto_id", produto.id);
+  queryDestino = varianteId ? queryDestino.eq("variante_id", varianteId) : queryDestino.is("variante_id", null);
+  const { data: linhaDestino } = await queryDestino.maybeSingle();
+  const estoqueDestinoAntes = linhaDestino?.quantidade || 0;
+  const novoEstoqueDestino = estoqueDestinoAntes + args.quantidade;
+  await salvarEstoqueLoja(supabase, lojaDestinoId, produto.id, varianteId, novoEstoqueDestino);
+
+  await supabase.from("movimentacoes_estoque").insert({
+    produto_id: produto.id,
+    variante_id: varianteId,
+    produto_nome: produto.nome,
+    variante_nome: nomeVariante,
+    origem_loja_id: deposito.id,
+    destino_loja_id: lojaDestinoId,
+    quantidade: args.quantidade,
+    tipo: "transferencia",
+  });
+
+  return {
+    sucesso: true,
+    produto: produto.nome,
+    variante: nomeVariante,
+    quantidade_transferida: args.quantidade,
+    loja_destino: lojaDestinoNomes[0],
+    estoque_deposito_apos: estoqueDeposito - args.quantidade,
+    estoque_destino_apos: novoEstoqueDestino,
+  };
+}
+
+// -------------------- editar_preco_produto --------------------
+export async function editarPrecoProduto(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { produto: string; cor?: string; novo_preco_venda?: number; novo_custo?: number }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra editar preço/custo — só admin e gerente podem." };
+  }
+  if (!args.produto?.trim() || (!args.novo_preco_venda && args.novo_custo === undefined)) {
+    return { erro: "Preciso do produto e de pelo menos um valor novo (preço de venda ou custo) pra alterar." };
+  }
+  const busca = await buscarProdutoUnicoPorNome(
+    supabase,
+    args.produto,
+    "id, nome, tipo_precificacao, preco_venda, custo, produto_variantes(id, nome_variante, preco_avista, custo)"
+  );
+  if ("erro" in busca) return busca;
+  const produto = busca.produto as {
+    id: string;
+    nome: string;
+    preco_venda: number;
+    custo: number;
+    produto_variantes: { id: string; nome_variante: string; preco_avista: number; custo: number }[];
+  };
+
+  if (produto.produto_variantes.length > 0) {
+    let variante = produto.produto_variantes[0];
+    if (args.cor) {
+      const encontrada = produto.produto_variantes.find((v) =>
+        v.nome_variante.toLowerCase().includes(args.cor!.toLowerCase())
+      );
+      if (!encontrada) {
+        return {
+          erro: `"${produto.nome}" não tem a variação "${args.cor}". Opções: ${produto.produto_variantes
+            .map((v) => v.nome_variante)
+            .join(", ")}.`,
+        };
+      }
+      variante = encontrada;
+    } else if (produto.produto_variantes.length > 1) {
+      return {
+        erro: `"${produto.nome}" tem mais de uma variação — diga qual (tecido/cor). Opções: ${produto.produto_variantes
+          .map((v) => v.nome_variante)
+          .join(", ")}.`,
+      };
+    }
+    const dados: Record<string, number> = {};
+    if (args.novo_preco_venda) dados.preco_avista = args.novo_preco_venda;
+    if (args.novo_custo !== undefined) dados.custo = args.novo_custo;
+    const { error } = await supabase.from("produto_variantes").update(dados).eq("id", variante.id);
+    if (error) return { erro: error.message };
+    return {
+      sucesso: true,
+      produto: produto.nome,
+      variante: variante.nome_variante,
+      preco_venda_antes: variante.preco_avista,
+      preco_venda_novo: args.novo_preco_venda ?? variante.preco_avista,
+      custo_antes: variante.custo,
+      custo_novo: args.novo_custo ?? variante.custo,
+    };
+  }
+
+  const dados: Record<string, number> = {};
+  if (args.novo_preco_venda) dados.preco_venda = args.novo_preco_venda;
+  if (args.novo_custo !== undefined) dados.custo = args.novo_custo;
+  const { error } = await supabase.from("produtos").update(dados).eq("id", produto.id);
+  if (error) return { erro: error.message };
+  return {
+    sucesso: true,
+    produto: produto.nome,
+    preco_venda_antes: produto.preco_venda,
+    preco_venda_novo: args.novo_preco_venda ?? produto.preco_venda,
+    custo_antes: produto.custo,
+    custo_novo: args.novo_custo ?? produto.custo,
+  };
+}
+
+// -------------------- cancelar_venda --------------------
+export async function cancelarVendaPorIA(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { numero_pedido: number; motivo: string }
+) {
+  if (ctx.funcao !== "admin") {
+    return { erro: "Só o admin pode cancelar venda pela IA." };
+  }
+  if (!args.numero_pedido || !args.motivo?.trim()) {
+    return { erro: "Preciso do número do pedido e do motivo do cancelamento." };
+  }
+
+  const { data: venda } = await supabase
+    .from("vendas")
+    .select("id, numero_pedido, total, cancelada, loja_id")
+    .eq("numero_pedido", args.numero_pedido)
+    .maybeSingle();
+  if (!venda) return { erro: `Não encontrei o pedido #${args.numero_pedido}.` };
+  if (venda.cancelada) return { erro: `O pedido #${args.numero_pedido} já está cancelado.` };
+
+  const { data: itens } = await supabase
+    .from("venda_itens")
+    .select("id, produto_id, variante_id, nome_produto, quantidade, tipo_entrega, origem_loja_id")
+    .eq("venda_id", venda.id);
+
+  let devolvidos = 0;
+  for (const item of itens || []) {
+    if (item.tipo_entrega === "encomenda") continue;
+    const lojaEstoqueOrigem = item.origem_loja_id || venda.loja_id;
+    let q = supabase
+      .from("estoque_loja")
+      .select("quantidade")
+      .eq("loja_id", lojaEstoqueOrigem)
+      .eq("produto_id", item.produto_id);
+    q = item.variante_id ? q.eq("variante_id", item.variante_id) : q.is("variante_id", null);
+    const { data: linhaAtual } = await q.maybeSingle();
+    const estoqueAntes = linhaAtual?.quantidade || 0;
+    await salvarEstoqueLoja(supabase, lojaEstoqueOrigem, item.produto_id, item.variante_id, estoqueAntes + item.quantidade);
+    devolvidos++;
+  }
+
+  await supabase.from("vendas").update({ cancelada: true, motivo_cancelamento: args.motivo.trim() }).eq("id", venda.id);
+
+  return {
+    sucesso: true,
+    pedido: venda.numero_pedido,
+    total: venda.total,
+    itens_devolvidos_ao_estoque: devolvidos,
+  };
+}
+
+// -------------------- criar_ou_editar_cliente --------------------
+export async function criarOuEditarClientePorIA(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { nome: string; cpf?: string; telefone?: string; endereco?: string; cidade?: string; loja?: string }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra cadastrar/editar cliente — só admin e gerente podem." };
+  }
+  if (!args.nome?.trim()) return { erro: "Preciso do nome do cliente." };
+
+  const cpfLimpo = args.cpf?.replace(/\D/g, "") || null;
+  let clienteExistente: { id: string; nome: string } | null = null;
+  if (cpfLimpo) {
+    const { data } = await supabase.from("clientes").select("id, nome").eq("cpf", cpfLimpo).maybeSingle();
+    clienteExistente = data;
+  }
+
+  const dados: Record<string, unknown> = { nome: args.nome.trim() };
+  if (cpfLimpo) dados.cpf = cpfLimpo;
+  if (args.telefone) dados.telefone = args.telefone;
+  if (args.endereco) dados.endereco = args.endereco;
+  if (args.cidade) dados.cidade = args.cidade;
+
+  if (clienteExistente) {
+    const { error } = await supabase.from("clientes").update(dados).eq("id", clienteExistente.id);
+    if (error) return { erro: error.message };
+    return { sucesso: true, acao: "atualizado", cliente: args.nome.trim() };
+  }
+
+  const { ids: lojaIds } = await resolverLojaIds(supabase, ctx, args.loja);
+  const lojaId = lojaIds && lojaIds.length === 1 ? lojaIds[0] : ctx.lojaId;
+  if (!lojaId) return { erro: "Preciso saber de qual loja é esse cliente (você não tem uma loja fixa — diga o nome da loja)." };
+
+  const { error } = await supabase.from("clientes").insert({ ...dados, loja_id: lojaId });
+  if (error) return { erro: error.message };
+  return { sucesso: true, acao: "criado", cliente: args.nome.trim() };
+}
+
+// -------------------- fazer_sangria --------------------
+export async function fazerSangriaPorIA(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { valor: number; motivo: string; loja?: string }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra fazer sangria — só admin e gerente podem." };
+  }
+  if (!args.valor || args.valor <= 0 || !args.motivo?.trim()) {
+    return { erro: "Preciso do valor (maior que zero) e do motivo da sangria." };
+  }
+
+  const { ids: lojaIds, nomes: lojaNomes } = await resolverLojaIds(supabase, ctx, args.loja);
+  if (!lojaIds || lojaIds.length !== 1) return { erro: `Não encontrei a loja "${args.loja}".` };
+  const lojaId = lojaIds[0];
+
+  const { data: turno } = await supabase
+    .from("turnos_caixa")
+    .select("id")
+    .eq("loja_id", lojaId)
+    .eq("status", "aberto")
+    .maybeSingle();
+  if (!turno) return { erro: `Não tem caixa aberto em ${lojaNomes[0]} agora — abra o caixa antes de fazer sangria.` };
+
+  const { error } = await supabase.from("sangrias").insert({
+    turno_caixa_id: turno.id,
+    loja_id: lojaId,
+    valor: args.valor,
+    motivo: args.motivo.trim(),
+  });
+  if (error) return { erro: error.message };
+
+  return { sucesso: true, valor: args.valor, loja: lojaNomes[0], motivo: args.motivo.trim() };
+}
+
+// -------------------- marcar_item_entregue --------------------
+export async function marcarItemEntreguePorIA(
+  supabase: SupabaseClient,
+  ctx: ContextoIA,
+  args: { numero_pedido: number; produto?: string }
+) {
+  if (!ehAdminOuGerente(ctx)) {
+    return { erro: "Você não tem permissão pra marcar entrega — só admin e gerente podem." };
+  }
+  if (!args.numero_pedido) return { erro: "Preciso do número do pedido." };
+
+  const { data: venda } = await supabase
+    .from("vendas")
+    .select("id, numero_pedido")
+    .eq("numero_pedido", args.numero_pedido)
+    .maybeSingle();
+  if (!venda) return { erro: `Não encontrei o pedido #${args.numero_pedido}.` };
+
+  const { data: itens } = await supabase
+    .from("venda_itens")
+    .select("id, nome_produto, status_entrega")
+    .eq("venda_id", venda.id)
+    .neq("status_entrega", "entregue");
+
+  let alvos = itens || [];
+  if (args.produto) {
+    const termo = normalizarTexto(args.produto);
+    alvos = alvos.filter((i) => normalizarTexto(i.nome_produto).includes(termo));
+  }
+
+  if (alvos.length === 0) {
+    return {
+      erro: `Não encontrei item pendente de entrega nesse pedido${args.produto ? ` chamado "${args.produto}"` : ""}.`,
+    };
+  }
+
+  const ids = alvos.map((i) => i.id);
+  await supabase.from("venda_itens").update({ status_entrega: "entregue", data_entregue: new Date().toISOString() }).in("id", ids);
+
+  return { sucesso: true, pedido: venda.numero_pedido, itens_marcados: alvos.map((i) => i.nome_produto) };
+}
