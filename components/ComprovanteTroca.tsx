@@ -1,6 +1,9 @@
 import { formatarMoeda } from "@/lib/format";
 import type { LojaCompleta, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
 
+const COR_VERDE_ESCURO = "#123C2E";
+const COR_LARANJA = "#C2660D";
+
 interface ClienteResumo {
   nome: string;
   cpf?: string | null;
@@ -130,6 +133,10 @@ function ViaTroca({
               <td>
                 {n.produto_nome}
                 {n.variante ? ` — ${n.variante}` : ""}
+                {" — "}
+                <span style={{ color: n.tipo_entrega === "encomenda" ? COR_LARANJA : COR_VERDE_ESCURO, fontWeight: 700 }}>
+                  {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
+                </span>
               </td>
               <td>{n.quantidade}</td>
               <td>{formatarMoeda(valorItem(n, n.quantidade))}</td>
