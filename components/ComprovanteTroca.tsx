@@ -2,6 +2,7 @@ import { formatarMoeda } from "@/lib/format";
 import type { LojaCompleta, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
 
 const COR_VERDE_ESCURO = "#123C2E";
+const COR_VERDE_FUNDO = "#E8F1EC";
 const COR_LARANJA = "#C2660D";
 
 interface ClienteResumo {
@@ -128,20 +129,40 @@ function ViaTroca({
           </tr>
         </thead>
         <tbody>
-          {novos.map((n) => (
-            <tr key={n.id}>
-              <td>
-                {n.produto_nome}
-                {n.variante ? ` — ${n.variante}` : ""}
-                {" — "}
-                <span style={{ color: n.tipo_entrega === "encomenda" ? COR_LARANJA : COR_VERDE_ESCURO, fontWeight: 700 }}>
-                  {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
-                </span>
-              </td>
-              <td>{n.quantidade}</td>
-              <td>{formatarMoeda(valorItem(n, n.quantidade))}</td>
-            </tr>
-          ))}
+          {novos.map((n) => {
+            const temBracosAlmofada = n.variante?.includes("Braços de Almofada");
+            const varianteSemBracos = n.variante?.replace(/ — Braços de Almofada$/, "") || null;
+            return (
+              <tr key={n.id}>
+                <td>
+                  {n.produto_nome}
+                  {varianteSemBracos ? ` — ${varianteSemBracos}` : ""}
+                  {temBracosAlmofada && (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        marginLeft: 4,
+                        color: COR_VERDE_ESCURO,
+                        fontWeight: 700,
+                        backgroundColor: COR_VERDE_FUNDO,
+                        border: `1px solid ${COR_VERDE_ESCURO}`,
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                      }}
+                    >
+                      BRAÇOS DE ALMOFADA
+                    </span>
+                  )}
+                  {" — "}
+                  <span style={{ color: n.tipo_entrega === "encomenda" ? COR_LARANJA : COR_VERDE_ESCURO, fontWeight: 700 }}>
+                    {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
+                  </span>
+                </td>
+                <td>{n.quantidade}</td>
+                <td>{formatarMoeda(valorItem(n, n.quantidade))}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
