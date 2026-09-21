@@ -217,6 +217,7 @@ export default function NotasPage() {
     if (v.clientes?.bairro?.toLowerCase().includes(alvo)) return true;
     const cpfDigitos = apenasNumeros(alvo);
     if (cpfDigitos.length >= 3 && (v.clientes?.cpf || "").includes(cpfDigitos)) return true;
+    if ((v.venda_itens || []).some((i) => i.nome_produto?.toLowerCase().includes(alvo))) return true;
     return false;
   }
 
@@ -388,7 +389,7 @@ export default function NotasPage() {
             className="input-base"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome, CPF, cidade, povoado, endereço ou número do pedido..."
+            placeholder="Nome, CPF, cidade, povoado, endereço, produto ou número do pedido..."
           />
         </label>
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-madeira-700 cursor-pointer">
