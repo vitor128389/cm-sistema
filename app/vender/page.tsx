@@ -1270,6 +1270,32 @@ function VenderPageConteudo() {
   }
 
   /* ---------------- Finalizar venda ---------------- */
+  // recalcula o desconto de cada item somando a parte que veio do "desconto
+  // adicional" da tela de pagamento (rateado proporcionalmente) — usado nos
+  // dois formatos de impressão imediata, pra não ficar sem mostrar esse
+  // desconto (ele só existe no carrinho depois de calculado aqui, o campo
+  // item.desconto sozinho só tem o desconto que foi dado direto no produto)
+  function itensCarrinhoComDesconto() {
+    const totalAprazoCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
+    const valorEsperadoSemDesconto =
+      pagamentos.length === 1 ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas) : 0;
+    const descontoGeralAprazo =
+      pagamentos.length === 1 ? Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100) : 0;
+
+    return carrinho.map((item) => {
+      const totalItemOriginal = item.valorUnitario * item.quantidade;
+      const shareDesconto =
+        descontoGeralAprazo > 0 && totalAprazoCarrinho > 0
+          ? Math.round(((descontoGeralAprazo * totalItemOriginal) / totalAprazoCarrinho) * 100) / 100
+          : 0;
+      return {
+        ...item,
+        descontoTotal: Math.round(((item.desconto || 0) + shareDesconto) * 100) / 100,
+        motivoDescontoTotal: shareDesconto > 0 ? item.motivoDesconto || motivoDescontoVendaGeral.trim() : item.motivoDesconto,
+      };
+    });
+  }
+
   async function finalizarVenda() {
     if (!todasFormasEscolhidas) {
       alert("Escolha a forma de pagamento em todas as linhas antes de finalizar.");
@@ -2763,7 +2789,7 @@ function VenderPageConteudo() {
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
-            itens={carrinho.map((item, idx) => ({
+            itens={itensCarrinhoComDesconto().map((item, idx) => ({
               id: String(idx),
               venda_id: "",
               produto_id: item.produtoId,
@@ -2780,8 +2806,8 @@ function VenderPageConteudo() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
-              desconto: item.desconto || 0,
-              motivo_desconto: item.motivoDesconto,
+              desconto: item.descontoTotal,
+              motivo_desconto: item.motivoDescontoTotal,
               categoria: item.categoria,
               origem_deposito: item.origemDeposito || false,
               origem_loja_id: item.origemLojaId || null,
@@ -2819,7 +2845,7 @@ function VenderPageConteudo() {
             }))}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
-            itens={carrinho.map((item, idx) => ({
+            itens={itensCarrinhoComDesconto().map((item, idx) => ({
               id: String(idx),
               venda_id: "",
               produto_id: item.produtoId,
@@ -2836,8 +2862,8 @@ function VenderPageConteudo() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
-              desconto: item.desconto || 0,
-              motivo_desconto: item.motivoDesconto,
+              desconto: item.descontoTotal,
+              motivo_desconto: item.motivoDescontoTotal,
               categoria: item.categoria,
               origem_deposito: item.origemDeposito || false,
               origem_loja_id: item.origemLojaId || null,
