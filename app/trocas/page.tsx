@@ -347,7 +347,7 @@ export default function TrocasPage() {
   // pra mostrar na nota — só marca quando for "com braços", pra não poluir
   // a nota com "— Sem Braços" no caso comum
   function bracosExibicaoLinha(linha: LinhaNova): string {
-    return mostrarBracosLinha(linha) && linha.bracosAlmofada ? " — Com Braços" : "";
+    return mostrarBracosLinha(linha) && linha.bracosAlmofada ? " — Braços de Almofada" : "";
   }
 
   // Cabeceiras e Baús também têm cor pra escolher, igual na tela de
