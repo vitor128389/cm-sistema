@@ -141,6 +141,12 @@ function linhaItem(
   const valorUnitario = qtd > 0 ? Math.round((totalLinha / qtd) * 100) / 100 : 0;
   const nomeLojaOrigem = item.origem_loja_id ? lojasPorId?.[item.origem_loja_id] : null;
 
+  // "Braços de Almofada" vem dentro do texto da variante (ex.: "Suede —
+  // Braços de Almofada") — separa isso pra virar um selo destacado, igual
+  // já acontece com a observação, em vez de ficar escondido no meio do texto.
+  const temBracosAlmofada = !!item.variante?.includes("Braços de Almofada");
+  const varianteSemBracos = item.variante?.replace(/ — Braços de Almofada$/, "") || null;
+
   // Origem/situação do produto — cada item verifica a própria origem
   // individualmente, então um pedido misto mostra cada linha certinha.
   // Prioridade: encomenda > depósito > estoque de outra loja > própria loja.
@@ -167,7 +173,23 @@ function linhaItem(
         <span style={{ color: ehViaLoja ? situacaoCor : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
           ({situacaoTexto})
         </span>
-        {item.variante ? ` — ${item.variante}` : ""}
+        {varianteSemBracos ? ` — ${varianteSemBracos}` : ""}
+        {temBracosAlmofada && (
+          <span
+            style={{
+              display: "inline-block",
+              marginLeft: 4,
+              color: COR_VERDE_ESCURO,
+              fontWeight: 700,
+              backgroundColor: COR_VERDE_FUNDO,
+              border: `1px solid ${COR_VERDE_ESCURO}`,
+              borderRadius: 4,
+              padding: "1px 5px",
+            }}
+          >
+            BRAÇOS DE ALMOFADA
+          </span>
+        )}
         {item.observacao && (
           <span
             style={{
