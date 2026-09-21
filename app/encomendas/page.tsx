@@ -161,7 +161,8 @@ export default function EncomendasPage() {
       const bateBusca =
         String(v.numero_pedido).includes(alvo) ||
         !!v.clientes?.nome?.toLowerCase().includes(alvo) ||
-        (cpfDigitos.length >= 3 && (v.clientes?.cpf || "").includes(cpfDigitos));
+        (cpfDigitos.length >= 3 && (v.clientes?.cpf || "").includes(cpfDigitos)) ||
+        (v.venda_itens || []).some((i) => i.nome_produto?.toLowerCase().includes(alvo));
       if (!bateBusca) return false;
     } else if (!dentroDoPeriodo(v.criado_em)) {
       return false;
@@ -188,7 +189,7 @@ export default function EncomendasPage() {
             className="input-base"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome, CPF ou número do pedido..."
+            placeholder="Nome, CPF, produto ou número do pedido..."
           />
         </label>
         <div className="flex gap-2">
