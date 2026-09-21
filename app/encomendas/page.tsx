@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
+import { gerarRelatorioEncomendasPdf } from "@/lib/gerarRelatorioEncomendasPdf";
 import type { Venda } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -11,7 +12,7 @@ function apenasNumeros(v: string) {
 }
 
 export default function EncomendasPage() {
-  const { lojaAtual } = useLoja();
+  const { lojaAtual, lojas } = useLoja();
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregar, setErroCarregar] = useState("");
@@ -20,6 +21,20 @@ export default function EncomendasPage() {
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
+  const [lojasRelatorio, setLojasRelatorio] = useState<string[]>([]);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+
+  function alternarLojaRelatorio(id: string) {
+    setLojasRelatorio((atual) => {
+      if (atual.includes(id)) return atual.filter((x) => x !== id);
+      if (atual.length >= 3) {
+        alert("Escolha até 3 lojas por vez.");
+        return atual;
+      }
+      return [...atual, id];
+    });
+  }
+
 
   async function carregar() {
     setCarregando(true);
@@ -77,6 +92,66 @@ export default function EncomendasPage() {
       return data >= inicio && data <= fim;
     }
     return true;
+  }
+
+  function periodoParaTexto(): string {
+    if (periodo === "todos") return "Todos os períodos";
+    if (periodo === "hoje") return "Hoje";
+    if (periodo === "ontem") return "Ontem";
+    if (periodo === "personalizado") {
+      const deFmt = de ? new Date(de + "T00:00:00").toLocaleDateString("pt-BR") : "início";
+      const ateFmt = ate ? new Date(ate + "T23:59:59").toLocaleDateString("pt-BR") : "hoje";
+      return `${deFmt} até ${ateFmt}`;
+    }
+    return "Todos os períodos";
+  }
+
+  async function gerarPdf() {
+    const idsLojas = lojasRelatorio.length > 0 ? lojasRelatorio : lojaAtual ? [lojaAtual] : [];
+    if (idsLojas.length === 0) {
+      alert("Escolha pelo menos uma loja pra gerar o relatório.");
+      return;
+    }
+    setGerandoPdf(true);
+    try {
+      const { data, error } = await supabase
+        .from("vendas")
+        .select("criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega)")
+        .eq("cancelada", false)
+        .in("loja_id", idsLojas);
+      if (error) throw error;
+
+      const todasVendas = (data || []) as unknown as Venda[];
+      const vendasNoPeriodo = todasVendas.filter((v) => dentroDoPeriodo(v.criado_em));
+
+      const consolidado = new Map<string, number>();
+      for (const v of vendasNoPeriodo) {
+        for (const item of v.venda_itens || []) {
+          if (item.tipo_entrega !== "encomenda") continue;
+          const chave = item.variante ? `${item.nome_produto} — ${item.variante}` : item.nome_produto;
+          consolidado.set(chave, (consolidado.get(chave) || 0) + item.quantidade);
+        }
+      }
+      const itensOrdenados = Array.from(consolidado.entries())
+        .map(([nome, quantidade]) => ({ nome, quantidade }))
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      const nomesLojas = idsLojas.map((id) => lojas.find((l) => l.id === id)?.nome || "Loja");
+      const blob = await gerarRelatorioEncomendasPdf(itensOrdenados, nomesLojas, periodoParaTexto());
+      const nomeArquivo = `encomendas-${nomesLojas.join("-").replace(/\s+/g, "-").toLowerCase()}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nomeArquivo;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Erro ao gerar o PDF: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    } finally {
+      setGerandoPdf(false);
+    }
   }
 
   const vendasFiltradas = vendas.filter((v) => {
@@ -158,6 +233,33 @@ export default function EncomendasPage() {
           </>
         )}
       </div>
+
+      {lojas.length > 0 && (
+        <div className="card p-4 mb-6">
+          <p className="text-sm font-semibold text-madeira-700 mb-1">Relatório em PDF (encomendas consolidadas)</p>
+          <p className="text-xs text-madeira-500 mb-3">
+            Escolha até 3 lojas — junta a quantidade de cada produto encomendado nelas, no período selecionado
+            acima. Sem escolher nenhuma, usa a loja ativa.
+          </p>
+          <div className="flex flex-wrap gap-3 mb-3">
+            {lojas
+              .filter((l) => !(l as unknown as { eh_deposito?: boolean }).eh_deposito)
+              .map((l) => (
+                <label key={l.id} className="flex items-center gap-1.5 text-sm text-madeira-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lojasRelatorio.includes(l.id)}
+                    onChange={() => alternarLojaRelatorio(l.id)}
+                  />
+                  {l.nome}
+                </label>
+              ))}
+          </div>
+          <button className="btn-primario" onClick={gerarPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? "Gerando..." : "Baixar PDF"}
+          </button>
+        </div>
+      )}
 
       {carregando ? (
         <p className="text-madeira-500 text-sm">Carregando...</p>
