@@ -128,7 +128,11 @@ export default function EncomendasPage() {
       for (const v of vendasNoPeriodo) {
         for (const item of v.venda_itens || []) {
           if (item.tipo_entrega !== "encomenda") continue;
-          const chave = item.variante ? `${item.nome_produto} — ${item.variante}` : item.nome_produto;
+          // sofás "2 e 3 lugares" salvam a peça (2/3 Lugares) dentro da
+          // variante — junta as duas peças do mesmo tecido/cor numa linha
+          // só, sem repetir o produto duas vezes no relatório
+          const variantesSemPeca = item.variante?.replace(/ — (2|3) Lugares$/, "") || null;
+          const chave = variantesSemPeca ? `${item.nome_produto} — ${variantesSemPeca}` : item.nome_produto;
           consolidado.set(chave, (consolidado.get(chave) || 0) + item.quantidade);
         }
       }
