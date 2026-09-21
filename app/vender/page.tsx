@@ -709,34 +709,45 @@ function VenderPageConteudo() {
         : TECIDOS;
     }
     if (produtoSelecionado.produto_variantes.length > 0) {
-      return [...produtoSelecionado.produto_variantes]
-        .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
-        .map((v) => v.nome_variante);
+      // tira o sufixo de "— Com/Sem Braços" quando tiver (produtos com
+      // braços de almofada) — senão a lista de tecido mostraria "Suede —
+      // Sem Braços" como se fosse um tecido separado
+      const nomes = new Set(
+        produtoSelecionado.produto_variantes.map((v) => v.nome_variante.replace(/ — (Com|Sem) Braços$/, ""))
+      );
+      return Array.from(nomes).sort((a, b) => ordemTecido(a) - ordemTecido(b));
     }
     return TECIDOS;
   }
 
-  function nomeVarianteConjunto(peca: "2" | "3"): string {
-    return `${tecidoSel} — ${peca} Lugares`;
+  function nomeVarianteConjunto(peca: "2" | "3", bracosOverride?: boolean): string {
+    return `${tecidoSel} — ${peca} Lugares${sufixoBracos(bracosOverride)}`;
   }
 
-  function estoquePecaConjunto(peca: "2" | "3"): number {
+  function estoquePecaConjunto(peca: "2" | "3", bracosOverride?: boolean): number {
     if (!produtoSelecionado) return 0;
-    const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === nomeVarianteConjunto(peca));
+    const v = produtoSelecionado.produto_variantes.find(
+      (vv) => vv.nome_variante === nomeVarianteConjunto(peca, bracosOverride)
+    );
     return v?.estoque || 0;
   }
 
-  function precoPecaConjunto(peca: "2" | "3"): number {
+  function precoPecaConjunto(peca: "2" | "3", bracosOverride?: boolean): number {
     if (!produtoSelecionado) return 0;
-    const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === nomeVarianteConjunto(peca));
+    const v = produtoSelecionado.produto_variantes.find(
+      (vv) => vv.nome_variante === nomeVarianteConjunto(peca, bracosOverride)
+    );
     return v?.preco_avista || 0;
   }
 
-  function atualizarValorConjunto(peca: "" | "2" | "3" | "conjunto") {
+  function atualizarValorConjunto(peca: "" | "2" | "3" | "conjunto", bracosOverride?: boolean) {
     if (peca === "2" || peca === "3") {
-      setValorUnitario(Math.round(precoPecaConjunto(peca) * 1.1 * 100) / 100);
+      setValorUnitario(Math.round(precoPecaConjunto(peca, bracosOverride) * 1.1 * 100) / 100);
     } else if (peca === "conjunto") {
-      setValorUnitario(Math.round((precoPecaConjunto("2") + precoPecaConjunto("3")) * 1.1 * 100) / 100);
+      setValorUnitario(
+        Math.round((precoPecaConjunto("2", bracosOverride) + precoPecaConjunto("3", bracosOverride)) * 1.1 * 100) /
+          100
+      );
     } else {
       setValorUnitario(0);
     }
@@ -780,13 +791,17 @@ function VenderPageConteudo() {
       setValorUnitario(0);
     } else if (p.tipo_precificacao === "tecido") {
       // sempre começa em Suede quando o produto tiver essa opção — só cai
-      // pra primeira variante cadastrada se não tiver Suede mesmo
-      const primeira =
-        p.produto_variantes.find((v) => v.nome_variante === "Suede")?.nome_variante ||
-        p.produto_variantes[0]?.nome_variante ||
-        "Suede";
+      // pra primeira variante cadastrada se não tiver Suede mesmo. Nos
+      // produtos com braços de almofada, o nome do tecido não tem mais o
+      // sufixo direto (agora é "Suede — Sem Braços"), então tira isso pra
+      // achar o tecido puro primeiro.
+      const nomesTecido = Array.from(
+        new Set(p.produto_variantes.map((v) => v.nome_variante.replace(/ — (Com|Sem) Braços$/, "")))
+      );
+      const primeira = nomesTecido.includes("Suede") ? "Suede" : nomesTecido[0] || "Suede";
       setTecidoSel(primeira);
-      atualizarValorPelaVariante(p, primeira);
+      const temBracos = PRODUTOS_COM_BRACOS_ALMOFADA.includes(p.nome);
+      atualizarValorPelaVariante(p, temBracos ? `${primeira} — Sem Braços` : primeira);
     } else {
       setValorUnitario(Math.round(p.preco_venda * 1.1 * 100) / 100);
       if (p.categoria === "Cabeceiras e Baús") setTecidoSel("Suede"); // só pra filtrar a cor, não muda o preço
@@ -800,7 +815,7 @@ function VenderPageConteudo() {
       return v?.estoque || 0;
     }
     if (produtoSelecionado.tipo_precificacao === "tecido") {
-      const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === tecidoSel);
+      const v = produtoSelecionado.produto_variantes.find((vv) => vv.nome_variante === `${tecidoSel}${sufixoBracos()}`);
       return v?.estoque || 0;
     }
     if (produtoSelecionado.tipo_precificacao === "tecido_peca") {
@@ -821,7 +836,8 @@ function VenderPageConteudo() {
     }
     if (produtoSelecionado.tipo_precificacao === "tecido") {
       return (
-        produtoSelecionado.produto_variantes.find((v) => v.nome_variante === tecidoSel)?.id || null
+        produtoSelecionado.produto_variantes.find((v) => v.nome_variante === `${tecidoSel}${sufixoBracos()}`)?.id ||
+        null
       );
     }
     if (produtoSelecionado.tipo_precificacao === "tecido_peca" && (pecaSel === "2" || pecaSel === "3")) {
@@ -834,8 +850,11 @@ function VenderPageConteudo() {
     return null;
   }
 
-  // Braços de almofada — opcional só nesses 4 produtos específicos, soma
-  // no valor à vista (antes do acréscimo de prazo), por peça.
+  // Braços de almofada — opcional só nesses 4 produtos específicos. Agora é
+  // uma variação de estoque de verdade (cada combinação tecido/peça tem uma
+  // versão "Com Braços" e uma "Sem Braços" cadastrada separadamente), não
+  // mais um acréscimo de preço por cima — o preço e o estoque vêm direto da
+  // variante escolhida.
   const PRODUTOS_COM_BRACOS_ALMOFADA = [
     "SOFÁ ITÁLIA COM CHAISE",
     "SOFÁ TURQUIA 2 LUGARES",
@@ -848,20 +867,13 @@ function VenderPageConteudo() {
     return PRODUTOS_COM_BRACOS_ALMOFADA.includes(produtoSelecionado.nome);
   }
 
-  // R$100 por peça — no "Conjunto 2+3" isso soma R$200 (100 de cada peça)
-  function valorBracosAlmofadaPorPeca(): number {
-    if (!bracosAlmofada || !mostrarOpcaoBracosAlmofada()) return 0;
-    return 100;
-  }
-
-  // total do adicional já em "a prazo" (+10%), pra mostrar na prévia —
-  // no Conjunto 2+3 conta as duas peças
-  function valorAdicionalBracosAprazo(): number {
-    const porPeca = valorBracosAlmofadaPorPeca();
-    if (porPeca <= 0) return 0;
-    const multiplicador =
-      produtoSelecionado?.tipo_precificacao === "tecido_peca" && pecaSel === "conjunto" ? 2 : 1;
-    return Math.round(porPeca * multiplicador * 1.1 * 100) / 100;
+  // sufixo que entra no nome_variante pra achar a linha de estoque certa —
+  // aceita um valor "override" pra usar dentro do mesmo clique que muda o
+  // bracosAlmofada (o estado ainda não teria atualizado a tempo)
+  function sufixoBracos(bracosOverride?: boolean): string {
+    if (!mostrarOpcaoBracosAlmofada()) return "";
+    const usar = bracosOverride !== undefined ? bracosOverride : bracosAlmofada;
+    return usar ? " — Com Braços" : " — Sem Braços";
   }
 
   function valorAVistaAtual(): number {
@@ -874,7 +886,7 @@ function VenderPageConteudo() {
     }
     if (produtoSelecionado.tipo_precificacao === "tecido") {
       return (
-        produtoSelecionado.produto_variantes.find((v) => v.nome_variante === tecidoSel)
+        produtoSelecionado.produto_variantes.find((v) => v.nome_variante === `${tecidoSel}${sufixoBracos()}`)
           ?.preco_avista || 0
       );
     }
@@ -1026,8 +1038,8 @@ function VenderPageConteudo() {
       const v3 = produtoSelecionado.produto_variantes.find(
         (v) => v.nome_variante === nomeVarianteConjunto("3")
       );
-      const preco2 = precoPecaConjunto("2") + valorBracosAlmofadaPorPeca();
-      const preco3 = precoPecaConjunto("3") + valorBracosAlmofadaPorPeca();
+      const preco2 = precoPecaConjunto("2");
+      const preco3 = precoPecaConjunto("3");
       const precoTotalConjunto = preco2 + preco3;
       const desconto2 =
         descontoValor > 0 && precoTotalConjunto > 0
@@ -1071,9 +1083,7 @@ function VenderPageConteudo() {
       // prazo" (com +10%) é recalculado por cima do à vista já descontado,
       // pra não ficar resto de centavos nem bagunçar o lucro no Movimento.
       const aVistaComDesconto =
-        Math.round(
-          (valorAVistaAtual() + valorBracosAlmofadaPorPeca() - descontoValor / quantidade) * 100
-        ) / 100;
+        Math.round((valorAVistaAtual() - descontoValor / quantidade) * 100) / 100;
       setCarrinho((atual) => [
         ...atual,
         {
@@ -1979,7 +1989,7 @@ function VenderPageConteudo() {
                             if (ehConjuntoSofa()) {
                               atualizarValorConjunto(pecaSel);
                             } else {
-                              atualizarValorPelaVariante(produtoSelecionado, t);
+                              atualizarValorPelaVariante(produtoSelecionado, `${t}${sufixoBracos()}`);
                             }
                           }}
                         >
@@ -2265,7 +2275,7 @@ function VenderPageConteudo() {
                       className="input-base bg-madeira-50"
                       type="text"
                       readOnly
-                      value={formatarMoeda(valorUnitario + valorAdicionalBracosAprazo())}
+                      value={formatarMoeda(valorUnitario)}
                       title="Preço definido pelo cadastro do produto — não pode ser alterado aqui"
                     />
                   </label>
@@ -2276,13 +2286,17 @@ function VenderPageConteudo() {
                     <input
                       type="checkbox"
                       checked={bracosAlmofada}
-                      onChange={(e) => setBracosAlmofada(e.target.checked)}
+                      onChange={(e) => {
+                        const novoValor = e.target.checked;
+                        setBracosAlmofada(novoValor);
+                        if (ehConjuntoSofa()) {
+                          atualizarValorConjunto(pecaSel, novoValor);
+                        } else if (produtoSelecionado) {
+                          atualizarValorPelaVariante(produtoSelecionado, `${tecidoSel}${sufixoBracos(novoValor)}`);
+                        }
+                      }}
                     />
-                    Braços de almofada (+
-                    {formatarMoeda(
-                      produtoSelecionado?.tipo_precificacao === "tecido_peca" && pecaSel === "conjunto" ? 200 : 100
-                    )}
-                    )
+                    Braços de almofada
                   </label>
                 )}
 
@@ -2324,7 +2338,7 @@ function VenderPageConteudo() {
                   <span className="text-sm text-madeira-700">Total do item</span>
                   <span className="font-display text-lg">
                     {formatarMoeda(
-                      (valorUnitario + valorAdicionalBracosAprazo()) * quantidade - (parseFloat(descontoItem) || 0) * 1.1
+                      valorUnitario * quantidade - (parseFloat(descontoItem) || 0) * 1.1
                     )}
                   </span>
                 </div>
