@@ -20,6 +20,12 @@ import type {
 
 const ESPESSURAS = ["5cm", "7cm", "14cm"];
 const TECIDOS = ["Suede", "Linho", "Veludo"];
+const PRODUTOS_COM_BRACOS_ALMOFADA = [
+  "SOFÁ ITÁLIA COM CHAISE",
+  "SOFÁ TURQUIA 2 LUGARES",
+  "SOFÁ TURQUIA 3 LUGARES",
+  "SOFÁ TURQUIA 2 E 3 LUGARES",
+];
 
 interface LinhaNova {
   chave: number;
@@ -30,22 +36,36 @@ interface LinhaNova {
   pecaSel: "2" | "3" | "conjunto";
   corSel: string;
   corManual: string;
+  bracosAlmofada: boolean;
   quantidade: number;
   valorAVistaUnit: number;
   valorAPrazoUnit: number;
   tipoEntrega: "pronta" | "encomenda";
 }
 
-function estoqueDaPecaLinha(linha: LinhaNova, peca: "2" | "3"): number {
+function mostrarBracosLinha(linha: LinhaNova): boolean {
+  return !!linha.produto && PRODUTOS_COM_BRACOS_ALMOFADA.includes(linha.produto.nome);
+}
+
+// sufixo pra achar a variante certa — aceita override pra usar dentro do
+// mesmo clique que muda o checkbox (o estado ainda não teria atualizado)
+function sufixoBracosLinha(linha: LinhaNova, bracosOverride?: boolean): string {
+  if (!mostrarBracosLinha(linha)) return "";
+  const usar = bracosOverride !== undefined ? bracosOverride : linha.bracosAlmofada;
+  return usar ? " — Com Braços" : " — Sem Braços";
+}
+
+function estoqueDaPecaLinha(linha: LinhaNova, peca: "2" | "3", bracosOverride?: boolean): number {
   if (!linha.produto) return 0;
-  const nomeVariante = `${linha.tecidoSel} — ${peca} Lugares`;
+  const nomeVariante = `${linha.tecidoSel} — ${peca} Lugares${sufixoBracosLinha(linha, bracosOverride)}`;
   return linha.produto.produto_variantes.find((v) => v.nome_variante === nomeVariante)?.estoque || 0;
 }
 
 function estoqueDaLinha(linha: LinhaNova): number {
   if (!linha.produto) return 0;
   if (linha.produto.tipo_precificacao === "tecido") {
-    return linha.produto.produto_variantes.find((v) => v.nome_variante === linha.tecidoSel)?.estoque || 0;
+    const nomeVariante = `${linha.tecidoSel}${sufixoBracosLinha(linha)}`;
+    return linha.produto.produto_variantes.find((v) => v.nome_variante === nomeVariante)?.estoque || 0;
   }
   if (linha.produto.tipo_precificacao === "espessura") {
     return linha.produto.produto_variantes.find((v) => v.nome_variante === linha.espessuraSel)?.estoque || 0;
@@ -136,6 +156,7 @@ export default function TrocasPage() {
         pecaSel: "2",
         corSel: "",
         corManual: "",
+        bracosAlmofada: false,
         quantidade: 1,
         valorAVistaUnit: 0,
         valorAPrazoUnit: 0,
@@ -158,13 +179,16 @@ export default function TrocasPage() {
     let tecido = "Suede";
     let espessura = "5cm";
     let peca: "2" | "3" = "2";
+    const temBracos = PRODUTOS_COM_BRACOS_ALMOFADA.includes(p.nome);
+    const sufixo = temBracos ? " — Sem Braços" : "";
     if (p.tipo_precificacao === "tecido") {
-      // sempre começa em Suede quando existir essa opção
-      tecido =
-        p.produto_variantes.find((v) => v.nome_variante === "Suede")?.nome_variante ||
-        p.produto_variantes[0]?.nome_variante ||
-        "Suede";
-      avista = p.produto_variantes.find((v) => v.nome_variante === tecido)?.preco_avista || 0;
+      // sempre começa em Suede quando existir essa opção — tira o sufixo de
+      // braços (se tiver) pra achar o tecido puro primeiro
+      const nomesTecido = Array.from(
+        new Set(p.produto_variantes.map((v) => v.nome_variante.replace(/ — (Com|Sem) Braços$/, "")))
+      );
+      tecido = nomesTecido.includes("Suede") ? "Suede" : nomesTecido[0] || "Suede";
+      avista = p.produto_variantes.find((v) => v.nome_variante === `${tecido}${sufixo}`)?.preco_avista || 0;
     } else if (p.tipo_precificacao === "espessura") {
       espessura = p.produto_variantes[0]?.nome_variante || "5cm";
       avista = p.produto_variantes.find((v) => v.nome_variante === espessura)?.preco_avista || 0;
@@ -174,7 +198,8 @@ export default function TrocasPage() {
         variantesComSuede[0]?.nome_variante.split(" — ")[0] ||
         p.produto_variantes[0]?.nome_variante.split(" — ")[0] ||
         "Suede";
-      avista = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`)?.preco_avista || 0;
+      avista =
+        p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares${sufixo}`)?.preco_avista || 0;
     } else {
       avista = p.preco_venda;
     }
@@ -186,6 +211,42 @@ export default function TrocasPage() {
       pecaSel: peca,
       corSel: "",
       corManual: "",
+      bracosAlmofada: false,
+      valorAVistaUnit: avista,
+      valorAPrazoUnit: Math.round(avista * 1.1 * 100) / 100,
+    });
+  }
+
+  // muda o checkbox de braços de almofada e já recalcula preço/estoque
+  // usando o valor NOVO (o estado ainda não teria atualizado a tempo)
+  function alternarBracosLinha(chave: number, linha: LinhaNova, novoValor: boolean) {
+    if (!linha.produto) return;
+    let avista = 0;
+    if (linha.produto.tipo_precificacao === "tecido_peca") {
+      if (linha.pecaSel === "conjunto") {
+        const preco2 =
+          linha.produto.produto_variantes.find(
+            (v) => v.nome_variante === `${linha.tecidoSel} — 2 Lugares${sufixoBracosLinha(linha, novoValor)}`
+          )?.preco_avista || 0;
+        const preco3 =
+          linha.produto.produto_variantes.find(
+            (v) => v.nome_variante === `${linha.tecidoSel} — 3 Lugares${sufixoBracosLinha(linha, novoValor)}`
+          )?.preco_avista || 0;
+        avista = preco2 + preco3;
+      } else if (linha.pecaSel === "2" || linha.pecaSel === "3") {
+        avista =
+          linha.produto.produto_variantes.find(
+            (v) => v.nome_variante === `${linha.tecidoSel} — ${linha.pecaSel} Lugares${sufixoBracosLinha(linha, novoValor)}`
+          )?.preco_avista || 0;
+      }
+    } else {
+      avista =
+        linha.produto.produto_variantes.find(
+          (v) => v.nome_variante === `${linha.tecidoSel}${sufixoBracosLinha(linha, novoValor)}`
+        )?.preco_avista || 0;
+    }
+    atualizarLinha(chave, {
+      bracosAlmofada: novoValor,
       valorAVistaUnit: avista,
       valorAPrazoUnit: Math.round(avista * 1.1 * 100) / 100,
     });
@@ -202,21 +263,24 @@ export default function TrocasPage() {
     if (linha.produto.tipo_precificacao === "tecido_peca") {
       const tecidoUsado = campo === "tecidoSel" ? valor : linha.tecidoSel;
       const pecaUsada = campo === "pecaSel" ? valor : linha.pecaSel;
+      const sufixo = sufixoBracosLinha(linha);
       if (pecaUsada === "conjunto") {
         const preco2 =
-          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 2 Lugares`)
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 2 Lugares${sufixo}`)
             ?.preco_avista || 0;
         const preco3 =
-          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 3 Lugares`)
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — 3 Lugares${sufixo}`)
             ?.preco_avista || 0;
         avista = preco2 + preco3;
       } else {
         avista =
-          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — ${pecaUsada} Lugares`)
+          linha.produto.produto_variantes.find((v) => v.nome_variante === `${tecidoUsado} — ${pecaUsada} Lugares${sufixo}`)
             ?.preco_avista || 0;
       }
     } else {
-      const v = linha.produto.produto_variantes.find((vv) => vv.nome_variante === valor);
+      const v = linha.produto.produto_variantes.find(
+        (vv) => vv.nome_variante === `${valor}${sufixoBracosLinha(linha)}`
+      );
       avista = v?.preco_avista || 0;
     }
     atualizarLinha(chave, {
@@ -235,13 +299,15 @@ export default function TrocasPage() {
   function expandirLinhaConjunto(l: LinhaNova) {
     if (l.produto && l.produto.tipo_precificacao === "tecido_peca" && l.pecaSel === "conjunto") {
       const corExtra = corExtraLinha(l);
-      const v2 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 2 Lugares`);
-      const v3 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 3 Lugares`);
+      const bracosExtra = bracosExibicaoLinha(l);
+      const sufixo = sufixoBracosLinha(l);
+      const v2 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 2 Lugares${sufixo}`);
+      const v3 = l.produto.produto_variantes.find((v) => v.nome_variante === `${l.tecidoSel} — 3 Lugares${sufixo}`);
       return [
         {
           produto: l.produto,
           varianteId: v2?.id || null,
-          varianteNome: `${l.tecidoSel}${corExtra} — 2 Lugares`,
+          varianteNome: `${l.tecidoSel}${corExtra} — 2 Lugares${bracosExtra}`,
           quantidade: l.quantidade,
           valorAVista: v2?.preco_avista || 0,
           valorAPrazo: Math.round((v2?.preco_avista || 0) * 1.1 * 100) / 100,
@@ -250,7 +316,7 @@ export default function TrocasPage() {
         {
           produto: l.produto,
           varianteId: v3?.id || null,
-          varianteNome: `${l.tecidoSel}${corExtra} — 3 Lugares`,
+          varianteNome: `${l.tecidoSel}${corExtra} — 3 Lugares${bracosExtra}`,
           quantidade: l.quantidade,
           valorAVista: v3?.preco_avista || 0,
           valorAPrazo: Math.round((v3?.preco_avista || 0) * 1.1 * 100) / 100,
@@ -278,6 +344,12 @@ export default function TrocasPage() {
     return cor ? ` — Cor ${cor.codigo} (${cor.nome})` : "";
   }
 
+  // pra mostrar na nota — só marca quando for "com braços", pra não poluir
+  // a nota com "— Sem Braços" no caso comum
+  function bracosExibicaoLinha(linha: LinhaNova): string {
+    return mostrarBracosLinha(linha) && linha.bracosAlmofada ? " — Com Braços" : "";
+  }
+
   // Cabeceiras e Baús também têm cor pra escolher, igual na tela de
   // Vender — mesmo quando o produto é "simples" (sem variante de
   // verdade), o tecido ali é só pra filtrar a lista de cores, não muda
@@ -288,24 +360,29 @@ export default function TrocasPage() {
 
   function varianteNomeLinha(linha: LinhaNova): string | null {
     if (!linha.produto) return null;
-    if (linha.produto.tipo_precificacao === "tecido") return linha.tecidoSel;
+    if (linha.produto.tipo_precificacao === "tecido") return `${linha.tecidoSel}${sufixoBracosLinha(linha)}`;
     if (linha.produto.tipo_precificacao === "espessura") return linha.espessuraSel;
-    if (linha.produto.tipo_precificacao === "tecido_peca") return `${linha.tecidoSel} — ${linha.pecaSel} Lugares`;
+    if (linha.produto.tipo_precificacao === "tecido_peca")
+      return `${linha.tecidoSel} — ${linha.pecaSel} Lugares${sufixoBracosLinha(linha)}`;
     return null;
   }
 
   // nome mostrado na nota — igual à varianteNomeLinha, mas com a cor
-  // descritiva somada quando existir (não afeta a busca de estoque)
+  // descritiva somada quando existir, e sem o sufixo técnico de braços
+  // (mostra "— Com Braços" só quando for o caso, não "— Sem Braços")
   function varianteNomeExibidoLinha(linha: LinhaNova): string | null {
     if (!linha.produto) return null;
     if (linha.produto.tipo_precificacao === "tecido_peca") {
-      return `${linha.tecidoSel}${corExtraLinha(linha)} — ${linha.pecaSel} Lugares`;
+      return `${linha.tecidoSel}${corExtraLinha(linha)} — ${linha.pecaSel} Lugares${bracosExibicaoLinha(linha)}`;
     }
     if (mostrarCorCabeceira(linha)) {
       const corExtra = corExtraLinha(linha);
-      const base = varianteNomeLinha(linha); // tecido, se o produto for "por tecido"
+      const base = linha.produto.tipo_precificacao === "tecido" ? linha.tecidoSel : linha.espessuraSel;
       if (corExtra) return base ? `${base}${corExtra}` : corExtra.replace(/^ — /, "");
       return base;
+    }
+    if (linha.produto.tipo_precificacao === "tecido") {
+      return `${linha.tecidoSel}${bracosExibicaoLinha(linha)}`;
     }
     return varianteNomeLinha(linha);
   }
@@ -808,6 +885,16 @@ export default function TrocasPage() {
                                 />
                               </div>
                             </>
+                          )}
+                          {mostrarBracosLinha(linha) && (
+                            <label className="flex items-center gap-2 mb-2 text-sm text-madeira-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={linha.bracosAlmofada}
+                                onChange={(e) => alternarBracosLinha(linha.chave, linha, e.target.checked)}
+                              />
+                              Braços de almofada
+                            </label>
                           )}
                           {mostrarCorCabeceira(linha) && (
                             <>
