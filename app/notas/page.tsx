@@ -807,6 +807,8 @@ export default function NotasPage() {
             parcelasDiferenca={trocaImprimindo.parcelas_diferenca ?? 1}
             formaPagamentoDiferenca={trocaImprimindo.forma_pagamento_diferenca}
             loja={lojaImprimindo}
+            rotaNome={trocaImprimindo.rota_nome ?? null}
+            rotaCor={trocaImprimindo.rota_cor ?? null}
           />
         )}
       </div>
