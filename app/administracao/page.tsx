@@ -1499,11 +1499,21 @@ function AbaEstoque() {
                     setMensagemAdicionar(null);
                   }}
                 >
-                  {produtoParaAdicionar.produto_variantes.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.nome_variante}
-                    </option>
-                  ))}
+                  {[...produtoParaAdicionar.produto_variantes]
+                    .sort((a, b) => {
+                      // agrupa por peça primeiro (2 Lugares todos juntos,
+                      // depois 3 Lugares todos juntos), senão fica tudo
+                      // misturado e difícil de achar a combinação certa
+                      const pecaA = a.nome_variante.match(/(\d) Lugares/)?.[1] || "";
+                      const pecaB = b.nome_variante.match(/(\d) Lugares/)?.[1] || "";
+                      if (pecaA !== pecaB) return pecaA.localeCompare(pecaB);
+                      return a.nome_variante.localeCompare(b.nome_variante);
+                    })
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.nome_variante}
+                      </option>
+                    ))}
                 </select>
               </label>
             )}
