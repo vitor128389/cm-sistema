@@ -267,6 +267,8 @@ export interface TrocaGrupo {
   turno_caixa_id: string | null;
   loja_id: string;
   criado_em: string;
+  rota_nome?: string | null;
+  rota_cor?: string | null;
   trocas_devolvidos?: TrocaItemDevolvido[];
   trocas_novos?: TrocaItemNovo[];
   vendas?: {
