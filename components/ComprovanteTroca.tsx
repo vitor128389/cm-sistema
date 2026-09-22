@@ -29,6 +29,8 @@ interface Props {
   parcelasDiferenca?: number;
   formaPagamentoDiferenca: string | null;
   loja?: LojaCompleta | null;
+  rotaNome?: string | null;
+  rotaCor?: string | null;
 }
 
 function enderecoLojaTexto(loja?: LojaCompleta | null): string | null {
@@ -64,6 +66,8 @@ function ViaTroca({
   parcelasDiferenca,
   formaPagamentoDiferenca,
   loja,
+  rotaNome,
+  rotaCor,
   rotulo,
 }: Props & { rotulo: string }) {
   const enderecoLoja = enderecoLojaTexto(loja);
@@ -79,7 +83,26 @@ function ViaTroca({
           {loja?.cnpj && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>CNPJ: {loja.cnpj}</p>}
           {enderecoLoja && <p style={{ margin: "1px 0 0", fontSize: "0.68rem", color: "#666" }}>{enderecoLoja}</p>}
         </div>
-        <span className="imp-numero-pedido">TROCA #{numeroTroca}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+          <span className="imp-numero-pedido">TROCA #{numeroTroca}</span>
+          {rotaNome && rotulo === "Via da loja" && (
+            <span
+              style={{
+                display: "block",
+                marginTop: 3,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                textAlign: "right",
+                color: rotaCor || "#111",
+                border: `1px solid ${rotaCor || "#111"}`,
+                borderRadius: 4,
+                padding: "1px 6px",
+              }}
+            >
+              {rotaNome.toUpperCase()}
+            </span>
+          )}
+        </div>
       </div>
       <p style={{ margin: "4px 0 6px", fontSize: "0.68rem", color: "#666" }}>
         {rotulo} · {new Date().toLocaleString("pt-BR")}
