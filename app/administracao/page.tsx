@@ -705,20 +705,57 @@ function AbaEstoque() {
     carregar();
   }
 
+  function opcoesVariacaoParaAdicionar(
+    produto: ProdutoComVariantes | null = produtoParaAdicionar
+  ): { id: string; label: string; estoque: number; preco: number }[] {
+    if (!produto) return [];
+    const variantes = produto.produto_variantes;
+    const ehTecidoPeca = variantes.some((v) => / — (2|3) Lugares/.test(v.nome_variante));
+    if (!ehTecidoPeca) {
+      return [...variantes]
+        .sort((a, b) => a.nome_variante.localeCompare(b.nome_variante))
+        .map((v) => ({ id: v.id, label: v.nome_variante, estoque: v.estoque, preco: v.preco_avista }));
+    }
+    const grupos = new Map<string, { v2?: (typeof variantes)[number]; v3?: (typeof variantes)[number] }>();
+    for (const v of variantes) {
+      const m = v.nome_variante.match(/^(.*) — (2|3) Lugares(.*)$/);
+      if (!m) continue;
+      const base = `${m[1]}${m[3]}`; // tecido + sufixo de braços, sem a peça
+      const grupo = grupos.get(base) || {};
+      if (m[2] === "2") grupo.v2 = v;
+      else grupo.v3 = v;
+      grupos.set(base, grupo);
+    }
+    const opcoes: { id: string; label: string; estoque: number; preco: number }[] = [];
+    for (const base of Array.from(grupos.keys()).sort()) {
+      const { v2, v3 } = grupos.get(base)!;
+      if (v2 && v3) {
+        opcoes.push({
+          id: `conjunto:${v2.id}:${v3.id}`,
+          label: `${base} — 2 e 3 Lugares`,
+          estoque: Math.min(v2.estoque, v3.estoque),
+          preco: v2.preco_avista + v3.preco_avista,
+        });
+      }
+    }
+    return opcoes;
+  }
+
   // ---------------- Adicionar produtos ao estoque (soma) ----------------
   function selecionarProdutoParaAdicionar(p: ProdutoComVariantes) {
     setProdutoParaAdicionar(p);
     setBuscaAdicionar(p.nome);
     setDropdownAdicionarAberto(false);
-    setVarianteParaAdicionar(p.produto_variantes.length > 0 ? p.produto_variantes[0].id : null);
     setQuantidadeAdicionar("");
     setMensagemAdicionar(null);
+    const opcoes = opcoesVariacaoParaAdicionar(p);
+    setVarianteParaAdicionar(opcoes.length > 0 ? opcoes[0].id : null);
   }
 
   function estoqueAtualParaAdicionar(): number {
     if (!produtoParaAdicionar) return 0;
     if (produtoParaAdicionar.produto_variantes.length > 0) {
-      const v = produtoParaAdicionar.produto_variantes.find((vv) => vv.id === varianteParaAdicionar);
+      const v = opcoesVariacaoParaAdicionar().find((vv) => vv.id === varianteParaAdicionar);
       return v?.estoque || 0;
     }
     return produtoParaAdicionar.quantidade_estoque || 0;
@@ -727,8 +764,8 @@ function AbaEstoque() {
   function precoAtualParaAdicionar(): number {
     if (!produtoParaAdicionar) return 0;
     if (produtoParaAdicionar.produto_variantes.length > 0) {
-      const v = produtoParaAdicionar.produto_variantes.find((vv) => vv.id === varianteParaAdicionar);
-      return v?.preco_avista || 0;
+      const v = opcoesVariacaoParaAdicionar().find((vv) => vv.id === varianteParaAdicionar);
+      return v?.preco || 0;
     }
     return produtoParaAdicionar.preco_venda || 0;
   }
@@ -740,8 +777,6 @@ function AbaEstoque() {
       alert("Digite uma quantidade maior que zero pra adicionar.");
       return;
     }
-    const estoqueAtual = estoqueAtualParaAdicionar();
-    const novoEstoque = estoqueAtual + quantidade;
 
     setSalvandoAdicionar(true);
     try {
@@ -750,25 +785,54 @@ function AbaEstoque() {
           alert("Selecione a variação (tecido/cor) antes de adicionar.");
           return;
         }
+        if (varianteParaAdicionar.startsWith("conjunto:")) {
+          // soma a mesma quantidade nas duas peças (2 e 3 lugares) juntas
+          const [, id2, id3] = varianteParaAdicionar.split(":");
+          const v2 = produtoParaAdicionar.produto_variantes.find((v) => v.id === id2);
+          const v3 = produtoParaAdicionar.produto_variantes.find((v) => v.id === id3);
+          const novoEstoque2 = (v2?.estoque || 0) + quantidade;
+          const novoEstoque3 = (v3?.estoque || 0) + quantidade;
+          await salvarEstoqueVariante(produtoParaAdicionar.id, id2, novoEstoque2);
+          await salvarEstoqueVariante(produtoParaAdicionar.id, id3, novoEstoque3);
+          setMensagemAdicionar(
+            `${quantidade} unidade${quantidade > 1 ? "s" : ""} adicionada${quantidade > 1 ? "s" : ""} em cada peça (2 e 3 Lugares) com sucesso.`
+          );
+          setQuantidadeAdicionar("");
+          setProdutoParaAdicionar((atual) => {
+            if (!atual) return atual;
+            return {
+              ...atual,
+              produto_variantes: atual.produto_variantes.map((v) => {
+                if (v.id === id2) return { ...v, estoque: novoEstoque2 };
+                if (v.id === id3) return { ...v, estoque: novoEstoque3 };
+                return v;
+              }),
+            };
+          });
+          return;
+        }
+        const estoqueAtual = estoqueAtualParaAdicionar();
+        const novoEstoque = estoqueAtual + quantidade;
         await salvarEstoqueVariante(produtoParaAdicionar.id, varianteParaAdicionar, novoEstoque);
-      } else {
-        await salvarEstoqueSimples(produtoParaAdicionar.id, novoEstoque);
-      }
-      setMensagemAdicionar(`${quantidade} unidade${quantidade > 1 ? "s" : ""} adicionada${quantidade > 1 ? "s" : ""} com sucesso. Novo estoque: ${novoEstoque}.`);
-      setQuantidadeAdicionar("");
-      // atualiza o produto selecionado localmente também, pra já refletir o novo estoque atual na tela
-      setProdutoParaAdicionar((atual) => {
-        if (!atual) return atual;
-        if (atual.produto_variantes.length > 0) {
+        setMensagemAdicionar(`${quantidade} unidade${quantidade > 1 ? "s" : ""} adicionada${quantidade > 1 ? "s" : ""} com sucesso. Novo estoque: ${novoEstoque}.`);
+        setQuantidadeAdicionar("");
+        setProdutoParaAdicionar((atual) => {
+          if (!atual) return atual;
           return {
             ...atual,
             produto_variantes: atual.produto_variantes.map((v) =>
               v.id === varianteParaAdicionar ? { ...v, estoque: novoEstoque } : v
             ),
           };
-        }
-        return { ...atual, quantidade_estoque: novoEstoque };
-      });
+        });
+      } else {
+        const estoqueAtual = estoqueAtualParaAdicionar();
+        const novoEstoque = estoqueAtual + quantidade;
+        await salvarEstoqueSimples(produtoParaAdicionar.id, novoEstoque);
+        setMensagemAdicionar(`${quantidade} unidade${quantidade > 1 ? "s" : ""} adicionada${quantidade > 1 ? "s" : ""} com sucesso. Novo estoque: ${novoEstoque}.`);
+        setQuantidadeAdicionar("");
+        setProdutoParaAdicionar((atual) => (atual ? { ...atual, quantidade_estoque: novoEstoque } : atual));
+      }
     } finally {
       setSalvandoAdicionar(false);
     }
@@ -1499,21 +1563,11 @@ function AbaEstoque() {
                     setMensagemAdicionar(null);
                   }}
                 >
-                  {[...produtoParaAdicionar.produto_variantes]
-                    .sort((a, b) => {
-                      // agrupa por peça primeiro (2 Lugares todos juntos,
-                      // depois 3 Lugares todos juntos), senão fica tudo
-                      // misturado e difícil de achar a combinação certa
-                      const pecaA = a.nome_variante.match(/(\d) Lugares/)?.[1] || "";
-                      const pecaB = b.nome_variante.match(/(\d) Lugares/)?.[1] || "";
-                      if (pecaA !== pecaB) return pecaA.localeCompare(pecaB);
-                      return a.nome_variante.localeCompare(b.nome_variante);
-                    })
-                    .map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.nome_variante}
-                      </option>
-                    ))}
+                  {opcoesVariacaoParaAdicionar().map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
                 </select>
               </label>
             )}
