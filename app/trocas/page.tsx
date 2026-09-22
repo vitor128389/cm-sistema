@@ -112,6 +112,8 @@ export default function TrocasPage() {
     diferencaCobrada: number;
     parcelasDiferenca: number;
     formaPagDiferenca: string;
+    rotaNome: string | null;
+    rotaCor: string | null;
   } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
 
@@ -468,6 +470,10 @@ export default function TrocasPage() {
           valor_cobrado_diferenca: diferenca !== 0 ? diferencaCobrada : null,
           turno_caixa_id: turno?.id || null,
           loja_id: lojaAtual,
+          // a rota é a mesma da venda original — a troca é a mesma entrega,
+          // não uma nova rota
+          rota_nome: vendaEncontrada.rota_nome || null,
+          rota_cor: vendaEncontrada.rota_cor || null,
         })
         .select("id, numero_troca")
         .single();
@@ -617,6 +623,8 @@ export default function TrocasPage() {
         diferencaCobrada,
         parcelasDiferenca: diferenca !== 0 && (formaPagDiferenca === "Crédito" || formaPagDiferenca === "Link") ? parcelasDiferenca : 1,
         formaPagDiferenca,
+        rotaNome: vendaEncontrada.rota_nome || null,
+        rotaCor: vendaEncontrada.rota_cor || null,
       });
     } catch (erro: unknown) {
       // eslint-disable-next-line no-console
@@ -681,6 +689,8 @@ export default function TrocasPage() {
               parcelasDiferenca={concluida.parcelasDiferenca}
               formaPagamentoDiferenca={concluida.diferenca !== 0 ? concluida.formaPagDiferenca : null}
               loja={lojaInfo}
+              rotaNome={concluida.rotaNome}
+              rotaCor={concluida.rotaCor}
             />
           </div>
         </div>
