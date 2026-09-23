@@ -95,6 +95,10 @@ function VenderPageConteudo() {
   >([]);
   const [rotaSelecionadaId, setRotaSelecionadaId] = useState("");
   const [rotaSugeridaAplicada, setRotaSugeridaAplicada] = useState(false);
+  // de onde veio a rota atualmente selecionada — povoado é mais específico
+  // que cidade, então pode substituir uma sugestão por cidade, mas nunca
+  // uma escolha manual do vendedor
+  const [origemRotaSugerida, setOrigemRotaSugerida] = useState<"cidade" | "povoado" | null>(null);
   const [povoado, setPovoado] = useState("");
   const [cpfInfo, setCpfInfo] = useState("");
   const [dataNascimentoCliente, setDataNascimentoCliente] = useState<string | null>(null);
@@ -221,16 +225,49 @@ function VenderPageConteudo() {
   // alguma rota cadastrada — só sugere, nunca força; se o vendedor já
   // tiver escolhido uma rota na mão, não mexe mais nela.
   useEffect(() => {
-    if (rotaSelecionadaId || rotaSugeridaAplicada || !cidade.trim()) return;
+    if ((rotaSelecionadaId && origemRotaSugerida !== "cidade") || rotaSugeridaAplicada || !cidade.trim()) return;
     const encontrada = rotasDisponiveis.find(
       (r) => r.cidade.trim().toLowerCase() === cidade.trim().toLowerCase()
     );
     if (encontrada) {
       setRotaSelecionadaId(encontrada.id);
       setRotaSugeridaAplicada(true);
+      setOrigemRotaSugerida("cidade");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cidade, rotasDisponiveis]);
+
+  // povoado é mais específico que cidade — se algum povoado já foi
+  // vendido antes com uma rota escolhida na mão, usa essa mesma rota da
+  // próxima vez (aprende sozinho, sem precisar cadastrar o povoado em
+  // Administração). Só sobrescreve uma sugestão por cidade, nunca uma
+  // escolha manual do vendedor.
+  useEffect(() => {
+    if (!povoado.trim() || povoado.trim().length < 3 || !lojaAtual) return;
+    if (rotaSelecionadaId && origemRotaSugerida !== "cidade" && origemRotaSugerida !== "povoado") return;
+    const termo = povoado.trim();
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("vendas")
+        .select("rota_id, clientes!inner(povoado)")
+        .eq("loja_id", lojaAtual)
+        .not("rota_id", "is", null)
+        .ilike("clientes.povoado", termo)
+        .order("criado_em", { ascending: false })
+        .limit(1);
+      const encontrada = data?.[0];
+      if (encontrada?.rota_id) {
+        const aindaExiste = rotasDisponiveis.find((r) => r.id === encontrada.rota_id);
+        if (aindaExiste) {
+          setRotaSelecionadaId(aindaExiste.id);
+          setRotaSugeridaAplicada(true);
+          setOrigemRotaSugerida("povoado");
+        }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [povoado, lojaAtual, rotasDisponiveis]);
 
   useEffect(() => {
     async function carregarTodasLojas() {
@@ -1585,6 +1622,7 @@ function VenderPageConteudo() {
     setPovoado("");
     setRotaSelecionadaId("");
     setRotaSugeridaAplicada(false);
+    setOrigemRotaSugerida(null);
     setClienteIdExistente(null);
     setDataNascimentoCliente(null);
     setVendaSemCliente(false);
@@ -1787,7 +1825,10 @@ function VenderPageConteudo() {
                     <select
                       className="input-base"
                       value={rotaSelecionadaId}
-                      onChange={(e) => setRotaSelecionadaId(e.target.value)}
+                      onChange={(e) => {
+                        setRotaSelecionadaId(e.target.value);
+                        setOrigemRotaSugerida(null);
+                      }}
                     >
                       <option value="">Sem rota</option>
                       {rotasDisponiveis.map((r) => (
