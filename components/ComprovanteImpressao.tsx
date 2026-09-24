@@ -272,7 +272,14 @@ function ViaComprovante({
     <div className="imp-via">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: "1.2rem", color: COR_VERDE_ESCURO, fontWeight: 700 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "1.2rem",
+              color: ehViaLoja && loja?.nome?.toLowerCase().includes("lagarto") ? COR_AZUL : COR_VERDE_ESCURO,
+              fontWeight: 700,
+            }}
+          >
             {loja?.nome || "Caruaru Móveis"}
           </h2>
           {loja?.cnpj && (
