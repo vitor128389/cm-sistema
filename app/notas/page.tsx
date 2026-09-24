@@ -225,6 +225,7 @@ export default function NotasPage() {
     // só conta como "com desconto" quando tiver valor E motivo preenchido —
     // isso evita mostrar aqui os poucos casos antigos com desconto sem
     // motivo (que já corrigimos, mas podem existir alguns registros assim)
+    if ((v.desconto_geral || 0) > 0 && !!v.motivo_desconto_geral?.trim()) return true;
     return (v.venda_itens || []).some((i) => (i.desconto || 0) > 0 && !!i.motivo_desconto?.trim());
   }
 
@@ -759,6 +760,8 @@ export default function NotasPage() {
             numeroPedido={notaImprimindo.numero_pedido}
             rotaNome={notaImprimindo.rota_nome ?? null}
             rotaCor={notaImprimindo.rota_cor ?? null}
+            descontoGeral={notaImprimindo.desconto_geral ?? 0}
+            motivoDescontoGeral={notaImprimindo.motivo_desconto_geral ?? null}
             cliente={{
               nome: notaImprimindo.clientes?.nome || "Cliente",
               cpf: notaImprimindo.clientes?.cpf,
