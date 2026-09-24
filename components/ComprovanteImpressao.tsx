@@ -34,6 +34,8 @@ interface Props {
   numeroPedido: number;
   rotaNome?: string | null;
   rotaCor?: string | null;
+  descontoGeral?: number;
+  motivoDescontoGeral?: string | null;
   cliente: ClienteResumo;
   itens: VendaItem[];
   total: number;
@@ -229,6 +231,8 @@ function ViaComprovante({
   numeroPedido,
   rotaNome,
   rotaCor,
+  descontoGeral,
+  motivoDescontoGeral,
   cliente,
   itens,
   total,
@@ -451,12 +455,14 @@ function ViaComprovante({
       )}
 
       {(() => {
-        const descontoTotal = itens.reduce((s, i) => s + (i.desconto || 0), 0);
+        const descontoItens = itens.reduce((s, i) => s + (i.desconto || 0), 0);
+        const descontoTotal = descontoItens + (descontoGeral || 0);
         if (descontoTotal <= 0) return null;
         return (
           <p style={{ margin: "2px 0 0", color: COR_TEXTO, fontSize: "0.8rem" }}>
             Subtotal: {formatarMoeda(total + descontoTotal)} — Desconto:{" "}
             <strong style={{ color: COR_AVISO }}>{formatarMoeda(descontoTotal)}</strong>
+            {motivoDescontoGeral ? ` (${motivoDescontoGeral})` : ""}
           </p>
         );
       })()}
