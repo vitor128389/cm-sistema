@@ -311,6 +311,23 @@ export default function NotasPage() {
     carregar();
   }
 
+  async function marcarItemTrocaEntregue(itemId: string) {
+    await supabase
+      .from("trocas_novos")
+      .update({ status_entrega: "entregue", data_entregue: new Date().toISOString() })
+      .eq("id", itemId);
+    registrarAuditoria({
+      lojaId: lojaAtual,
+      categoria: "Entregas",
+      acao: "alteracao",
+      registroTipo: "troca_item",
+      registroId: itemId,
+      descricao: "Item de troca marcado como entregue",
+      dadosDepois: { status_entrega: "entregue" },
+    });
+    carregarTrocas();
+  }
+
   function enviarWhatsApp(v: Venda) {
     const telefone = v.clientes?.telefone;
     if (!telefone) {
@@ -497,6 +514,15 @@ export default function NotasPage() {
                 <div>
                   <p className="font-display text-lg text-madeira-900">
                     Pedido #{v.numero_pedido} — {v.clientes?.nome || "Cliente"}
+                    {(() => {
+                      const troca = trocas.find((t) => t.venda_original_id === v.id && !t.cancelada);
+                      if (!troca) return null;
+                      return (
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-700 align-middle">
+                          🔁 Trocado — Troca #{troca.numero_troca}
+                        </span>
+                      );
+                    })()}
                   </p>
                   <p className="text-xs text-madeira-500">
                     {new Date(v.criado_em).toLocaleString("pt-BR")} ·{" "}
@@ -713,11 +739,43 @@ export default function NotasPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-madeira-700 mb-1">Novo</p>
-                    <ul className="space-y-0.5">
+                    <ul className="space-y-1">
                       {(t.trocas_novos || []).map((n) => (
-                        <li key={n.id}>
-                          {n.quantidade}x {n.produto_nome}
-                          {n.variante ? ` — ${n.variante}` : ""}
+                        <li key={n.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <span>
+                            {n.quantidade}x {n.produto_nome}
+                            {n.variante ? ` — ${n.variante}` : ""}
+                          </span>
+                          {n.status_entrega && (
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                  n.status_entrega === "entregue"
+                                    ? "bg-green-50 text-green-700"
+                                    : "bg-amber-50 text-amber-700"
+                                }`}
+                              >
+                                {n.status_entrega === "entregue"
+                                  ? "✓ ENTREGUE"
+                                  : n.tipo_entrega === "encomenda"
+                                  ? "ENCOMENDA"
+                                  : "AGUARDANDO ENTREGA"}
+                              </span>
+                              {n.status_entrega === "entregue" && n.data_entregue && (
+                                <span className="text-xs text-madeira-500">
+                                  em {new Date(n.data_entregue).toLocaleDateString("pt-BR")}
+                                </span>
+                              )}
+                              {n.status_entrega !== "entregue" && (
+                                <button
+                                  className="btn-secundario text-xs px-2 py-1"
+                                  onClick={() => marcarItemTrocaEntregue(n.id)}
+                                >
+                                  ENTREGUE
+                                </button>
+                              )}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
