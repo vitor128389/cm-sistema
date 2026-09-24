@@ -328,6 +328,8 @@ export interface Venda {
   rota_nome?: string | null;
   rota_cidade?: string | null;
   rota_cor?: string | null;
+  desconto_geral?: number | null;
+  motivo_desconto_geral?: string | null;
   forma_recebimento: FormaRecebimento | null;
   cancelada?: boolean;
   motivo_cancelamento?: string | null;
