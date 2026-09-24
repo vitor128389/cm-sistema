@@ -194,6 +194,8 @@ function VenderPageConteudo() {
     pagamentos: PagamentoParte[];
     rotaNome: string | null;
     rotaCor: string | null;
+    descontoGeral: number;
+    motivoDescontoGeral: string | null;
   } | null>(
     null
   );
@@ -1307,30 +1309,16 @@ function VenderPageConteudo() {
   }
 
   /* ---------------- Finalizar venda ---------------- */
-  // recalcula o desconto de cada item somando a parte que veio do "desconto
-  // adicional" da tela de pagamento (rateado proporcionalmente) — usado nos
-  // dois formatos de impressão imediata, pra não ficar sem mostrar esse
-  // desconto (ele só existe no carrinho depois de calculado aqui, o campo
-  // item.desconto sozinho só tem o desconto que foi dado direto no produto)
-  function itensCarrinhoComDesconto() {
-    const totalAprazoCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
+  // calcula o desconto "geral" dado na tela de pagamento (não some mais nos
+  // produtos — fica separado, mostrado só no resumo de baixo da nota, com
+  // o motivo). Reaproveitado tanto pra salvar na venda quanto pra mostrar
+  // na impressão imediata.
+  function calcularDescontoGeral(): { valor: number; motivo: string | null } {
     const valorEsperadoSemDesconto =
       pagamentos.length === 1 ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas) : 0;
-    const descontoGeralAprazo =
+    const valor =
       pagamentos.length === 1 ? Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100) : 0;
-
-    return carrinho.map((item) => {
-      const totalItemOriginal = item.valorUnitario * item.quantidade;
-      const shareDesconto =
-        descontoGeralAprazo > 0 && totalAprazoCarrinho > 0
-          ? Math.round(((descontoGeralAprazo * totalItemOriginal) / totalAprazoCarrinho) * 100) / 100
-          : 0;
-      return {
-        ...item,
-        descontoTotal: Math.round(((item.desconto || 0) + shareDesconto) * 100) / 100,
-        motivoDescontoTotal: shareDesconto > 0 ? item.motivoDesconto || motivoDescontoVendaGeral.trim() : item.motivoDesconto,
-      };
-    });
+    return { valor, motivo: valor > 0 ? motivoDescontoVendaGeral.trim() || null : null };
   }
 
   async function finalizarVenda() {
@@ -1437,6 +1425,8 @@ function VenderPageConteudo() {
           rota_nome: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.nome || null : null,
           rota_cidade: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cidade || null : null,
           rota_cor: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cor || null : null,
+          desconto_geral: calcularDescontoGeral().valor,
+          motivo_desconto_geral: calcularDescontoGeral().motivo,
         })
         .select("id, numero_pedido")
         .single();
@@ -1465,25 +1455,12 @@ function VenderPageConteudo() {
       const prazoEhHojeOuVazio = !prazoEntregaMaximo || prazoEntregaMaximo === hojeStr;
 
       // desconto adicional dado na tela de pagamento (não por produto) —
-      // distribui proporcionalmente entre os itens, pra continuar aparecendo
-      // certinho no filtro de desconto em Notas e na nota impressa. Compara
-      // com o valor "esperado" pra forma/parcelas escolhida — pagar à vista
-      // já é mais barato que a prazo por padrão, isso não é desconto.
-      const totalAprazoCarrinho = carrinho.reduce((s, i) => s + i.valorUnitario * i.quantidade, 0);
-      const valorEsperadoSemDescontoFinal =
-        pagamentos.length === 1 ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas) : 0;
-      const descontoGeralAprazo =
-        pagamentos.length === 1 ? Math.max(0, Math.round((valorEsperadoSemDescontoFinal - total) * 100) / 100) : 0;
-
+      // O desconto adicional (dado na tela de pagamento) não mexe mais no
+      // valor de cada produto — fica só como um registro geral na venda
+      // (vendas.desconto_geral), mostrado no resumo de baixo da nota com o
+      // motivo. Os itens ficam com o valor cheio.
       const itensParaInserir = carrinho.map((item) => {
-        const totalItemOriginal = item.valorUnitario * item.quantidade;
-        const shareDesconto =
-          descontoGeralAprazo > 0 && totalAprazoCarrinho > 0
-            ? Math.round(((descontoGeralAprazo * totalItemOriginal) / totalAprazoCarrinho) * 100) / 100
-            : 0;
-        const totalItemFinal = Math.round((totalItemOriginal - shareDesconto) * 100) / 100;
-        const valorUnitarioFinal =
-          item.quantidade > 0 ? Math.round((totalItemFinal / item.quantidade) * 100) / 100 : item.valorUnitario;
+        const totalItemFinal = Math.round(item.valorUnitario * item.quantidade * 100) / 100;
         return {
           venda_id: venda.id,
           produto_id: item.produtoId,
@@ -1491,7 +1468,7 @@ function VenderPageConteudo() {
           nome_produto: item.nome,
           variante: item.cor || item.varianteNome,
           quantidade: item.quantidade,
-          valor_unitario: valorUnitarioFinal,
+          valor_unitario: item.valorUnitario,
           total: totalItemFinal,
           tipo_entrega: item.tipoEntrega,
           status_entrega:
@@ -1512,8 +1489,8 @@ function VenderPageConteudo() {
           quantidade_retirada: item.quantidadeRetirada,
           quantidade_entrega: item.quantidadeEntrega,
           observacao: item.observacao,
-          desconto: Math.round(((item.desconto || 0) + shareDesconto) * 100) / 100,
-          motivo_desconto: shareDesconto > 0 ? item.motivoDesconto || motivoDescontoVendaGeral.trim() : item.motivoDesconto,
+          desconto: item.desconto || 0,
+          motivo_desconto: item.motivoDesconto,
           categoria: item.categoria,
           origem_deposito: item.origemDeposito || false,
           origem_loja_id: item.origemLojaId || null,
@@ -1581,6 +1558,7 @@ function VenderPageConteudo() {
       });
 
       const rotaEscolhida = rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId) : null;
+      const { valor: descontoGeralFinal, motivo: motivoDescontoGeralFinal } = calcularDescontoGeral();
       setVendaConcluida({
         total,
         forma: formaResumo,
@@ -1588,6 +1566,8 @@ function VenderPageConteudo() {
         pagamentos,
         rotaNome: rotaEscolhida?.nome || null,
         rotaCor: rotaEscolhida?.cor || null,
+        descontoGeral: descontoGeralFinal,
+        motivoDescontoGeral: motivoDescontoGeralFinal,
       });
       setPasso(4);
       carregarProdutos();
@@ -2830,7 +2810,7 @@ function VenderPageConteudo() {
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
-            itens={itensCarrinhoComDesconto().map((item, idx) => ({
+            itens={carrinho.map((item, idx) => ({
               id: String(idx),
               venda_id: "",
               produto_id: item.produtoId,
@@ -2847,8 +2827,8 @@ function VenderPageConteudo() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
-              desconto: item.descontoTotal,
-              motivo_desconto: item.motivoDescontoTotal,
+              desconto: item.desconto || 0,
+              motivo_desconto: item.motivoDesconto,
               categoria: item.categoria,
               origem_deposito: item.origemDeposito || false,
               origem_loja_id: item.origemLojaId || null,
@@ -2860,6 +2840,8 @@ function VenderPageConteudo() {
             numeroPedido={vendaConcluida.numeroPedido}
             rotaNome={vendaConcluida.rotaNome}
             rotaCor={vendaConcluida.rotaCor}
+            descontoGeral={vendaConcluida.descontoGeral}
+            motivoDescontoGeral={vendaConcluida.motivoDescontoGeral}
             cliente={{
               nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
@@ -2886,7 +2868,7 @@ function VenderPageConteudo() {
             }))}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
-            itens={itensCarrinhoComDesconto().map((item, idx) => ({
+            itens={carrinho.map((item, idx) => ({
               id: String(idx),
               venda_id: "",
               produto_id: item.produtoId,
@@ -2903,8 +2885,8 @@ function VenderPageConteudo() {
               data_entregue: null,
               trocado: false,
               observacao: item.observacao,
-              desconto: item.descontoTotal,
-              motivo_desconto: item.motivoDescontoTotal,
+              desconto: item.desconto || 0,
+              motivo_desconto: item.motivoDesconto,
               categoria: item.categoria,
               origem_deposito: item.origemDeposito || false,
               origem_loja_id: item.origemLojaId || null,
