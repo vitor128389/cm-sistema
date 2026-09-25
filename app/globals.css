@@ -146,6 +146,14 @@ body {
   body * {
     visibility: hidden;
   }
+  /* Em páginas com listagem grande (ex.: Notas), o conteúdo antes da área
+     de impressão fica dentro do mesmo container — visibility:hidden não
+     remove a altura dele, então o navegador ainda reserva esse espaço
+     todo e gera página(s) extra(s) em branco. .no-print tira isso do
+     fluxo de verdade. */
+  .no-print {
+    display: none !important;
+  }
   /* O menu lateral e o container da página usam altura mínima de 100% da
      tela (min-h-screen) — mesmo ficando invisíveis na impressão, essa
      altura continua "existindo" no documento e é isso que gera página(s)
