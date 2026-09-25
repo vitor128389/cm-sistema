@@ -119,6 +119,21 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   doc.line(margem, y, margem + largura, y);
   y += 5;
 
+  const descontoItens = itensVenda.reduce((s, i) => s + (i.desconto || 0), 0);
+  const descontoTotal = descontoItens + (venda.desconto_geral || 0);
+  if (descontoTotal > 0) {
+    linha(
+      `Desconto: ${formatarMoeda(descontoTotal)}${venda.motivo_desconto_geral ? ` (${venda.motivo_desconto_geral})` : ""}`,
+      { tamanho: 9 }
+    );
+  }
+  if (venda.custo_adicional && venda.custo_adicional > 0) {
+    linha(
+      `Custo adicional: ${formatarMoeda(venda.custo_adicional)}${venda.descricao_custo_adicional ? ` (${venda.descricao_custo_adicional})` : ""}`,
+      { tamanho: 9 }
+    );
+  }
+
   linha(`Total: ${formatarMoeda(venda.total)}`, { negrito: true, tamanho: 12, espaco: 1 });
   linha(`Forma de pagamento: ${venda.forma_pagamento}`, { tamanho: 9 });
 
