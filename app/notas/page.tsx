@@ -386,6 +386,7 @@ export default function NotasPage() {
 
   return (
     <div className="p-4 md:p-8">
+      <div className="no-print">
       <h1 className="font-display text-3xl text-madeira-900">Notas</h1>
       <p className="text-madeira-600 mt-1 mb-6">Histórico de vendas, com número do pedido.</p>
 
@@ -786,6 +787,8 @@ export default function NotasPage() {
           </div>
         </>
       )}
+
+      </div>
 
       <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
         {notaImprimindo && formatoImpressao === "cupom88" && (
