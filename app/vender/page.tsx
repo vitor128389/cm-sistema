@@ -168,6 +168,8 @@ function VenderPageConteudo() {
   const [motivoDescontoItem, setMotivoDescontoItem] = useState("");
   const [descontoVendaGeral, setDescontoVendaGeral] = useState("");
   const [motivoDescontoVendaGeral, setMotivoDescontoVendaGeral] = useState("");
+  const [custoAdicional, setCustoAdicional] = useState("");
+  const [descricaoCustoAdicional, setDescricaoCustoAdicional] = useState("");
 
   // ---------- Pagamento ----------
   interface PagamentoParte {
@@ -196,6 +198,8 @@ function VenderPageConteudo() {
     rotaCor: string | null;
     descontoGeral: number;
     motivoDescontoGeral: string | null;
+    custoAdicional: number;
+    descricaoCustoAdicional: string | null;
   } | null>(
     null
   );
@@ -1265,11 +1269,32 @@ function VenderPageConteudo() {
   // qualquer valor sem deixar rastro. Esse desconto é distribuído entre os
   // produtos na hora de fechar a venda, então aparece certinho no filtro de
   // desconto em Notas.
+  // base do pagamento já somando o custo adicional (frete etc.) e
+  // descontando o desconto geral — os dois mexem no mesmo valor final
+  function baseComAjustes(descontoOverride?: number, custoOverride?: number): number {
+    const descontoNum = descontoOverride !== undefined ? descontoOverride : parseFloat(descontoVendaGeral) || 0;
+    const custoNum = custoOverride !== undefined ? custoOverride : parseFloat(custoAdicional) || 0;
+    return Math.max(0, Math.round((subtotalAVista + custoNum - descontoNum) * 100) / 100);
+  }
+
   function atualizarDescontoVendaGeral(valorTexto: string) {
     setDescontoVendaGeral(valorTexto);
     if (pagamentos.length !== 1) return;
     const descontoNum = parseFloat(valorTexto) || 0;
-    const baseAjustada = Math.max(0, Math.round((subtotalAVista - descontoNum) * 100) / 100);
+    const baseAjustada = baseComAjustes(descontoNum, undefined);
+    setPagamentos((atual) => {
+      const p = atual[0];
+      return [{ ...p, valor: valorSugerido(baseAjustada, p.forma, p.parcelas) }];
+    });
+  }
+
+  // custo adicional (frete, montagem, etc.) — soma no valor a pagar, com
+  // uma descrição obrigatória pra ficar claro o que é na nota
+  function atualizarCustoAdicional(valorTexto: string) {
+    setCustoAdicional(valorTexto);
+    if (pagamentos.length !== 1) return;
+    const custoNum = parseFloat(valorTexto) || 0;
+    const baseAjustada = baseComAjustes(undefined, custoNum);
     setPagamentos((atual) => {
       const p = atual[0];
       return [{ ...p, valor: valorSugerido(baseAjustada, p.forma, p.parcelas) }];
@@ -1280,10 +1305,12 @@ function VenderPageConteudo() {
     const jaAlocado = pagamentos.reduce((s, p) => s + (p.valor || 0), 0);
     const restante = Math.max(Math.round((subtotalAVista - jaAlocado) * 100) / 100, 0);
     setPagamentos((atual) => [...atual, { forma: "", parcelas: 1, valor: restante }]);
-    // o desconto adicional só existe pra pagamento único — ao dividir, cada
-    // parte já é digitada na mão, então esconde/limpa esse campo
+    // o desconto/custo adicional só existem pra pagamento único — ao
+    // dividir, cada parte já é digitada na mão, então esconde/limpa
     setDescontoVendaGeral("");
     setMotivoDescontoVendaGeral("");
+    setCustoAdicional("");
+    setDescricaoCustoAdicional("");
   }
 
   function removerFormaPagamento(idx: number) {
@@ -1320,12 +1347,24 @@ function VenderPageConteudo() {
   // pode ser desconto (e precisa de motivo) — evita alguém "esquecer" de
   // cobrar uma parte, seja de propósito ou sem querer.
   function calcularDescontoGeral(): { valor: number; motivo: string | null } {
+    const custoAdicionalNum = parseFloat(custoAdicional) || 0;
+    const baseComCusto = subtotalAVista + custoAdicionalNum;
     const valorEsperadoSemDesconto =
       pagamentos.length === 1
-        ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas)
-        : subtotalAVista;
+        ? valorSugerido(baseComCusto, pagamentos[0].forma, pagamentos[0].parcelas)
+        : baseComCusto;
     const valor = Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100);
     return { valor, motivo: valor > 0 ? motivoDescontoVendaGeral.trim() || null : null };
+  }
+
+  // custo adicional (frete, montagem etc.) — sempre o que foi digitado no
+  // campo, já em "a prazo" quando a forma escolhida for parcelada
+  function calcularCustoAdicionalGeral(): { valor: number; descricao: string | null } {
+    const custoNum = parseFloat(custoAdicional) || 0;
+    if (custoNum <= 0) return { valor: 0, descricao: null };
+    const valorAprazo =
+      pagamentos.length === 1 ? valorSugerido(custoNum, pagamentos[0].forma, pagamentos[0].parcelas) : custoNum;
+    return { valor: Math.round(valorAprazo * 100) / 100, descricao: descricaoCustoAdicional.trim() || null };
   }
 
   async function finalizarVenda() {
@@ -1353,6 +1392,10 @@ function VenderPageConteudo() {
         );
         return;
       }
+    }
+    if (parseFloat(custoAdicional) > 0 && !descricaoCustoAdicional.trim()) {
+      alert("Preencha a descrição do custo adicional (ex: frete) antes de finalizar.");
+      return;
     }
     if (precisaPrazoObrigatorio() && !prazoEntregaMaximo) {
       alert("Preencha o prazo máximo de entrega — é obrigatório quando tem item de entrega ou encomenda.");
@@ -1439,6 +1482,8 @@ function VenderPageConteudo() {
           rota_cor: rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId)?.cor || null : null,
           desconto_geral: calcularDescontoGeral().valor,
           motivo_desconto_geral: calcularDescontoGeral().motivo,
+          custo_adicional: calcularCustoAdicionalGeral().valor,
+          descricao_custo_adicional: calcularCustoAdicionalGeral().descricao,
         })
         .select("id, numero_pedido")
         .single();
@@ -1571,6 +1616,7 @@ function VenderPageConteudo() {
 
       const rotaEscolhida = rotaSelecionadaId ? rotasDisponiveis.find((r) => r.id === rotaSelecionadaId) : null;
       const { valor: descontoGeralFinal, motivo: motivoDescontoGeralFinal } = calcularDescontoGeral();
+      const { valor: custoAdicionalFinal, descricao: descricaoCustoAdicionalFinal } = calcularCustoAdicionalGeral();
       setVendaConcluida({
         total,
         forma: formaResumo,
@@ -1580,6 +1626,8 @@ function VenderPageConteudo() {
         rotaCor: rotaEscolhida?.cor || null,
         descontoGeral: descontoGeralFinal,
         motivoDescontoGeral: motivoDescontoGeralFinal,
+        custoAdicional: custoAdicionalFinal,
+        descricaoCustoAdicional: descricaoCustoAdicionalFinal,
       });
       setPasso(4);
       carregarProdutos();
@@ -1626,6 +1674,8 @@ function VenderPageConteudo() {
     setPrazoDiasUteis(null);
     setDescontoVendaGeral("");
     setMotivoDescontoVendaGeral("");
+    setCustoAdicional("");
+    setDescricaoCustoAdicional("");
     setVendaConcluida(null);
     setFormatoImpressao("a4");
     setLojaBuscaProdutos(lojaAtual);
@@ -2596,6 +2646,30 @@ function VenderPageConteudo() {
                       />
                     </label>
                   )}
+                  <label className="block mt-3">
+                    <span className="text-xs text-madeira-600 mb-1 block">
+                      Custo adicional nessa venda (frete, montagem etc. — opcional)
+                    </span>
+                    <input
+                      className="input-base"
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={custoAdicional}
+                      onChange={(e) => atualizarCustoAdicional(e.target.value)}
+                    />
+                  </label>
+                  {parseFloat(custoAdicional) > 0 && (
+                    <label className="block mt-2">
+                      <span className="text-xs text-madeira-600 mb-1 block">Descrição do custo (obrigatório)</span>
+                      <input
+                        className="input-base"
+                        placeholder="Ex: frete até Simão Dias, montagem"
+                        value={descricaoCustoAdicional}
+                        onChange={(e) => setDescricaoCustoAdicional(e.target.value)}
+                      />
+                    </label>
+                  )}
                 </div>
               )}
 
@@ -2872,6 +2946,8 @@ function VenderPageConteudo() {
             rotaCor={vendaConcluida.rotaCor}
             descontoGeral={vendaConcluida.descontoGeral}
             motivoDescontoGeral={vendaConcluida.motivoDescontoGeral}
+            custoAdicional={vendaConcluida.custoAdicional}
+            descricaoCustoAdicional={vendaConcluida.descricaoCustoAdicional}
             cliente={{
               nome: vendaSemCliente ? "Venda sem cliente" : nome,
               cpf,
