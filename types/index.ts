@@ -332,6 +332,8 @@ export interface Venda {
   rota_cor?: string | null;
   desconto_geral?: number | null;
   motivo_desconto_geral?: string | null;
+  custo_adicional?: number | null;
+  descricao_custo_adicional?: string | null;
   forma_recebimento: FormaRecebimento | null;
   cancelada?: boolean;
   motivo_cancelamento?: string | null;
