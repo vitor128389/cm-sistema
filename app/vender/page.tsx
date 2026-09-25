@@ -1313,11 +1313,18 @@ function VenderPageConteudo() {
   // produtos — fica separado, mostrado só no resumo de baixo da nota, com
   // o motivo). Reaproveitado tanto pra salvar na venda quanto pra mostrar
   // na impressão imediata.
+  // Detecta desconto de verdade tanto no pagamento único quanto no
+  // dividido. No dividido não dá pra saber a "forma esperada" de cada
+  // parte, então usa o preço à vista como piso — é o valor mais barato que
+  // existe de forma legítima; se a soma digitada ficar abaixo disso, só
+  // pode ser desconto (e precisa de motivo) — evita alguém "esquecer" de
+  // cobrar uma parte, seja de propósito ou sem querer.
   function calcularDescontoGeral(): { valor: number; motivo: string | null } {
     const valorEsperadoSemDesconto =
-      pagamentos.length === 1 ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas) : 0;
-    const valor =
-      pagamentos.length === 1 ? Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100) : 0;
+      pagamentos.length === 1
+        ? valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas)
+        : subtotalAVista;
+    const valor = Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100);
     return { valor, motivo: valor > 0 ? motivoDescontoVendaGeral.trim() || null : null };
   }
 
@@ -1333,12 +1340,17 @@ function VenderPageConteudo() {
     // checa o desconto de verdade — compara com o valor "esperado" pra essa
     // forma/parcelas específica (que já é menor quando é à vista, isso é
     // normal e não é desconto). Só conta como desconto de fato quando o
-    // valor cobrado é MENOR do que isso — daí sim precisa de motivo.
-    if (pagamentos.length === 1) {
-      const valorEsperadoSemDesconto = valorSugerido(subtotalAVista, pagamentos[0].forma, pagamentos[0].parcelas);
-      const descontoRealAprazo = Math.max(0, Math.round((valorEsperadoSemDesconto - total) * 100) / 100);
-      if (descontoRealAprazo > 0 && !motivoDescontoVendaGeral.trim()) {
-        alert("Preencha o motivo do desconto adicional antes de finalizar.");
+    // valor cobrado é MENOR do que isso — daí sim precisa de motivo. Vale
+    // pro pagamento único E pro dividido (pra não dar de digitar um valor
+    // bem menor sem deixar rastro nenhum).
+    {
+      const { valor: descontoDetectado } = calcularDescontoGeral();
+      if (descontoDetectado > 0 && !motivoDescontoVendaGeral.trim()) {
+        alert(
+          pagamentos.length > 1
+            ? "O total dos pagamentos está abaixo do valor mínimo à vista do carrinho. Preencha o motivo do desconto antes de finalizar."
+            : "Preencha o motivo do desconto adicional antes de finalizar."
+        );
         return;
       }
     }
@@ -2584,6 +2596,24 @@ function VenderPageConteudo() {
                       />
                     </label>
                   )}
+                </div>
+              )}
+
+              {pagamentos.length > 1 && calcularDescontoGeral().valor > 0 && (
+                <div className="mb-3 pt-3 border-t border-estofado-100">
+                  <p className="text-xs text-madeira-600 mb-2">
+                    A soma dos pagamentos ficou {formatarMoeda(calcularDescontoGeral().valor)} abaixo do preço à
+                    vista do carrinho — pra finalizar assim, precisa dizer o motivo (fica registrado na venda).
+                  </p>
+                  <label className="block">
+                    <span className="text-xs text-madeira-600 mb-1 block">Motivo do desconto (obrigatório)</span>
+                    <input
+                      className="input-base"
+                      placeholder="Ex: cliente fidelidade, avaria, negociação"
+                      value={motivoDescontoVendaGeral}
+                      onChange={(e) => setMotivoDescontoVendaGeral(e.target.value)}
+                    />
+                  </label>
                 </div>
               )}
 
