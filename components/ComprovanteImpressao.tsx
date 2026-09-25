@@ -36,6 +36,8 @@ interface Props {
   rotaCor?: string | null;
   descontoGeral?: number;
   motivoDescontoGeral?: string | null;
+  custoAdicional?: number;
+  descricaoCustoAdicional?: string | null;
   cliente: ClienteResumo;
   itens: VendaItem[];
   total: number;
@@ -233,6 +235,8 @@ function ViaComprovante({
   rotaCor,
   descontoGeral,
   motivoDescontoGeral,
+  custoAdicional,
+  descricaoCustoAdicional,
   cliente,
   itens,
   total,
@@ -473,6 +477,13 @@ function ViaComprovante({
           </p>
         );
       })()}
+
+      {!!custoAdicional && custoAdicional > 0 && (
+        <p style={{ margin: "2px 0 0", color: COR_TEXTO, fontSize: "0.8rem" }}>
+          Custo adicional: <strong>{formatarMoeda(custoAdicional)}</strong>
+          {descricaoCustoAdicional ? ` (${descricaoCustoAdicional})` : ""}
+        </p>
+      )}
 
       {pagamentos && pagamentos.length > 1 ? (
         <>
