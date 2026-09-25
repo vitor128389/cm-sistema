@@ -122,28 +122,36 @@ export default function CaixaPage() {
     }
   }
 
-  async function fecharCaixa() {
-    if (!turno) return;
-    if (!confirm("Fechar o caixa agora? Depois de fechado só é possível conferir e imprimir.")) return;
+  async function fecharCaixaSilencioso() {
+    if (!turno) return false;
     const { error } = await supabase
       .from("turnos_caixa")
       .update({ status: "fechado", fechado_em: new Date().toISOString() })
       .eq("id", turno.id);
-    if (!error) {
-      registrarAuditoria({
-        lojaId: lojaAtual,
-        categoria: "Caixa",
-        acao: "alteracao",
-        registroTipo: "caixa",
-        registroId: turno.id,
-        descricao: `Caixa fechado — total vendido: ${formatarMoeda(turno.total_vendido || 0)}`,
-        dadosAntes: { status: "aberto" },
-        dadosDepois: { status: "fechado", total_vendido: turno.total_vendido || 0 },
-      });
+    if (error) {
+      alert("Erro ao fechar o caixa: " + error.message);
+      return false;
+    }
+    registrarAuditoria({
+      lojaId: lojaAtual,
+      categoria: "Caixa",
+      acao: "alteracao",
+      registroTipo: "caixa",
+      registroId: turno.id,
+      descricao: `Caixa fechado — total vendido: ${formatarMoeda(turno.total_vendido || 0)}`,
+      dadosAntes: { status: "aberto" },
+      dadosDepois: { status: "fechado", total_vendido: turno.total_vendido || 0 },
+    });
+    return true;
+  }
+
+  async function fecharCaixa() {
+    if (!turno) return;
+    if (!confirm("Fechar o caixa agora? Depois de fechado só é possível conferir e imprimir.")) return;
+    const fechou = await fecharCaixaSilencioso();
+    if (fechou) {
       carregarTurno();
       setModoFinalizado(true);
-    } else {
-      alert("Erro ao fechar o caixa: " + error.message);
     }
   }
 
@@ -152,9 +160,20 @@ export default function CaixaPage() {
       alert("Nenhum turno de caixa carregado ainda.");
       return;
     }
-    const blob = await gerarRelatorioCaixaPdf(turno, nomeCaixaAtual, lojaInfo, qtdVendas, sangrias);
+    // clicar em PDF WhatsApp já fecha o caixa junto — evita esquecer de
+    // fechar depois de mandar o relatório
+    let turnoParaPdf = turno;
+    if (turno.status !== "fechado") {
+      if (!confirm("Isso vai gerar o PDF e já fechar o caixa. Confirma?")) return;
+      const fechou = await fecharCaixaSilencioso();
+      if (!fechou) return;
+      turnoParaPdf = { ...turno, status: "fechado", fechado_em: new Date().toISOString() };
+      carregarTurno();
+      setModoFinalizado(true);
+    }
+    const blob = await gerarRelatorioCaixaPdf(turnoParaPdf, nomeCaixaAtual, lojaInfo, qtdVendas, sangrias);
     const nomeArquivo = `caixa-${nomeCaixaAtual.replace(/\s+/g, "-").toLowerCase()}-${new Date(
-      turno.aberto_em
+      turnoParaPdf.aberto_em
     )
       .toISOString()
       .slice(0, 10)}.pdf`;
