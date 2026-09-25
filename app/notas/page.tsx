@@ -823,6 +823,8 @@ export default function NotasPage() {
             rotaCor={notaImprimindo.rota_cor ?? null}
             descontoGeral={notaImprimindo.desconto_geral ?? 0}
             motivoDescontoGeral={notaImprimindo.motivo_desconto_geral ?? null}
+            custoAdicional={notaImprimindo.custo_adicional ?? 0}
+            descricaoCustoAdicional={notaImprimindo.descricao_custo_adicional ?? null}
             cliente={{
               nome: notaImprimindo.clientes?.nome || "Cliente",
               cpf: notaImprimindo.clientes?.cpf,
