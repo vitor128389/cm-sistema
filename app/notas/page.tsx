@@ -336,7 +336,7 @@ export default function NotasPage() {
     }
     const chave = mensagemSelecionada[v.id] || "agradecimento";
     const mensagem = MENSAGENS_PRONTAS[chave](v.clientes?.nome || "cliente", v.numero_pedido);
-    window.location.href = linkWhatsApp(telefone, mensagem);
+    window.open(linkWhatsApp(telefone, mensagem), "_blank", "noopener");
   }
 
   async function enviarPdfWhatsApp(v: Venda) {
@@ -378,7 +378,7 @@ export default function NotasPage() {
     const telefone = v.clientes?.telefone;
     if (telefone) {
       alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
-      window.location.href = linkWhatsApp(telefone, `Segue o pedido #${v.numero_pedido} em PDF.`);
+      window.open(linkWhatsApp(telefone, `Segue o pedido #${v.numero_pedido} em PDF.`), "_blank", "noopener");
     } else {
       alert("PDF baixado. Esse cliente não tem celular cadastrado pra abrir o WhatsApp direto.");
     }
