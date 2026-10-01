@@ -49,6 +49,29 @@ function ordemTecido(nome: string): number {
   return ordem[nome] ?? 99;
 }
 
+// Sofá "2 e 3 lugares" (tipo_precificacao = tecido_peca): agrupa as variantes
+// de 2 e 3 lugares que formam um conjunto. Aceita tanto o formato antigo
+// ("Suede — 2 Lugares") quanto o com braços ("Suede — 2 Lugares — Sem Braços"),
+// usando tudo que não é a peça como chave do conjunto.
+function gruposConjuntoTecidoPeca<V extends { nome_variante: string }>(
+  variantes: V[]
+): { label: string; v2: V; v3: V }[] {
+  const grupos = new Map<string, { tecido: string; v2?: V; v3?: V }>();
+  for (const v of variantes) {
+    const m = v.nome_variante.match(/^(.*?) — (2|3) Lugares(.*)$/);
+    if (!m) continue;
+    const label = `${m[1]}${m[3]}`;
+    const g = grupos.get(label) || { tecido: m[1] };
+    if (m[2] === "2") g.v2 = v;
+    else g.v3 = v;
+    grupos.set(label, g);
+  }
+  return Array.from(grupos.entries())
+    .filter(([, g]) => g.v2 && g.v3)
+    .sort(([la, a], [lb, b]) => ordemTecido(a.tecido) - ordemTecido(b.tecido) || la.localeCompare(lb))
+    .map(([label, g]) => ({ label, v2: g.v2!, v3: g.v3! }));
+}
+
 const FORM_VAZIO = {
   nome: "",
   categoria: "",
@@ -1672,21 +1695,11 @@ function AbaEstoque() {
                   // o valor de cada um, em vez do valor geral do produto.
                   let linhas: { label: string; custo: number; venda: number }[] = [];
                   if (p.tipo_precificacao === "tecido_peca") {
-                    const tecidos = Array.from(
-                      new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0]))
-                    ).sort((a, b) => ordemTecido(a) - ordemTecido(b));
-                    linhas = tecidos
-                      .map((tecido) => {
-                        const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
-                        const v3 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 3 Lugares`);
-                        if (!v2 || !v3) return null;
-                        return {
-                          label: tecido,
-                          custo: v2.custo || 0,
-                          venda: (v2.preco_avista || 0) + (v3.preco_avista || 0),
-                        };
-                      })
-                      .filter((l): l is { label: string; custo: number; venda: number } => l !== null);
+                    linhas = gruposConjuntoTecidoPeca(p.produto_variantes).map(({ label, v2, v3 }) => ({
+                      label,
+                      custo: (v2.custo || 0) + (v3.custo || 0),
+                      venda: (v2.preco_avista || 0) + (v3.preco_avista || 0),
+                    }));
                   } else if (p.tipo_precificacao !== "simples" && p.produto_variantes.length > 0) {
                     linhas = [...p.produto_variantes]
                       .sort((a, b) => ordemTecido(a.nome_variante) - ordemTecido(b.nome_variante))
@@ -1742,16 +1755,12 @@ function AbaEstoque() {
                     // Sofá "2 e 3 lugares": mostra uma linha por tecido (o
                     // conjunto), não uma pra cada peça — o estoque de 2 e 3
                     // lugares fica igual, sempre casado como um par.
-                    Array.from(new Set(p.produto_variantes.map((v) => v.nome_variante.split(" — ")[0])))
-                      .sort((a, b) => ordemTecido(a) - ordemTecido(b))
-                      .map((tecido) => {
-                        const v2 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 2 Lugares`);
-                        const v3 = p.produto_variantes.find((v) => v.nome_variante === `${tecido} — 3 Lugares`);
-                        if (!v2 || !v3) return null;
+                    gruposConjuntoTecidoPeca(p.produto_variantes)
+                      .map(({ label, v2, v3 }) => {
                         const chaveEdicao = `${v2.id}|${v3.id}`;
                         return (
-                          <div key={tecido} className="flex items-center gap-2 mb-1">
-                            <span className="text-xs w-24">{tecido} — Conjunto</span>
+                          <div key={label} className="flex items-center gap-2 mb-1">
+                            <span className="text-xs w-24">{label} — Conjunto</span>
                             <input
                               className="input-base py-1 px-2 text-xs w-20"
                               type="number"
