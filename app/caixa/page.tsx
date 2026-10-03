@@ -122,7 +122,7 @@ export default function CaixaPage() {
     }
   }
 
-  async function fecharCaixaSilencioso() {
+  async function fecharCaixaSilencioso(origem: "manual" | "pdf_whatsapp" = "manual") {
     if (!turno) return false;
     const { error } = await supabase
       .from("turnos_caixa")
@@ -132,15 +132,17 @@ export default function CaixaPage() {
       alert("Erro ao fechar o caixa: " + error.message);
       return false;
     }
+    const origemTexto =
+      origem === "pdf_whatsapp" ? "fechado junto com o PDF WhatsApp" : "fechado pelo botão Fechar caixa";
     registrarAuditoria({
       lojaId: lojaAtual,
       categoria: "Caixa",
       acao: "alteracao",
       registroTipo: "caixa",
       registroId: turno.id,
-      descricao: `Caixa fechado — total vendido: ${formatarMoeda(turno.total_vendido || 0)}`,
+      descricao: `Caixa ${origemTexto} — total vendido: ${formatarMoeda(turno.total_vendido || 0)}`,
       dadosAntes: { status: "aberto" },
-      dadosDepois: { status: "fechado", total_vendido: turno.total_vendido || 0 },
+      dadosDepois: { status: "fechado", total_vendido: turno.total_vendido || 0, origem },
     });
     return true;
   }
@@ -165,7 +167,7 @@ export default function CaixaPage() {
     let turnoParaPdf = turno;
     if (turno.status !== "fechado") {
       if (!confirm("Isso vai gerar o PDF e já fechar o caixa. Confirma?")) return;
-      const fechou = await fecharCaixaSilencioso();
+      const fechou = await fecharCaixaSilencioso("pdf_whatsapp");
       if (!fechou) return;
       turnoParaPdf = { ...turno, status: "fechado", fechado_em: new Date().toISOString() };
       carregarTurno();
