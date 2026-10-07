@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { abrirWhatsAppComTexto, dataBr } from "@/lib/whatsapp";
+import { abrirWhatsAppComTexto, dataBr, linhasEncomendaMensagem } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -14,9 +14,7 @@ function apenasNumeros(v: string) {
 
 function mensagemEncomenda(v: Venda): string {
   const itens = (v.venda_itens || []).filter((i) => i.tipo_entrega === "encomenda");
-  const linhasItens = itens.map(
-    (i) => `${String(i.quantidade).padStart(2, "0")} ${i.nome_produto}${i.variante ? ` ${i.variante}` : ""}`.toUpperCase()
-  );
+  const linhasItens = linhasEncomendaMensagem(itens);
   const nome = (v.clientes?.nome || "Cliente").toUpperCase();
   const linhas = [...linhasItens, `NOME: ${nome} #${v.numero_pedido}`];
   if (v.clientes?.cidade) linhas.push(`CIDADE: ${v.clientes.cidade.toUpperCase()}`);
