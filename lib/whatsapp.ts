@@ -33,9 +33,11 @@ interface ItemMensagem {
   variante: string | null;
   quantidade: number;
   tipo_entrega?: string | null;
+  observacao?: string | null;
 }
 
 // espessura ("5cm") vai colada no nome, como "CAMA CASAL 5CM"; tecido/cor vai depois de " - "
+const obs = (o?: string | null) => (o && o.trim() ? [`OBS: ${o.trim().replace(/\s*\n+\s*/g, " ").toUpperCase()}`] : []);
 const texto = (nome: string, variante: string | null) => {
   if (!variante) return nome.toUpperCase();
   const sep = /^\d+([.,]\d+)?\s?cm$/i.test(variante.trim()) ? " " : " - ";
@@ -49,26 +51,27 @@ const texto = (nome: string, variante: string | null) => {
  */
 export function linhasEncomendaMensagem(itens: ItemMensagem[]): string[] {
   const linhas: string[] = [];
-  const pecas = new Map<string, { nome: string; base: string; q2: number; q3: number; ordem: number }>();
+  const pecas = new Map<string, { nome: string; base: string; q2: number; q3: number; ordem: number; obs?: string | null }>();
   itens.forEach((i, ordem) => {
     const m = i.variante?.match(/^(.*?)\s+—\s+(2|3) Lugares$/);
     if (m && /2 E 3/i.test(i.nome_produto)) {
       const chave = `${i.nome_produto}|${m[1]}`;
-      const g = pecas.get(chave) || { nome: i.nome_produto, base: m[1], q2: 0, q3: 0, ordem };
+      const g = pecas.get(chave) || { nome: i.nome_produto, base: m[1], q2: 0, q3: 0, ordem, obs: null };
+      if (!g.obs && i.observacao?.trim()) g.obs = i.observacao;
       if (m[2] === "2") g.q2 += i.quantidade;
       else g.q3 += i.quantidade;
       pecas.set(chave, g);
     } else {
-      linhas.push(`${String(i.quantidade).padStart(2, "0")} ${texto(i.nome_produto, i.variante)}`);
+      linhas.push(`${String(i.quantidade).padStart(2, "0")} ${texto(i.nome_produto, i.variante)}`, ...obs(i.observacao));
     }
   });
   pecas.forEach((g) => {
     const conjuntos = Math.min(g.q2, g.q3);
-    if (conjuntos > 0) linhas.push(`${String(conjuntos).padStart(2, "0")} ${texto(g.nome, g.base)}`);
+    if (conjuntos > 0) linhas.push(`${String(conjuntos).padStart(2, "0")} ${texto(g.nome, g.base)}`, ...obs(g.obs));
     // sobrou só uma das peças (quantidades diferentes): vira linha da peça avulsa
     const nomeSo = (n: number) => g.nome.replace(/2 E 3 LUGARES/i, `${n} LUGARES`);
-    if (g.q2 > conjuntos) linhas.push(`${String(g.q2 - conjuntos).padStart(2, "0")} ${texto(nomeSo(2), g.base)}`);
-    if (g.q3 > conjuntos) linhas.push(`${String(g.q3 - conjuntos).padStart(2, "0")} ${texto(nomeSo(3), g.base)}`);
+    if (g.q2 > conjuntos) linhas.push(`${String(g.q2 - conjuntos).padStart(2, "0")} ${texto(nomeSo(2), g.base)}`, ...obs(g.obs));
+    if (g.q3 > conjuntos) linhas.push(`${String(g.q3 - conjuntos).padStart(2, "0")} ${texto(nomeSo(3), g.base)}`, ...obs(g.obs));
   });
   return linhas;
 }
