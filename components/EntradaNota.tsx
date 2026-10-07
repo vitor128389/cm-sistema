@@ -68,7 +68,7 @@ function categoriaSugerida(nome: string): string {
 const chaveCat = (c: string) => norm(c).replace(/S$/, "");
 const nomeLimpo = (s: string) => s.replace(/\(\s*20\d\d\s*\)/g, "").replace(/\s+/g, " ").trim();
 
-export default function EntradaNota() {
+function NovaEntrada() {
   const [depositoId, setDepositoId] = useState<string | null>(null);
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
   const [categorias, setCategorias] = useState<string[]>([]);
@@ -453,6 +453,143 @@ export default function EntradaNota() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface NotaSalva {
+  id: string;
+  numero: string | null;
+  fornecedor: string | null;
+  total: number;
+  criado_em: string;
+  usuario_id: string | null;
+  itens: { nome: string; quantidade: number; custo: number; preco: number; novo: boolean }[];
+}
+
+function HistoricoNotas() {
+  const [notas, setNotas] = useState<NotaSalva[]>([]);
+  const [nomes, setNomes] = useState<Record<string, string>>({});
+  const [carregando, setCarregando] = useState(true);
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("notas_entrada")
+        .select("id, numero, fornecedor, total, criado_em, usuario_id, itens")
+        .order("criado_em", { ascending: false });
+      const lista = (data || []) as unknown as NotaSalva[];
+      setNotas(lista);
+      const ids = Array.from(new Set(lista.map((n) => n.usuario_id).filter(Boolean))) as string[];
+      if (ids.length > 0) {
+        const { data: us } = await supabase.from("usuarios").select("id, nome").in("id", ids);
+        setNomes(Object.fromEntries((us || []).map((u) => [u.id, u.nome])));
+      }
+      setCarregando(false);
+    })();
+  }, []);
+
+  const filtradas = notas.filter((n) => {
+    const b = norm(busca);
+    if (!b) return true;
+    return (
+      norm(n.numero || "").includes(b) ||
+      norm(n.fornecedor || "").includes(b) ||
+      n.itens.some((i) => norm(i.nome).includes(b))
+    );
+  });
+
+  if (carregando) return <p className="text-sm text-madeira-500">Carregando…</p>;
+
+  return (
+    <div className="space-y-3">
+      <input
+        className="input-base max-w-md"
+        placeholder="Buscar por número da nota, fornecedor ou produto…"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
+      {filtradas.length === 0 ? (
+        <div className="card p-6 text-center text-sm text-madeira-500">Nenhuma nota lançada ainda.</div>
+      ) : (
+        filtradas.map((n) => {
+          const unidades = n.itens.reduce((t, i) => t + i.quantidade, 0);
+          const aberto = aberta === n.id;
+          return (
+            <div key={n.id} className="card p-4">
+              <button className="w-full text-left" onClick={() => setAberta(aberto ? null : n.id)}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-display text-lg text-madeira-900">
+                      NF {n.numero ?? "—"} — {n.fornecedor ?? "Fornecedor"}
+                    </p>
+                    <p className="text-xs text-madeira-500">
+                      {new Date(n.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                      {n.usuario_id && nomes[n.usuario_id] ? ` · por ${nomes[n.usuario_id]}` : ""}
+                      {" · "}
+                      {n.itens.length} produto(s) · {unidades} un.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-display text-lg">{formatarMoeda(n.total)}</p>
+                    <p className="text-xs text-madeira-500">{aberto ? "▲ fechar" : "▼ ver produtos"}</p>
+                  </div>
+                </div>
+              </button>
+              {aberto && (
+                <div className="overflow-x-auto mt-3">
+                  <table className="w-full text-sm min-w-[480px]">
+                    <thead>
+                      <tr className="text-left text-madeira-500 border-b border-estofado-100">
+                        <th className="py-1 pr-2">Produto</th>
+                        <th className="pr-2 text-right">Qtd</th>
+                        <th className="pr-2 text-right">Custo</th>
+                        <th className="text-right">Preço venda</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {n.itens.map((i, idx) => (
+                        <tr key={idx} className="border-b border-estofado-50">
+                          <td className="py-1 pr-2">
+                            {i.nome}
+                            {i.novo && <span className="ml-2 text-xs text-green-700">novo</span>}
+                          </td>
+                          <td className="pr-2 text-right">{i.quantidade}</td>
+                          <td className="pr-2 text-right whitespace-nowrap">{formatarMoeda(i.custo)}</td>
+                          <td className="text-right whitespace-nowrap">{formatarMoeda(i.preco)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+export default function EntradaNota() {
+  const [aba, setAba] = useState<"nova" | "historico">("nova");
+  return (
+    <div>
+      <div className="flex gap-2 mb-4">
+        {(
+          [
+            ["nova", "Nova entrada"],
+            ["historico", "Notas lançadas"],
+          ] as const
+        ).map(([v, label]) => (
+          <button key={v} className={aba === v ? "btn-primario" : "btn-secundario"} onClick={() => setAba(v)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {aba === "nova" ? <NovaEntrada /> : <HistoricoNotas />}
     </div>
   );
 }
