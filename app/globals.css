@@ -179,3 +179,19 @@ body {
     print-color-adjust: exact;
   }
 }
+
+/* Celular: campos com 16px evitam o zoom automático do iPhone ao tocar, e
+   botões/links ficam com alvo de toque confortável. */
+@media (max-width: 640px) {
+  .input-base,
+  select.input-base,
+  input.input-base,
+  textarea.input-base {
+    font-size: 16px;
+  }
+  .btn-primario,
+  .btn-secundario,
+  .btn-perigo {
+    min-height: 40px;
+  }
+}

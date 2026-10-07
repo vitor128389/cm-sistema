@@ -100,13 +100,13 @@ export default function AdministracaoPage() {
   const [aba, setAba] = useState<Aba>("lojas");
 
   return (
-    <div className="p-8">
-      <h1 className="font-display text-3xl text-madeira-900">Administração</h1>
+    <div className="p-4 md:p-8">
+      <h1 className="font-display text-2xl md:text-3xl text-madeira-900">Administração</h1>
       <p className="text-madeira-600 mt-1 mb-6">
         Cadastro de lojas, caixas, estoque, usuários, permissões e relatórios.
       </p>
 
-      <div className="flex gap-5 border-b border-estofado-100 pb-3 mb-6 text-sm font-medium overflow-x-auto">
+      <div className="flex gap-5 border-b border-estofado-100 pb-3 mb-6 text-sm font-medium overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
         {(
           [
             ["lojas", "Lojas"],
@@ -360,8 +360,8 @@ function AbaLojas() {
         </div>
       )}
 
-      <div className="card overflow-hidden mb-6">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto mb-6">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-madeira-50 text-left">
             <tr>
               <th className="px-4 py-2">Nome</th>
@@ -410,7 +410,7 @@ function AbaLojas() {
 
       {lojaExcluindoForcado && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
             <p className="font-display text-lg mb-2 text-red-800">Excluir definitivamente</p>
             <p className="text-sm text-madeira-600 mb-4">
               Isso apaga <strong>pra sempre</strong> a loja <strong>{lojaExcluindoForcado.nome}</strong> e tudo que
@@ -494,8 +494,8 @@ function AbaCaixas() {
   return (
     <div>
       <p className="text-sm font-semibold text-madeira-700 mb-2">Caixas cadastrados</p>
-      <div className="card overflow-hidden mb-6">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto mb-6">
+        <table className="w-full text-sm min-w-[560px]">
           <tbody>
             {caixas.map((c) => (
               <tr key={c.id} className="border-b border-estofado-100 last:border-0">
@@ -1226,7 +1226,7 @@ function AbaEstoque() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div>
           <p className="text-sm font-semibold text-madeira-700">Alterar estoque dos produtos</p>
           <p className="text-xs text-madeira-500">Edite a quantidade e clique em salvar.</p>
@@ -1247,7 +1247,7 @@ function AbaEstoque() {
 
       {mostrarForm && (
         <div id="form-editar-produto" className="card p-5 mb-6">
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Nome do produto</span>
               <input className="input-base" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
@@ -1338,7 +1338,7 @@ function AbaEstoque() {
               };
               return (
                 <div className="mb-3">
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {linhas.map((linha, i) => (
                       <div key={i}>
                         <label className="block mb-2">
@@ -1418,7 +1418,7 @@ function AbaEstoque() {
               };
               return (
                 <div className="mb-3">
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {linhas.map((linha, i) => (
                       <div key={i}>
                         <label className="block mb-2">
@@ -1676,8 +1676,8 @@ function AbaEstoque() {
         ))}
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-madeira-50 text-left">
             <tr>
               <th className="px-4 py-2">Produto</th>
@@ -2156,7 +2156,7 @@ function AbaUsuarios() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
         <div>
           <p className="text-sm font-semibold text-madeira-700">Equipe com acesso ao painel</p>
           <p className="text-xs text-madeira-500">
@@ -2293,7 +2293,7 @@ function AbaUsuarios() {
             Permissões dessa pessoa — já vieram marcadas conforme o cargo <strong>{funcao}</strong>, ajuste se
             precisar:
           </p>
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
             {TELAS.map((t) => (
               <label key={t.chave} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!telasSelecionadas[t.chave]} onChange={() => alternarTela(t.chave)} />
@@ -2308,8 +2308,8 @@ function AbaUsuarios() {
         </div>
       )}
 
-      <div className="card overflow-hidden mb-4">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto mb-4">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-madeira-50 text-left">
             <tr>
               <th className="px-4 py-2">Nome</th>
@@ -2403,8 +2403,8 @@ function AbaPermissoes() {
     <div>
       <p className="text-sm font-semibold text-madeira-700 mb-1">O que cada categoria pode acessar</p>
       <p className="text-xs text-madeira-500 mb-4">Admin sempre tem acesso a tudo (não editável aqui).</p>
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-madeira-50">
             <tr>
               <th className="px-4 py-2 text-left">Tela</th>
@@ -2549,8 +2549,8 @@ function PermissoesPorUsuario() {
       </select>
 
       {usuarioAtual && (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-madeira-50">
               <tr>
                 <th className="px-4 py-2 text-left">Tela</th>
@@ -2635,7 +2635,7 @@ function AbaTecidos() {
 
       <div className="card p-4 mb-6 max-w-lg">
         <p className="text-sm font-semibold text-madeira-700 mb-3">+ Adicionar nova cor</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label className="block">
             <span className="text-xs text-madeira-600 mb-1 block">Tecido</span>
             <select className="input-base" value={novoTecido} onChange={(e) => setNovoTecido(e.target.value)}>
@@ -2663,8 +2663,8 @@ function AbaTecidos() {
       {tecidos.map((tecido) => (
         <div key={tecido} className="mb-5">
           <p className="text-sm font-semibold text-madeira-700 mb-2">{tecido}</p>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <tbody>
                 {cores
                   .filter((c) => c.tecido === tecido)
@@ -2755,14 +2755,14 @@ function AbaRelatorio() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <p className="text-sm font-semibold text-madeira-700">Relatório de produtos</p>
         <button className="btn-secundario" onClick={() => window.print()}>
           🖨 Imprimir relatório
         </button>
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {(["com", "sem", "todos"] as const).map((f) => (
           <button
             key={f}
@@ -2774,7 +2774,7 @@ function AbaRelatorio() {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="card p-4">
           <p className="text-xs text-madeira-500 mb-1">Itens no relatório</p>
           <p className="font-display text-xl">{linhasFiltradas.length}</p>
@@ -2789,8 +2789,8 @@ function AbaRelatorio() {
         </div>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-madeira-50 text-left">
             <tr>
               <th className="px-4 py-2">Produto</th>
@@ -3173,8 +3173,8 @@ function AbaMovimentoGeral() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <div>
             <p className="text-sm font-semibold text-madeira-700 mb-2">Por loja</p>
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="card overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-madeira-50 text-left">
                   <tr>
                     <th className="px-4 py-2">Loja</th>
@@ -3205,8 +3205,8 @@ function AbaMovimentoGeral() {
           </div>
           <div>
             <p className="text-sm font-semibold text-madeira-700 mb-2">Por forma de pagamento</p>
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="card overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-madeira-50 text-left">
                   <tr>
                     <th className="px-4 py-2">Forma</th>
@@ -3242,8 +3242,8 @@ function AbaMovimentoGeral() {
           Nenhum caixa aberto nesse período.
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-madeira-50 text-left">
               <tr>
                 <th className="px-4 py-2">Loja</th>
@@ -3523,8 +3523,8 @@ function AbaAuditoria() {
         <div className="card p-8 text-center text-madeira-500 text-sm">Nenhum registro encontrado.</div>
       ) : (
         <>
-          <div className="card overflow-hidden overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-madeira-50 text-madeira-600 text-left">
                 <tr>
                   <th className="px-3 py-2 font-medium whitespace-nowrap">Data/Hora</th>
@@ -3599,7 +3599,7 @@ function AbaAuditoria() {
           onClick={() => setDetalheAberto(null)}
         >
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-4 flex-wrap gap-2">
               <div>
                 <span
                   className="text-xs px-2 py-0.5 rounded font-medium"
@@ -3756,8 +3756,8 @@ function AbaIA() {
           {dados.ultimasConsultas.length === 0 ? (
             <div className="card p-6 text-center text-madeira-500 text-sm">Nenhuma consulta ainda.</div>
           ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="card overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-madeira-50 text-left">
                   <tr>
                     <th className="px-3 py-2">Data/Hora</th>
@@ -4134,7 +4134,7 @@ function AbaCategorias() {
         as opções de cada uma — sem precisar mexer em código. Isso alimenta o cadastro de produto.
       </p>
 
-      <div className="flex gap-2 mb-6 max-w-md">
+      <div className="flex flex-wrap gap-2 mb-6 max-w-md">
         <input
           className="input-base"
           placeholder="Buscar categoria..."
@@ -4143,7 +4143,7 @@ function AbaCategorias() {
         />
       </div>
 
-      <div className="flex gap-2 mb-6 max-w-md">
+      <div className="flex flex-wrap gap-2 mb-6 max-w-md">
         <input
           className="input-base"
           placeholder="Nome da categoria nova (ex.: Poltronas)"
@@ -4169,7 +4169,7 @@ function AbaCategorias() {
             const aberta = categoriaAberta === cat.id;
             return (
               <div key={cat.id} className="card p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <button
                     className="flex items-center gap-2 text-left flex-1"
                     onClick={() => setCategoriaAberta(aberta ? null : cat.id)}
@@ -4222,7 +4222,7 @@ function AbaCategorias() {
 
                 {aberta && (
                   <div className="mt-4 pl-6 border-l-2 border-estofado-100 space-y-4">
-                    <div className="flex gap-2 max-w-sm">
+                    <div className="flex flex-wrap gap-2 max-w-sm">
                       <input
                         className="input-base py-1"
                         placeholder="Nova característica (ex.: Tecido)"
@@ -4245,7 +4245,7 @@ function AbaCategorias() {
                       const caracAberta = caracteristicaAberta === carac.id;
                       return (
                         <div key={carac.id} className="bg-madeira-50 rounded p-3">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
                             <button
                               className="flex items-center gap-2 text-left flex-1"
                               onClick={() => setCaracteristicaAberta(caracAberta ? null : carac.id)}
@@ -4311,7 +4311,7 @@ function AbaCategorias() {
 
                           {caracAberta && (
                             <div className="mt-3 pl-5 space-y-2">
-                              <div className="flex gap-2 max-w-sm">
+                              <div className="flex flex-wrap gap-2 max-w-sm">
                                 <input
                                   className="input-base py-1"
                                   placeholder="Nova opção (ex.: Suede)"
@@ -4692,7 +4692,7 @@ function AbaRotas() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div>
           <p className="text-sm font-semibold text-madeira-700 mb-1">Rotas de entrega</p>
           <p className="text-xs text-madeira-500">
@@ -4792,8 +4792,8 @@ function AbaRotas() {
       ) : rotas.length === 0 ? (
         <div className="card p-6 text-center text-madeira-500 text-sm">Nenhuma rota cadastrada ainda.</div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-madeira-50 text-left">
               <tr>
                 <th className="px-4 py-2">Rota</th>
@@ -4993,7 +4993,7 @@ function AbaCancelarNota() {
         cancelamento.
       </p>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <input
           className="input-base max-w-xs"
           placeholder="Número do pedido"
@@ -5224,7 +5224,7 @@ function AbaCancelarTroca() {
         saem de novo, os produtos novos voltam). Pede o motivo do cancelamento.
       </p>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <input
           className="input-base max-w-xs"
           placeholder="Número da troca"
