@@ -47,11 +47,12 @@ export function interpretarLinhasNota(linhasBrutas: string[]): NotaLida {
   }
 
   const itens: ItemNota[] = [];
-  let atual: ItemNota | null = null;
+  let atual: (ItemNota & { achouEan?: boolean; pre: string[] }) | null = null;
   for (const l of linhas) {
     const m = l.match(RE_ITEM);
     if (m) {
       atual = {
+        pre: [],
         codigo: `${m[1]}[${m[2]}]`,
         descricao: m[3].trim(),
         acabamento: "",
@@ -63,11 +64,21 @@ export function interpretarLinhasNota(linhasBrutas: string[]): NotaLida {
       itens.push(atual);
       continue;
     }
-    // linhas de continuação (acabamento + EAN) até começar outra seção
-    if (atual && !/DADOS|CÓD PROD|FOLHA|CHAVE|DANFE|CÁLCULO|TRANSPORT|DADOS ADIC|PÁGINA/i.test(l) && !/^\d{1,3}(\.\d{3})*,\d{2}\b/.test(l)) {
-      const limpo = l.replace(/EAN:?\s*\d*/gi, "").replace(/^\d{8,14}$/, "").trim();
-      if (limpo && atual.acabamento.length < 60 && !/^[A-Z ]+:/.test(limpo) && limpo.length < 60) {
-        atual.acabamento = (atual.acabamento + " " + limpo).trim();
+    // linhas de continuação: [parte do nome]* + "ACABAMENTO EAN: ..." + código de barras
+    if (atual && !/DADOS|CÓD PROD|FOLHA|CHAVE|DANFE|CÁLCULO|TRANSPORT|PÁGINA/i.test(l)) {
+      if (!atual.achouEan) {
+        const temEan = /EAN/i.test(l);
+        const textoLinha = l.replace(/EAN:?\s*\d*/gi, "").replace(/(\s[\d.,]+)+$/, "").trim();
+        if (!temEan) {
+          if (textoLinha && !/^[\d.,\s]+$/.test(textoLinha) && textoLinha.length < 60) atual.pre.push(textoLinha);
+        } else {
+          // um modelo solto de uma palavra só antes do acabamento (ex.: "MONZA(2026)") faz parte do NOME
+          if (textoLinha && atual.pre.length > 0 && /^\S+$/.test(atual.pre[0])) {
+            atual.descricao = `${atual.descricao} ${atual.pre.shift()}`.trim();
+          }
+          atual.acabamento = [...atual.pre, textoLinha].filter(Boolean).join(" ").trim();
+          atual.achouEan = true;
+        }
       }
     } else if (/DADOS ADIC|CÁLCULO DO IMPOSTO|TRANSPORTADOR/i.test(l)) {
       atual = null;
@@ -75,6 +86,7 @@ export function interpretarLinhasNota(linhasBrutas: string[]): NotaLida {
   }
 
   const totalItens = itens.reduce((s, i) => s + i.valorTotal, 0);
+  itens.forEach((i) => { delete (i as unknown as Record<string, unknown>).achouEan; delete (i as unknown as Record<string, unknown>).pre; });
   return { numero, chave, fornecedor, itens, totalItens };
 }
 

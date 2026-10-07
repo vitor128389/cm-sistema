@@ -31,6 +31,35 @@ const norm = (s: string) =>
     .toUpperCase();
 
 const arredondar = (v: number) => Math.round(v);
+
+// Tipo do móvel pelo começo do nome → nome da categoria (singular, como a Caruaru usa)
+const TIPOS: [RegExp, string][] = [
+  [/^ROUPEIRO INFANTIL/, "Roupeiro Infantil"],
+  [/^ROUPEIRO/, "Roupeiro"],
+  [/^COM?ODA/, "Cômoda"],
+  [/^MESA DE CABECEIRA/, "Mesa de Cabeceira"],
+  [/^RACK/, "Rack"],
+  [/^PAINEL/, "Painel"],
+  [/^ARMARIO/, "Armário"],
+  [/^COZINHA/, "Cozinha"],
+  [/^SALA/, "Sala de Jantar"],
+  [/^SAPATEIRA/, "Sapateira"],
+  [/^ESTANTE/, "Estante"],
+  [/^BERCO/, "Berço"],
+  [/^CAMA/, "Cama"],
+  [/^APARADOR/, "Aparador"],
+  [/^BALCAO/, "Balcão"],
+  [/^MESA/, "Mesa"],
+  [/^CADEIRA/, "Cadeira"],
+];
+function categoriaSugerida(nome: string): string {
+  const n = norm(nome);
+  for (const [re, cat] of TIPOS) if (re.test(n)) return cat;
+  const primeira = n.split(" ")[0] || "Móveis Montados";
+  return primeira.charAt(0) + primeira.slice(1).toLowerCase();
+}
+// compara categorias ignorando acento, maiúscula e plural simples
+const chaveCat = (c: string) => norm(c).replace(/S$/, "");
 const nomeLimpo = (s: string) => s.replace(/\(\s*20\d\d\s*\)/g, "").replace(/\s+/g, " ").trim();
 
 export default function EntradaNota() {
@@ -98,7 +127,7 @@ export default function EntradaNota() {
             custo: it.valorUnitario,
             preco: "",
             precoManual: false,
-            categoria: achado?.categoria || "Móveis Montados",
+            categoria: achado?.categoria || categoriaSugerida(it.descricao),
             produtoId: achado?.id ?? "",
             incluir: true,
           });
@@ -106,6 +135,7 @@ export default function EntradaNota() {
       }
       const lista = Array.from(mapa.values()).map((l) => ({
         ...l,
+        categoria: categorias.find((c) => chaveCat(c) === chaveCat(l.categoria)) || l.categoria,
         custo: Math.round(l.custo * 100) / 100,
         preco: precoSugerido(l.custo, fator),
       }));
@@ -152,6 +182,13 @@ export default function EntradaNota() {
     setSalvando(true);
     setMsg(null);
     try {
+      const faltando = Array.from(new Set(selecionadas.filter((l) => !l.produtoId).map((l) => l.categoria))).filter(
+        (c) => !categorias.some((e) => chaveCat(e) === chaveCat(c))
+      );
+      for (const c of faltando) {
+        const { error: erroCat } = await supabase.from("categorias").insert({ nome: c });
+        if (erroCat) throw new Error(`Não consegui criar a categoria "${c}": ${erroCat.message}`);
+      }
       const resumo: { nome: string; quantidade: number; custo: number; preco: number; novo: boolean }[] = [];
       for (const l of selecionadas) {
         const preco = parseFloat(l.preco.replace(",", "."));
@@ -221,7 +258,7 @@ export default function EntradaNota() {
       <div className="bg-white border border-estofado-100 rounded-xl p-4">
         <h2 className="font-display text-xl text-madeira-900">Entrada de nota fiscal</h2>
         <p className="text-sm text-madeira-600 mt-1">
-          Envie o PDF da nota (DANFE). Os produtos entram no estoque do <b>Depósito</b>. Custo = valor unitário da nota
+          Envie o PDF da nota (DANFE). Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
           (sem IPI); preço de venda = custo × fator, e você pode ajustar cada um.
         </p>
         <input
@@ -308,7 +345,9 @@ export default function EntradaNota() {
                         className="w-40 border border-estofado-200 rounded px-1 py-1 disabled:bg-estofado-50"
                       >
                         {Array.from(new Set([l.categoria, ...categorias])).map((c) => (
-                          <option key={c} value={c}>{c}</option>
+                          <option key={c} value={c}>
+                            {c}{categorias.some((e) => chaveCat(e) === chaveCat(c)) ? "" : " (nova)"}
+                          </option>
                         ))}
                       </select>
                     </td>
