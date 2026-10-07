@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { abrirWhatsAppComTexto, dataBr } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -9,6 +10,19 @@ import type { Venda } from "@/types";
 
 function apenasNumeros(v: string) {
   return v.replace(/\D/g, "");
+}
+
+function mensagemEncomenda(v: Venda): string {
+  const itens = (v.venda_itens || []).filter((i) => i.tipo_entrega === "encomenda");
+  const linhasItens = itens.map(
+    (i) => `${String(i.quantidade).padStart(2, "0")} ${i.nome_produto}${i.variante ? ` ${i.variante}` : ""}`.toUpperCase()
+  );
+  const nome = (v.clientes?.nome || "Cliente").toUpperCase();
+  const linhas = [...linhasItens, `NOME: ${nome} #${v.numero_pedido}`];
+  if (v.clientes?.cidade) linhas.push(`CIDADE: ${v.clientes.cidade.toUpperCase()}`);
+  if (v.clientes?.povoado) linhas.push(`POVOADO: ${v.clientes.povoado.toUpperCase()}`);
+  linhas.push(`PRAZO MAXIMO: ${dataBr(v.prazo_entrega_maximo)}`);
+  return linhas.join("\n");
 }
 
 export default function EncomendasPage() {
@@ -41,7 +55,7 @@ export default function EncomendasPage() {
     setErroCarregar("");
     let query = supabase
       .from("vendas")
-      .select("*, clientes(nome, telefone, cpf), venda_itens(*)")
+      .select("*, clientes(nome, telefone, cpf, cidade, povoado), venda_itens(*)")
       .eq("cancelada", false)
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
@@ -286,6 +300,15 @@ export default function EncomendasPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-display text-lg">{formatarMoeda(v.total)}</p>
+                  {(v.venda_itens || []).some((i) => i.tipo_entrega === "encomenda") && (
+                    <button
+                      className="btn-secundario text-xs mt-1"
+                      onClick={() => abrirWhatsAppComTexto(mensagemEncomenda(v))}
+                      title="Abre o WhatsApp com a mensagem pronta — é só escolher o grupo e enviar"
+                    >
+                      📲 Enviar p/ grupo
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="space-y-2 mt-3">
