@@ -9,12 +9,14 @@ import { consultarCpf } from "@/lib/consultaCpf";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
 import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
+import EntradaNota from "@/components/EntradaNota";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
 type Aba =
   | "lojas"
   | "caixas"
   | "estoque"
+  | "entrada-nota"
   | "usuarios"
   | "permissoes"
   | "tecidos"
@@ -110,6 +112,7 @@ export default function AdministracaoPage() {
             ["lojas", "Lojas"],
             ["caixas", "Caixas"],
             ["estoque", "Estoque"],
+            ["entrada-nota", "Entrada de nota"],
             ["usuarios", "Usuários"],
             ["permissoes", "Permissões"],
             ["tecidos", "Tecidos e cores"],
@@ -135,6 +138,7 @@ export default function AdministracaoPage() {
       {aba === "lojas" && <AbaLojas />}
       {aba === "caixas" && <AbaCaixas />}
       {aba === "estoque" && <AbaEstoque />}
+      {aba === "entrada-nota" && <EntradaNota />}
       {aba === "usuarios" && <AbaUsuarios />}
       {aba === "permissoes" && <AbaPermissoes />}
       {aba === "tecidos" && <AbaTecidos />}
