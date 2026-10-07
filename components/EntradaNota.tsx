@@ -5,13 +5,14 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { lerPdfComoLinhas, interpretarLinhasNota, type NotaLida } from "@/lib/lerNotaFiscal";
+import { lerPdfComoLinhas, interpretarLinhasNota, nomeVariante, type NotaLida } from "@/lib/lerNotaFiscal";
 import type { ProdutoComVariantes } from "@/types";
 
 interface Linha {
   chave: string;
   nome: string;
   acabamentos: string[];
+  cores: { nome: string; qtd: number }[]; // uma variante (cor) por acabamento da nota
   quantidade: number;
   custo: number;
   preco: string; // editável
@@ -31,6 +32,11 @@ const norm = (s: string) =>
     .toUpperCase();
 
 const arredondar = (v: number) => Math.round(v);
+function somarCor(cores: { nome: string; qtd: number }[], nome: string, qtd: number) {
+  const c = cores.find((x) => x.nome === nome);
+  if (c) c.qtd += qtd;
+  else cores.push({ nome, qtd });
+}
 
 // Tipo do móvel pelo começo do nome → nome da categoria (singular, como a Caruaru usa)
 const TIPOS: [RegExp, string][] = [
@@ -117,12 +123,14 @@ export default function EntradaNota() {
           existente.custo = (existente.custo * existente.quantidade + it.valorUnitario * it.quantidade) / totalQtd;
           existente.quantidade = totalQtd;
           if (it.acabamento && !existente.acabamentos.includes(it.acabamento)) existente.acabamentos.push(it.acabamento);
+          somarCor(existente.cores, nomeVariante(it.acabamento), it.quantidade);
         } else {
           const achado = simples.find((p) => norm(p.nome) === k);
           mapa.set(k, {
             chave: k,
             nome: nomeLimpo(it.descricao),
             acabamentos: it.acabamento ? [it.acabamento] : [],
+            cores: [{ nome: nomeVariante(it.acabamento), qtd: it.quantidade }],
             quantidade: it.quantidade,
             custo: it.valorUnitario,
             preco: "",
@@ -167,6 +175,16 @@ export default function EntradaNota() {
   }
 
   const selecionadas = linhas.filter((l) => l.incluir && l.quantidade > 0);
+  const usaCores = (l: Linha) => !l.produtoId && l.cores.length > 0;
+  function mudarCor(chave: string, nomeCor: string, qtd: number) {
+    setLinhas((ls) =>
+      ls.map((l) => {
+        if (l.chave !== chave) return l;
+        const cores = l.cores.map((c) => (c.nome === nomeCor ? { ...c, qtd } : c));
+        return { ...l, cores, quantidade: cores.reduce((t, c) => t + c.qtd, 0) };
+      })
+    );
+  }
   const totalUnidades = selecionadas.reduce((s, l) => s + l.quantidade, 0);
   const totalCusto = selecionadas.reduce((s, l) => s + l.quantidade * l.custo, 0);
 
@@ -203,7 +221,7 @@ export default function EntradaNota() {
               preco_venda: preco,
               custo: l.custo,
               tipo_estoque: "pronta_entrega",
-              tipo_precificacao: "simples",
+              tipo_precificacao: l.cores.length > 0 ? "tecido" : "simples",
             })
             .select("id")
             .single();
@@ -215,8 +233,25 @@ export default function EntradaNota() {
           if (atualizarPreco) upd.preco_venda = preco;
           await supabase.from("produtos").update(upd).eq("id", produtoId);
         }
-        const { error: erroEst } = await ajustarEstoqueLoja(supabase, depositoId, produtoId, null, l.quantidade);
-        if (erroEst) throw new Error(`Erro ao somar estoque de "${l.nome}": ${erroEst.message}`);
+        if (novo && l.cores.length > 0) {
+          // uma variante (cor) por acabamento, com o estoque de cada uma no Depósito
+          for (const cor of l.cores.filter((c) => c.qtd > 0)) {
+            const { data: variante, error: erroVar } = await supabase
+              .from("produto_variantes")
+              .upsert(
+                { produto_id: produtoId, nome_variante: cor.nome, preco_avista: preco, custo: l.custo },
+                { onConflict: "produto_id,nome_variante" }
+              )
+              .select("id")
+              .single();
+            if (erroVar || !variante) throw new Error(`Não consegui criar a cor "${cor.nome}" de "${l.nome}": ${erroVar?.message}`);
+            const { error: erroEstVar } = await ajustarEstoqueLoja(supabase, depositoId, produtoId, variante.id, cor.qtd);
+            if (erroEstVar) throw new Error(`Erro ao somar estoque de "${l.nome}" (${cor.nome}): ${erroEstVar.message}`);
+          }
+        } else {
+          const { error: erroEst } = await ajustarEstoqueLoja(supabase, depositoId, produtoId, null, l.quantidade);
+          if (erroEst) throw new Error(`Erro ao somar estoque de "${l.nome}": ${erroEst.message}`);
+        }
         resumo.push({ nome: l.nome, quantidade: l.quantidade, custo: l.custo, preco, novo });
       }
 
@@ -323,7 +358,24 @@ export default function EntradaNota() {
                         onChange={(e) => atualizar(l.chave, { nome: e.target.value })}
                         className="w-52 border border-estofado-200 rounded px-2 py-1 disabled:bg-estofado-50"
                       />
-                      {l.acabamentos.length > 0 && <div className="text-xs text-madeira-400">{l.acabamentos.join(" · ")}</div>}
+                      {usaCores(l) ? (
+                        <div className="mt-1 space-y-1">
+                          {l.cores.map((c) => (
+                            <div key={c.nome} className="flex items-center gap-1 text-xs text-madeira-600">
+                              <input
+                                type="number"
+                                min={0}
+                                value={c.qtd}
+                                onChange={(e) => mudarCor(l.chave, c.nome, parseInt(e.target.value) || 0)}
+                                className="w-12 border border-estofado-200 rounded px-1 py-0.5 text-right"
+                              />
+                              <span>{c.nome}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        l.acabamentos.length > 0 && <div className="text-xs text-madeira-400">{l.acabamentos.join(" · ")}</div>
+                      )}
                     </td>
                     <td className="pr-2">
                       <select
@@ -356,8 +408,9 @@ export default function EntradaNota() {
                         type="number"
                         min={0}
                         value={l.quantidade}
+                        disabled={usaCores(l)}
                         onChange={(e) => atualizar(l.chave, { quantidade: parseInt(e.target.value) || 0 })}
-                        className="w-16 border border-estofado-200 rounded px-2 py-1 text-right"
+                        className="w-16 border border-estofado-200 rounded px-2 py-1 text-right disabled:bg-estofado-50"
                       />
                     </td>
                     <td className="pr-2 text-right whitespace-nowrap">{formatarMoeda(l.custo)}</td>

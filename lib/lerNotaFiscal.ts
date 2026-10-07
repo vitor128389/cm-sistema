@@ -121,3 +121,37 @@ export async function lerPdfComoLinhas(dados: ArrayBuffer): Promise<string[]> {
   }
   return saida;
 }
+
+const cap = (w: string) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w);
+
+/**
+ * Transforma o acabamento da nota ("FREIJO OFF WHITE", "BRANCO BRANCO",
+ * "OFF WHITE/OFF WHITE (TM)") no nome da variante/cor usado no sistema
+ * ("Freijó/Off White", "Branco", "Off White").
+ */
+export function nomeVariante(acabamento: string): string {
+  const t = acabamento
+    .replace(/\(\s*TM\s*\)/gi, "")
+    .replace(/(^|\s)--(?=\s|$)/g, " ")
+    .replace(/\b20\d\d\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return "Padrão";
+  // descrições longas/com parênteses (salas): mantém o texto, só arruma maiúsculas
+  if (/[()]/.test(t) || t.split(" ").length > 6) {
+    return t
+      .split(" ")
+      .map((w) => (/[()]/.test(w) ? w.toUpperCase() : w.toUpperCase() === "FREIJO" ? "Freijó" : cap(w)))
+      .join(" ");
+  }
+  const partes = t
+    .toUpperCase()
+    .replace(/OFF WHITE/g, "OFF_WHITE")
+    .replace(/CINZA FENDI/g, "CINZA_FENDI")
+    .split(/[\s/]+/)
+    .filter(Boolean);
+  const semRepetir = partes.filter((p, i) => i === 0 || p !== partes[i - 1]);
+  return semRepetir
+    .map((p) => (p === "FREIJO" ? "Freijó" : p.split("_").map(cap).join(" ")))
+    .join("/");
+}
