@@ -25,49 +25,51 @@ export async function chamarFiscal(rota: "emitir" | "consultar" | "cancelar", co
   return json.nota as NotaFiscal;
 }
 
-async function buscarPdf(notaId: string, baixar: boolean): Promise<Blob> {
-  const resp = await fetch(`/api/fiscal/danfe?notaId=${encodeURIComponent(notaId)}${baixar ? "&baixar=1" : ""}`);
-  if (!resp.ok) {
-    let msg = "Não consegui abrir o DANFE.";
-    try {
-      msg = (await resp.json()).error || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-  return await resp.blob();
+function urlDanfe(notaId: string) {
+  return `/api/fiscal/danfe?notaId=${encodeURIComponent(notaId)}`;
 }
 
-// Abre direto a janela de impressão (escolher a impressora), sem baixar arquivo.
+function criarIframe(src: string, largura: string): Promise<HTMLIFrameElement> {
+  return new Promise((resolve, reject) => {
+    const f = document.createElement("iframe");
+    f.style.cssText = `position:fixed;left:-10000px;top:0;width:${largura};height:800px;border:0;`;
+    f.onload = () => resolve(f);
+    f.onerror = () => reject(new Error("Não consegui abrir o DANFE."));
+    f.src = src;
+    document.body.appendChild(f);
+  });
+}
+
+// Abre a janela de impressão do navegador (com a lista de impressoras) para o cupom.
 export async function imprimirDanfe(notaId: string): Promise<void> {
-  const blob = await buscarPdf(notaId, false);
-  const url = URL.createObjectURL(blob);
-  const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  iframe.src = url;
-  iframe.onload = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } catch {
-      window.open(url, "_blank"); // plano B: abre o PDF e imprime pelo visualizador
-    }
-  };
-  document.body.appendChild(iframe);
-  setTimeout(() => {
-    iframe.remove();
-    URL.revokeObjectURL(url);
-  }, 5 * 60 * 1000);
+  const chk = await fetch(urlDanfe(notaId));
+  if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
+  const f = await criarIframe(urlDanfe(notaId), "400px");
+  f.style.left = "0";
+  f.style.opacity = "0";
+  f.style.pointerEvents = "none";
+  f.contentWindow?.focus();
+  f.contentWindow?.print();
+  setTimeout(() => f.remove(), 5 * 60 * 1000);
 }
 
-// Baixa o PDF do DANFE.
+// Gera um PDF do cupom (80 mm de largura) e baixa.
 export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promise<void> {
-  const blob = await buscarPdf(notaId, true);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nomeArquivo;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  const chk = await fetch(urlDanfe(notaId));
+  if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
+  const f = await criarIframe(urlDanfe(notaId), "320px");
+  try {
+    const doc = f.contentDocument;
+    if (!doc) throw new Error("Não consegui ler o DANFE.");
+    await new Promise((r) => setTimeout(r, 400)); // deixa imagens/estilos assentarem
+    const alturaPx = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+    const larguraMm = 80;
+    const alturaMm = Math.ceil((alturaPx * larguraMm) / 320) + 4;
+    const { jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ unit: "mm", format: [larguraMm, alturaMm] });
+    await pdf.html(doc.body, { x: 0, y: 0, width: larguraMm, windowWidth: 320, autoPaging: false });
+    pdf.save(nomeArquivo);
+  } finally {
+    f.remove();
+  }
 }
