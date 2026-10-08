@@ -17,6 +17,13 @@ export const maxDuration = 30;
 
 const dorme = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Data/hora de emissão no fuso de Brasília (o Brasil não tem mais horário de verão: -03:00),
+// no formato que a SEFAZ exige: AAAA-MM-DDTHH:mm:ss-03:00.
+function agoraBrasilia(): string {
+  const local = new Date().toLocaleString("sv-SE", { timeZone: "America/Sao_Paulo" }); // "2026-10-08 14:47:27"
+  return local.replace(" ", "T") + "-03:00";
+}
+
 // Emite a NFC-e de uma venda (só quando alguém clica em "Emitir nota fiscal").
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -179,7 +186,7 @@ export async function POST(request: Request) {
 
   const payload: Record<string, unknown> = {
     natureza_operacao: "VENDA AO CONSUMIDOR",
-    data_emissao: new Date().toISOString(),
+    data_emissao: agoraBrasilia(),
     presenca_comprador: 1,
     modalidade_frete: 9,
     local_destino: 1,
