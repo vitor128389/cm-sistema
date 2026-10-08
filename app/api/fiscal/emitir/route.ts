@@ -159,7 +159,7 @@ export async function POST(request: Request) {
       valor_unitario_tributavel: unit,
       valor_bruto: bruto,
       icms_origem: 0,
-      icms_situacao_tributaria: p.csosn || "102",
+      icms_situacao_tributaria: p.csosn || "103",
     };
     if (dif > 0 && ajuste > 0) item.valor_desconto = ajuste;
     if (dif < 0 && ajuste > 0) item.valor_outras_despesas = ajuste;

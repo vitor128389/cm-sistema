@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 export default function CamposFiscaisProduto({ produtoId }: { produtoId: string }) {
   const [ncm, setNcm] = useState("");
   const [cfop, setCfop] = useState("5102");
-  const [csosn, setCsosn] = useState("102");
+  const [csosn, setCsosn] = useState("103");
   const [unidade, setUnidade] = useState("UN");
   const [validado, setValidado] = useState(false);
   const [msg, setMsg] = useState("");
@@ -23,7 +23,7 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
       .then(({ data }) => {
         setNcm(data?.ncm || "");
         setCfop(data?.cfop || "5102");
-        setCsosn(data?.csosn || "102");
+        setCsosn(data?.csosn || "103");
         setUnidade(data?.unidade || "UN");
         setValidado(!!data?.ncm_validado);
       });

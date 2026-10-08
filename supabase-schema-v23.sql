@@ -2,7 +2,7 @@
 -- Dados fiscais por produto (a contadora confere NCM/CFOP/CSOSN).
 alter table produtos add column if not exists ncm text;
 alter table produtos add column if not exists cfop text not null default '5102';
-alter table produtos add column if not exists csosn text not null default '102';
+alter table produtos add column if not exists csosn text not null default '103';
 alter table produtos add column if not exists unidade text not null default 'UN';
 
 -- Dados fiscais por loja. fiscal_chave é o sufixo da variável de ambiente do
