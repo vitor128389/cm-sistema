@@ -22,6 +22,7 @@ interface Props {
   prazoDiasUteis?: number | null;
   loja?: LojaCompleta | null;
   criadoEm?: string | null;
+  pagamentos?: { forma: string; parcelas: number; valorAPagar: number }[];
   descontoGeral?: number;
   motivoDescontoGeral?: string | null;
   custoAdicional?: number;
@@ -111,6 +112,7 @@ export default function ComprovanteCupom88mm({
   prazoDiasUteis,
   loja,
   criadoEm,
+  pagamentos,
   descontoGeral,
   motivoDescontoGeral,
   custoAdicional,
@@ -120,8 +122,11 @@ export default function ComprovanteCupom88mm({
   const todosRetirada =
     itens.length > 0 &&
     itens.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade);
-  const descontoItens = itens.reduce((s, i) => s + (i.desconto || 0), 0);
-  const descontoTotal = descontoItens + (descontoGeral || 0);
+  const somaItens = itens.reduce((s, i) => s + i.total, 0);
+  // diferença entre o que os itens somam (+ custo adicional) e o que foi
+  // cobrado: desconto geral, desconto à vista etc. — assim a conta fecha
+  // sempre (SUBTOTAL - DESCONTO = TOTAL), sem número "sumido".
+  const diferenca = Math.round((somaItens + (custoAdicional || 0) - total) * 100) / 100;
   const dataHora = (criadoEm ? new Date(criadoEm) : new Date()).toLocaleString("pt-BR");
   const enderecoLoja = [
     [loja?.rua, loja?.numero].filter(Boolean).join(", "),
@@ -139,83 +144,64 @@ export default function ComprovanteCupom88mm({
         boxSizing: "border-box",
         padding: "2mm 3.5mm 10mm",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: 700,
         color: PRETO,
-        lineHeight: 1.3,
+        lineHeight: 1.25,
       }}
     >
-      <p style={p({ textAlign: "center", fontSize: 19, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.15 })}>
+      <p style={p({ textAlign: "center", fontSize: 18, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.15 })}>
         {loja?.nome || "Caruaru Móveis"}
       </p>
-      {loja?.cnpj && <p style={p({ textAlign: "center", fontSize: 14 })}>CNPJ: {loja.cnpj}</p>}
-      {enderecoLoja && <p style={p({ textAlign: "center", fontSize: 13 })}>{enderecoLoja}</p>}
-      {loja?.telefone && <p style={p({ textAlign: "center", fontSize: 14 })}>Tel: {loja.telefone}</p>}
+      {loja?.cnpj && <p style={p({ textAlign: "center", fontSize: 13 })}>CNPJ: {loja.cnpj}</p>}
+      {enderecoLoja && <p style={p({ textAlign: "center", fontSize: 12 })}>{enderecoLoja}</p>}
+      {loja?.telefone && <p style={p({ textAlign: "center", fontSize: 13 })}>Tel: {loja.telefone}</p>}
       <Divisor />
-      <p style={p({ textAlign: "center", fontSize: 15, fontWeight: 900, letterSpacing: 0.5 })}>COMPROVANTE DE VENDA</p>
-      <Divisor />
-
-      <Linha esquerda={`PEDIDO Nº ${numeroPedido}`} direita={dataHora} tamanho={14} />
+      <p style={p({ textAlign: "center", fontSize: 14, fontWeight: 900 })}>COMPROVANTE DE VENDA</p>
+      <Linha esquerda={`PEDIDO Nº ${numeroPedido}`} direita={dataHora} tamanho={13} />
       <Divisor />
 
       {cliente ? (
         <>
-          <p style={p({ fontSize: 17, fontWeight: 900 })}>{cliente.nome}</p>
-          {cliente.telefone && <p style={p()}>Cel: {cliente.telefone}</p>}
+          <p style={p({ fontSize: 15, fontWeight: 900 })}>{cliente.nome}</p>
+          {cliente.telefone && <p style={p({ fontSize: 13 })}>Cel: {cliente.telefone}</p>}
           {cliente.endereco && (
-            <p style={p()}>
+            <p style={p({ fontSize: 13 })}>
               {cliente.endereco}
               {cliente.numero ? `, ${cliente.numero}` : ""}
             </p>
           )}
-          {cliente.bairro && <p style={p()}>Bairro: {cliente.bairro}</p>}
-          {cliente.complemento && <p style={p()}>{cliente.complemento}</p>}
-          {cliente.cidade && <p style={p()}>Cidade: {cliente.cidade}</p>}
-          {cliente.povoado && <p style={p()}>Povoado: {cliente.povoado}</p>}
+          {cliente.bairro && <p style={p({ fontSize: 13 })}>Bairro: {cliente.bairro}</p>}
+          {cliente.complemento && <p style={p({ fontSize: 13 })}>{cliente.complemento}</p>}
+          {cliente.cidade && <p style={p({ fontSize: 13 })}>Cidade: {cliente.cidade}</p>}
+          {cliente.povoado && <p style={p({ fontSize: 13 })}>Povoado: {cliente.povoado}</p>}
+          <Divisor />
         </>
-      ) : (
-        <p style={p()}>Venda sem cliente</p>
-      )}
+      ) : null}
+
+      {todosRetirada && <p style={p({ textAlign: "center", fontWeight: 900 })}>RETIRADA NA LOJA</p>}
+
+      {/* Cabeçalho das colunas — igual ao cupom de referência */}
+      <div style={{ display: "flex", fontSize: 11, margin: "2px 0" }}>
+        <span style={{ flex: 1 }}>ITEM CÓD DESCRIÇÃO</span>
+        <span style={{ width: "13mm", textAlign: "right" }}>QTD UN.</span>
+        <span style={{ width: "22mm", textAlign: "right" }}>VL ITEM</span>
+      </div>
       <Divisor />
 
-      {todosRetirada && (
-        <p
-          style={p({
-            textAlign: "center",
-            border: `2px solid ${PRETO}`,
-            padding: "3px 0",
-            margin: "0 0 6px",
-            fontSize: 16,
-            fontWeight: 900,
-          })}
-        >
-          RETIRADA NA LOJA
-        </p>
-      )}
-
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, borderBottom: `1px solid ${PRETO}`, paddingBottom: 2 }}>
-        <span>ITEM  DESCRIÇÃO</span>
-        <span>QTD UN.  VL ITEM</span>
-      </div>
       {itens.map((item, idx) => (
-        <div key={item.id} style={{ margin: "6px 0 8px" }}>
-          <p style={p({ fontSize: 14, fontWeight: 900, textTransform: "uppercase" })}>
-            {idx + 1}  {String(idx + 1).padStart(3, "0")} {item.nome_produto}
-            {item.variante ? ` — ${item.variante}` : ""}
-          </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 14, fontSize: 14, margin: "1px 0" }}>
-            <span>
-              UN {item.quantidade} x {formatarMoeda(item.quantidade ? item.total / item.quantidade : item.total)}
+        <div key={item.id} style={{ margin: "5px 0" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", fontSize: 14 }}>
+            <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
+              {idx + 1} {String(idx + 1).padStart(3, "0")} {item.nome_produto}
+              {item.variante ? ` — ${item.variante}` : ""}
             </span>
-            <span style={{ whiteSpace: "nowrap", minWidth: "26mm", textAlign: "right" }}>{formatarMoeda(item.total)}</span>
+            <span style={{ width: "13mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {item.quantidade}</span>
+            <span style={{ width: "22mm", textAlign: "right", whiteSpace: "nowrap" }}>{formatarMoeda(item.total)}</span>
           </div>
-          {item.observacao && (
-            <p style={p({ fontSize: 12, border: `1.5px solid ${PRETO}`, padding: "2px 4px" })}>
-              OBS: {item.observacao}
-            </p>
-          )}
+          {item.observacao && <p style={p({ fontSize: 12, paddingLeft: "6mm" })}>OBS: {item.observacao}</p>}
           {!!item.desconto && item.desconto > 0 && (
-            <p style={p({ fontSize: 12 })}>
+            <p style={p({ fontSize: 12, paddingLeft: "6mm" })}>
               Desconto: {formatarMoeda(item.desconto)}
               {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
             </p>
@@ -224,46 +210,43 @@ export default function ComprovanteCupom88mm({
       ))}
       <Divisor />
 
-      <Linha esquerda="QTD. TOTAL DE ITENS" direita={String(itens.reduce((n, i) => n + i.quantidade, 0))} tamanho={14} />
-      {descontoTotal > 0 && (
-        <>
-          <Linha esquerda="Subtotal" direita={formatarMoeda(total + descontoTotal)} tamanho={14} />
-          <Linha
-            esquerda={`Desconto${motivoDescontoGeral ? ` (${motivoDescontoGeral})` : ""}`}
-            direita={`- ${formatarMoeda(descontoTotal)}`}
-            tamanho={14}
-          />
-        </>
-      )}
+      <Linha esquerda="SUBTOTAL" direita={formatarMoeda(somaItens)} tamanho={14} />
       {!!custoAdicional && custoAdicional > 0 && (
         <Linha
-          esquerda={`Custo adicional${descricaoCustoAdicional ? ` (${descricaoCustoAdicional})` : ""}`}
-          direita={`+ ${formatarMoeda(custoAdicional)}`}
+          esquerda={`CUSTO ADICIONAL${descricaoCustoAdicional ? ` (${descricaoCustoAdicional})` : ""}`}
+          direita={formatarMoeda(custoAdicional)}
           tamanho={14}
         />
       )}
+      {diferenca > 0 && (
+        <Linha
+          esquerda={`DESCONTO${motivoDescontoGeral ? ` (${motivoDescontoGeral})` : ""}`}
+          direita={`- ${formatarMoeda(diferenca)}`}
+          tamanho={14}
+        />
+      )}
+      {diferenca < 0 && <Linha esquerda="ACRÉSCIMO" direita={`+ ${formatarMoeda(-diferenca)}`} tamanho={14} />}
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: PRETO,
-          color: "#fff",
-          padding: "5px 6px",
-          margin: "6px 0",
-          fontSize: 22,
-          fontWeight: 900,
-        }}
-      >
-        <span>TOTAL</span>
-        <span>{formatarMoeda(total)}</span>
+      <div style={{ margin: "8px 0 2px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span style={{ fontSize: 20, fontWeight: 900 }}>TOTAL</span>
+        <span style={{ fontSize: 22, fontWeight: 900 }}>{formatarMoeda(total)}</span>
       </div>
-      <Linha esquerda="FORMA DE PAGAMENTO" direita="VALOR PAGO" tamanho={12} />
-      <Linha esquerda={formaPagamento} direita={formatarMoeda(total)} tamanho={15} />
+      {pagamentos && pagamentos.length > 0 ? (
+        pagamentos.map((pg, i) => (
+          <Linha
+            key={i}
+            esquerda={`${pg.forma.toUpperCase()}${pg.parcelas > 1 ? ` ${pg.parcelas}X` : ""}`}
+            direita={formatarMoeda(pg.valorAPagar)}
+            tamanho={14}
+          />
+        ))
+      ) : (
+        <Linha esquerda={formaPagamento.toUpperCase()} direita={formatarMoeda(total)} tamanho={14} />
+      )}
+      <Divisor />
 
       {prazoEntregaMaximo && (
-        <p style={p({ border: `2px solid ${PRETO}`, padding: "4px 5px", margin: "8px 0 0", fontSize: 14, fontWeight: 900 })}>
+        <p style={p({ textAlign: "center", fontSize: 13, fontWeight: 900 })}>
           {prazoDiasUteis
             ? `PRAZO MÁXIMO: ${prazoDiasUteis} DIAS ÚTEIS — ATÉ ${new Date(
                 `${prazoEntregaMaximo}T00:00:00`
@@ -271,11 +254,8 @@ export default function ComprovanteCupom88mm({
             : `PRAZO MÁXIMO: ${new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}`}
         </p>
       )}
-      <Divisor />
-      <p style={p({ textAlign: "center", fontSize: 15, fontWeight: 900 })}>Obrigado pela preferência!</p>
-      <p style={p({ textAlign: "center", fontSize: 10, fontWeight: 700, margin: "6px 0 0" })}>
-        Este documento não é fiscal.
-      </p>
+      <p style={p({ textAlign: "center", fontSize: 14, margin: "8px 0 0" })}>OBRIGADO PELA PREFERÊNCIA!</p>
+      <p style={p({ textAlign: "center", fontSize: 10, margin: "6px 0 0" })}>Este documento não é fiscal.</p>
     </div>
   );
 }

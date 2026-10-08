@@ -814,6 +814,11 @@ export default function NotasPage() {
             prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
             prazoDiasUteis={notaImprimindo.prazo_dias_uteis ?? null}
             criadoEm={notaImprimindo.criado_em}
+            pagamentos={(notaImprimindo.venda_pagamentos || []).map((p) => ({
+              forma: p.forma_pagamento,
+              parcelas: p.parcelas,
+              valorAPagar: p.valor,
+            }))}
             descontoGeral={notaImprimindo.desconto_geral ?? 0}
             motivoDescontoGeral={notaImprimindo.motivo_desconto_geral ?? null}
             custoAdicional={notaImprimindo.custo_adicional ?? 0}

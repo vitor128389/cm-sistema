@@ -2914,6 +2914,11 @@ function VenderPageConteudo() {
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
+            pagamentos={vendaConcluida.pagamentos.map((p) => ({
+              forma: p.forma || "—",
+              parcelas: p.parcelas,
+              valorAPagar: p.valor,
+            }))}
             descontoGeral={vendaConcluida.descontoGeral}
             motivoDescontoGeral={vendaConcluida.motivoDescontoGeral}
             custoAdicional={vendaConcluida.custoAdicional}
