@@ -97,7 +97,7 @@ export async function GET(request: Request) {
       String(n.numero ?? ""),
       n.status === "cancelada" ? "Cancelada" : "Autorizada",
       valor.toFixed(2).replace(".", ","),
-      String(n.chave ?? ""),
+      String(n.chave ?? "").replace(/\D/g, ""),
     ]);
     if (n.status === "autorizada") {
       totalAutorizado += valor;
