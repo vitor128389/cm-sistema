@@ -152,7 +152,7 @@ export default function ComprovanteCupom88mm({
       {enderecoLoja && <p style={p({ textAlign: "center", fontSize: 13 })}>{enderecoLoja}</p>}
       {loja?.telefone && <p style={p({ textAlign: "center", fontSize: 14 })}>Tel: {loja.telefone}</p>}
       <Divisor />
-      <p style={p({ textAlign: "center", fontSize: 16, fontWeight: 900, letterSpacing: 1 })}>CUPOM NÃO FISCAL</p>
+      <p style={p({ textAlign: "center", fontSize: 15, fontWeight: 900, letterSpacing: 0.5 })}>COMPROVANTE DE VENDA</p>
       <Divisor />
 
       <Linha esquerda={`PEDIDO Nº ${numeroPedido}`} direita={dataHora} tamanho={14} />
@@ -193,24 +193,22 @@ export default function ComprovanteCupom88mm({
         </p>
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, margin: "0 0 3px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, borderBottom: `1px solid ${PRETO}`, paddingBottom: 2 }}>
         <span>ITEM  DESCRIÇÃO</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, borderBottom: `1px solid ${PRETO}`, paddingBottom: 2 }}>
-        <span>QTD UN x VL.UNIT</span>
-        <span>VL.TOTAL</span>
+        <span>QTD UN.  VL ITEM</span>
       </div>
       {itens.map((item, idx) => (
-        <div key={item.id} style={{ margin: "6px 0" }}>
-          <p style={p({ fontSize: 15, fontWeight: 900, textTransform: "uppercase" })}>
-            {String(idx + 1).padStart(3, "0")} {item.nome_produto}
+        <div key={item.id} style={{ margin: "6px 0 8px" }}>
+          <p style={p({ fontSize: 14, fontWeight: 900, textTransform: "uppercase" })}>
+            {idx + 1}  {String(idx + 1).padStart(3, "0")} {item.nome_produto}
             {item.variante ? ` — ${item.variante}` : ""}
           </p>
-          <Linha
-            esquerda={`${item.quantidade} UN x ${formatarMoeda(item.quantidade ? item.total / item.quantidade : item.total)}`}
-            direita={formatarMoeda(item.total)}
-            tamanho={14}
-          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 14, fontSize: 14, margin: "1px 0" }}>
+            <span>
+              UN {item.quantidade} x {formatarMoeda(item.quantidade ? item.total / item.quantidade : item.total)}
+            </span>
+            <span style={{ whiteSpace: "nowrap", minWidth: "26mm", textAlign: "right" }}>{formatarMoeda(item.total)}</span>
+          </div>
           {item.observacao && (
             <p style={p({ fontSize: 12, border: `1.5px solid ${PRETO}`, padding: "2px 4px" })}>
               OBS: {item.observacao}
@@ -275,7 +273,9 @@ export default function ComprovanteCupom88mm({
       )}
       <Divisor />
       <p style={p({ textAlign: "center", fontSize: 15, fontWeight: 900 })}>Obrigado pela preferência!</p>
-      <p style={p({ textAlign: "center", fontSize: 11 })}>Documento sem valor fiscal.</p>
+      <p style={p({ textAlign: "center", fontSize: 10, fontWeight: 700, margin: "6px 0 0" })}>
+        Este documento não é fiscal.
+      </p>
     </div>
   );
 }
