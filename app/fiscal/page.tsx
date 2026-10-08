@@ -304,7 +304,7 @@ export default function FiscalPage() {
                     disabled={ocupado}
                     onClick={emitir}
                   >
-                    {ocupado ? "Emitindo..." : real ? "🧾 Emitir NFC-e (REAL)" : "🧾 Emitir NFC-e (teste)"}
+                    {ocupado ? "Emitindo..." : real ? "🧾 Emitir NFC-e" : "🧾 Emitir NFC-e (teste)"}
                   </button>
                 )}
                 {vigente?.status === "processando" && (

@@ -718,7 +718,7 @@ export default function NotasPage() {
                           onClick={() => emitirNota(v)}
                           title={nf?.mensagem ? "Última tentativa falhou: " + nf.mensagem : "Emitir nota fiscal (NFC-e)"}
                         >
-                          {ocupado ? "Emitindo..." : nf ? "🧾 Tentar emitir NFC-e de novo" : lojasFiscais.get(v.loja_id) === "producao" ? "🧾 Emitir NFC-e (REAL)" : "🧾 Emitir NFC-e (teste)"}
+                          {ocupado ? "Emitindo..." : nf ? "🧾 Tentar emitir NFC-e de novo" : lojasFiscais.get(v.loja_id) === "producao" ? "🧾 Emitir NFC-e" : "🧾 Emitir NFC-e (teste)"}
                         </button>
                       );
                     }
