@@ -1,5 +1,6 @@
 "use client";
 
+import CamposFiscaisProduto from "@/components/CamposFiscaisProduto";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
@@ -1504,6 +1505,8 @@ function AbaEstoque() {
               </div>
             );
           })()}
+
+          {editandoId && <CamposFiscaisProduto produtoId={editandoId} />}
 
           <button className="btn-primario" onClick={salvarProduto}>
             {editandoId ? "Salvar edição" : "Salvar produto"}

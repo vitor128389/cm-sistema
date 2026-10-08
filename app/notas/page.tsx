@@ -74,6 +74,16 @@ function valorPagoItem(item: { total: number }, itensTodos: { total: number }[],
   return Math.round(totalPago * (item.total / somaListada) * 100) / 100;
 }
 
+interface NotaFiscal {
+  id: string;
+  venda_id: string;
+  ambiente: "homologacao" | "producao";
+  status: "processando" | "autorizada" | "erro" | "cancelada";
+  numero: string | null;
+  mensagem: string | null;
+  url_danfe: string | null;
+}
+
 export default function NotasPage() {
   const { lojaAtual } = useLoja();
   const [vendas, setVendas] = useState<Venda[]>([]);
@@ -91,6 +101,9 @@ export default function NotasPage() {
   const [filtroRota, setFiltroRota] = useState<string>("todas");
   const [rotasParaFiltro, setRotasParaFiltro] = useState<{ id: string; nome: string; cor: string }[]>([]);
   const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
+  const [lojasFiscais, setLojasFiscais] = useState<Set<string>>(new Set());
+  const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
+  const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
@@ -170,6 +183,82 @@ export default function NotasPage() {
     const { data } = await query;
     setRotasParaFiltro(data || []);
   }
+
+  async function carregarNotasFiscais() {
+    const { data: lojasF } = await supabase.from("lojas").select("id").eq("fiscal_ativo", true);
+    setLojasFiscais(new Set((lojasF || []).map((l) => l.id as string)));
+    const { data } = await supabase
+      .from("notas_fiscais")
+      .select("*")
+      .order("criado_em", { ascending: true });
+    const mapa: Record<string, NotaFiscal> = {};
+    // a mais recente de cada venda vence (exceto nota com erro, que não esconde uma autorizada)
+    (data || []).forEach((n) => {
+      const atual = mapa[n.venda_id as string];
+      if (!atual || n.status !== "erro" || atual.status === "erro") mapa[n.venda_id as string] = n as NotaFiscal;
+    });
+    setNotasFiscais(mapa);
+  }
+
+  async function chamarFiscal(rota: string, corpo: Record<string, unknown>) {
+    const resp = await fetch(`/api/fiscal/${rota}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json.error || "Erro ao falar com a nota fiscal.");
+    return json.nota as NotaFiscal;
+  }
+
+  async function emitirNota(v: Venda) {
+    if (!confirm(`Emitir nota fiscal (NFC-e) do pedido #${v.numero_pedido}?`)) return;
+    setEmitindo(v.id);
+    try {
+      const nota = await chamarFiscal("emitir", { vendaId: v.id });
+      setNotasFiscais((atual) => ({ ...atual, [v.id]: nota }));
+      if (nota.status === "erro") alert("A nota foi rejeitada: " + (nota.mensagem || "sem detalhes"));
+      else if (nota.status === "processando") alert("A nota ainda está sendo processada pela SEFAZ. Clique em Atualizar em instantes.");
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setEmitindo(null);
+    }
+  }
+
+  async function atualizarNota(v: Venda) {
+    const n = notasFiscais[v.id];
+    if (!n) return;
+    setEmitindo(v.id);
+    try {
+      const nota = await chamarFiscal("consultar", { notaId: n.id });
+      setNotasFiscais((atual) => ({ ...atual, [v.id]: nota }));
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setEmitindo(null);
+    }
+  }
+
+  async function cancelarNota(v: Venda) {
+    const n = notasFiscais[v.id];
+    if (!n) return;
+    const motivo = prompt("Motivo do cancelamento da nota fiscal (mínimo 15 caracteres):");
+    if (!motivo) return;
+    setEmitindo(v.id);
+    try {
+      const nota = await chamarFiscal("cancelar", { notaId: n.id, justificativa: motivo });
+      setNotasFiscais((atual) => ({ ...atual, [v.id]: nota }));
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setEmitindo(null);
+    }
+  }
+
+  useEffect(() => {
+    carregarNotasFiscais();
+  }, [lojaAtual]);
 
   useEffect(() => {
     async function carregarTodasLojas() {
@@ -611,6 +700,54 @@ export default function NotasPage() {
                   >
                     📄 PDF WhatsApp
                   </button>
+                  {!v.cancelada && lojasFiscais.has(v.loja_id) && (() => {
+                    const nf = notasFiscais[v.id];
+                    const ocupado = emitindo === v.id;
+                    if (!nf || nf.status === "erro") {
+                      return (
+                        <button
+                          className="text-xs px-2 py-1 rounded bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
+                          disabled={ocupado}
+                          onClick={() => emitirNota(v)}
+                          title={nf?.mensagem ? "Última tentativa falhou: " + nf.mensagem : "Emitir nota fiscal (NFC-e)"}
+                        >
+                          {ocupado ? "Emitindo..." : nf ? "🧾 Tentar emitir NFC-e de novo" : "🧾 Emitir NFC-e"}
+                        </button>
+                      );
+                    }
+                    return (
+                      <span className="flex items-center gap-2 text-xs">
+                        <span
+                          className={`px-2 py-1 rounded font-medium ${
+                            nf.status === "autorizada"
+                              ? "bg-green-50 text-green-700"
+                              : nf.status === "cancelada"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          NFC-e {nf.numero ? `nº ${nf.numero} ` : ""}
+                          {nf.status === "autorizada" ? "autorizada" : nf.status === "cancelada" ? "cancelada" : "processando"}
+                          {nf.ambiente === "homologacao" ? " (TESTE)" : ""}
+                        </span>
+                        {nf.url_danfe && nf.status === "autorizada" && (
+                          <a className="underline text-blue-700" href={nf.url_danfe} target="_blank" rel="noreferrer">
+                            DANFE
+                          </a>
+                        )}
+                        {nf.status === "processando" && (
+                          <button className="underline text-blue-700" disabled={ocupado} onClick={() => atualizarNota(v)}>
+                            Atualizar
+                          </button>
+                        )}
+                        {nf.status === "autorizada" && (
+                          <button className="underline text-red-700" disabled={ocupado} onClick={() => cancelarNota(v)}>
+                            Cancelar nota
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
               <ul className="mt-3 text-sm text-madeira-600 space-y-1">
