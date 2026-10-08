@@ -2914,6 +2914,10 @@ function VenderPageConteudo() {
             formaPagamento={vendaConcluida.forma}
             prazoEntregaMaximo={prazoEntregaMaximo || null}
             prazoDiasUteis={prazoDiasUteis}
+            descontoGeral={vendaConcluida.descontoGeral}
+            motivoDescontoGeral={vendaConcluida.motivoDescontoGeral}
+            custoAdicional={vendaConcluida.custoAdicional}
+            descricaoCustoAdicional={vendaConcluida.descricaoCustoAdicional}
             itens={carrinho.map((item, idx) => ({
               id: String(idx),
               venda_id: "",

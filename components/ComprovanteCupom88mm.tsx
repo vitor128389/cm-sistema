@@ -21,6 +21,11 @@ interface Props {
   prazoEntregaMaximo?: string | null;
   prazoDiasUteis?: number | null;
   loja?: LojaCompleta | null;
+  criadoEm?: string | null;
+  descontoGeral?: number;
+  motivoDescontoGeral?: string | null;
+  custoAdicional?: number;
+  descricaoCustoAdicional?: string | null;
 }
 
 // Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
@@ -67,9 +72,35 @@ function mesclarConjuntosSofa(itens: VendaItem[]): VendaItem[] {
   return resultado;
 }
 
-// Cupom enxuto pra impressora térmica de 88mm — sem via da loja/cliente,
-// sem assinatura, só o essencial: produto, endereço, total. Pensado pra
-// caber na largura estreita do rolo (sem tabela, tudo em linhas simples).
+// Cupom pra impressora térmica de 80/88mm. Pensado pra imprimir nítido em
+// papel térmico: tudo preto puro (nada de cinza, que a térmica "falha"),
+// fonte sem serifa em negrito e bem maior, divisórias feitas com borda CSS
+// (em vez de uma fileira de hifens, que saía quebrada/pulada) e o TOTAL em
+// tarja preta com letra branca. Ocupa a largura inteira do papel.
+const PRETO = "#000";
+const BORDA_TRACEJADA = `2px dashed ${PRETO}`;
+
+function Divisor() {
+  return <div style={{ borderTop: BORDA_TRACEJADA, margin: "7px 0" }} />;
+}
+
+function Linha({
+  esquerda,
+  direita,
+  tamanho = 15,
+}: {
+  esquerda: string;
+  direita: string;
+  tamanho?: number;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: tamanho, margin: "2px 0" }}>
+      <span>{esquerda}</span>
+      <span style={{ whiteSpace: "nowrap" }}>{direita}</span>
+    </div>
+  );
+}
+
 export default function ComprovanteCupom88mm({
   numeroPedido,
   cliente,
@@ -79,86 +110,150 @@ export default function ComprovanteCupom88mm({
   prazoEntregaMaximo,
   prazoDiasUteis,
   loja,
+  criadoEm,
+  descontoGeral,
+  motivoDescontoGeral,
+  custoAdicional,
+  descricaoCustoAdicional,
 }: Props) {
   itens = mesclarConjuntosSofa(itens);
-  const linha = "-".repeat(32);
+  const todosRetirada =
+    itens.length > 0 &&
+    itens.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade);
+  const descontoItens = itens.reduce((s, i) => s + (i.desconto || 0), 0);
+  const descontoTotal = descontoItens + (descontoGeral || 0);
+  const dataHora = (criadoEm ? new Date(criadoEm) : new Date()).toLocaleString("pt-BR");
+  const p = (extra: React.CSSProperties = {}): React.CSSProperties => ({ margin: "2px 0", ...extra });
 
   return (
     <div
       style={{
-        width: "80mm",
-        padding: "2mm",
-        fontFamily: "'Courier New', monospace",
-        fontSize: "12px",
+        width: "100%",
+        boxSizing: "border-box",
+        padding: "2mm 3.5mm 10mm",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: 15,
         fontWeight: 700,
-        color: "#000",
-        lineHeight: 1.45,
-        WebkitFontSmoothing: "none" as never,
+        color: PRETO,
+        lineHeight: 1.3,
       }}
     >
-      <p style={{ textAlign: "center", fontWeight: 700, fontSize: "14px", margin: "0 0 2px" }}>
+      <p style={p({ textAlign: "center", fontSize: 21, fontWeight: 900, textTransform: "uppercase", lineHeight: 1.15 })}>
         {loja?.nome || "Caruaru Móveis"}
       </p>
-      {loja?.telefone && <p style={{ textAlign: "center", margin: "0 0 4px" }}>Tel: {loja.telefone}</p>}
-      <p style={{ margin: "2px 0" }}>{linha}</p>
+      {loja?.telefone && <p style={p({ textAlign: "center", fontSize: 15 })}>Tel: {loja.telefone}</p>}
+      <Divisor />
 
-      <p style={{ margin: "2px 0", fontWeight: 700 }}>PEDIDO #{numeroPedido}</p>
-      <p style={{ margin: "2px 0" }}>{new Date().toLocaleString("pt-BR")}</p>
-      <p style={{ margin: "2px 0" }}>{linha}</p>
+      <p style={p({ fontSize: 23, fontWeight: 900 })}>PEDIDO #{numeroPedido}</p>
+      <p style={p({ fontSize: 14 })}>{dataHora}</p>
+      <Divisor />
 
       {cliente ? (
         <>
-          <p style={{ margin: "2px 0" }}>Cliente: {cliente.nome}</p>
-          {cliente.telefone && <p style={{ margin: "2px 0" }}>Cel: {cliente.telefone}</p>}
-          {cliente.bairro && <p style={{ margin: "2px 0" }}>Bairro: {cliente.bairro}</p>}
+          <p style={p({ fontSize: 17, fontWeight: 900 })}>{cliente.nome}</p>
+          {cliente.telefone && <p style={p()}>Cel: {cliente.telefone}</p>}
           {cliente.endereco && (
-            <p style={{ margin: "2px 0" }}>
-              End: {cliente.endereco}
+            <p style={p()}>
+              {cliente.endereco}
               {cliente.numero ? `, ${cliente.numero}` : ""}
             </p>
           )}
-          {cliente.complemento && <p style={{ margin: "2px 0" }}>{cliente.complemento}</p>}
-          {cliente.cidade && <p style={{ margin: "2px 0" }}>Cidade: {cliente.cidade}</p>}
-          {cliente.povoado && <p style={{ margin: "2px 0" }}>Povoado: {cliente.povoado}</p>}
+          {cliente.bairro && <p style={p()}>Bairro: {cliente.bairro}</p>}
+          {cliente.complemento && <p style={p()}>{cliente.complemento}</p>}
+          {cliente.cidade && <p style={p()}>Cidade: {cliente.cidade}</p>}
+          {cliente.povoado && <p style={p()}>Povoado: {cliente.povoado}</p>}
         </>
       ) : (
-        <p style={{ margin: "2px 0" }}>Venda sem cliente</p>
+        <p style={p()}>Venda sem cliente</p>
       )}
-      <p style={{ margin: "2px 0" }}>{linha}</p>
+      <Divisor />
 
-      {itens.length > 0 &&
-        itens.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade) && (
-          <p style={{ margin: "2px 0", fontWeight: 700 }}>RETIRADA NA LOJA</p>
-        )}
+      {todosRetirada && (
+        <p
+          style={p({
+            textAlign: "center",
+            border: `2px solid ${PRETO}`,
+            padding: "3px 0",
+            margin: "0 0 6px",
+            fontSize: 16,
+            fontWeight: 900,
+          })}
+        >
+          RETIRADA NA LOJA
+        </p>
+      )}
+
       {itens.map((item) => (
-        <div key={item.id} style={{ margin: "3px 0" }}>
-          <p style={{ margin: 0 }}>
-            {item.quantidade}x {item.nome_produto}
-            {item.variante ? ` — ${item.variante}` : ""}
-          </p>
+        <div key={item.id} style={{ margin: "7px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 16 }}>
+            <span style={{ fontWeight: 900 }}>
+              {item.quantidade}x {item.nome_produto}
+            </span>
+            <span style={{ whiteSpace: "nowrap", fontWeight: 900 }}>{formatarMoeda(item.total)}</span>
+          </div>
+          {item.variante && <p style={p({ fontSize: 14 })}>{item.variante}</p>}
+          {item.observacao && (
+            <p style={p({ fontSize: 13, border: `1.5px solid ${PRETO}`, padding: "2px 4px" })}>
+              OBS: {item.observacao}
+            </p>
+          )}
           {!!item.desconto && item.desconto > 0 && (
-            <p style={{ margin: 0, fontSize: "10px" }}>
+            <p style={p({ fontSize: 13 })}>
               Desconto: {formatarMoeda(item.desconto)}
               {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
             </p>
           )}
-          <p style={{ margin: 0, textAlign: "right" }}>{formatarMoeda(item.total)}</p>
         </div>
       ))}
-      <p style={{ margin: "2px 0" }}>{linha}</p>
+      <Divisor />
 
-      <p style={{ margin: "2px 0", fontWeight: 700, fontSize: "14px" }}>TOTAL: {formatarMoeda(total)}</p>
-      <p style={{ margin: "2px 0" }}>Pagamento: {formaPagamento}</p>
+      {descontoTotal > 0 && (
+        <>
+          <Linha esquerda="Subtotal" direita={formatarMoeda(total + descontoTotal)} tamanho={14} />
+          <Linha
+            esquerda={`Desconto${motivoDescontoGeral ? ` (${motivoDescontoGeral})` : ""}`}
+            direita={`- ${formatarMoeda(descontoTotal)}`}
+            tamanho={14}
+          />
+        </>
+      )}
+      {!!custoAdicional && custoAdicional > 0 && (
+        <Linha
+          esquerda={`Custo adicional${descricaoCustoAdicional ? ` (${descricaoCustoAdicional})` : ""}`}
+          direita={`+ ${formatarMoeda(custoAdicional)}`}
+          tamanho={14}
+        />
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: PRETO,
+          color: "#fff",
+          padding: "5px 6px",
+          margin: "6px 0",
+          fontSize: 22,
+          fontWeight: 900,
+        }}
+      >
+        <span>TOTAL</span>
+        <span>{formatarMoeda(total)}</span>
+      </div>
+      <p style={p({ fontSize: 15 })}>Pagamento: {formaPagamento}</p>
+
       {prazoEntregaMaximo && (
-        <p style={{ margin: "2px 0" }}>
+        <p style={p({ border: `2px solid ${PRETO}`, padding: "4px 5px", margin: "8px 0 0", fontSize: 14, fontWeight: 900 })}>
           {prazoDiasUteis
             ? `PRAZO MÁXIMO: ${prazoDiasUteis} DIAS ÚTEIS — ATÉ ${new Date(
                 `${prazoEntregaMaximo}T00:00:00`
               ).toLocaleDateString("pt-BR")}`
-            : `Prazo máximo: ${new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}`}
+            : `PRAZO MÁXIMO: ${new Date(`${prazoEntregaMaximo}T00:00:00`).toLocaleDateString("pt-BR")}`}
         </p>
       )}
-      <p style={{ margin: "6px 0 0", textAlign: "center" }}>Obrigado pela preferência!</p>
+      <Divisor />
+      <p style={p({ textAlign: "center", fontSize: 15, fontWeight: 900 })}>Obrigado pela preferência!</p>
     </div>
   );
 }

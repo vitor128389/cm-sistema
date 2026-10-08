@@ -813,6 +813,11 @@ export default function NotasPage() {
             formaPagamento={notaImprimindo.forma_pagamento}
             prazoEntregaMaximo={notaImprimindo.prazo_entrega_maximo}
             prazoDiasUteis={notaImprimindo.prazo_dias_uteis ?? null}
+            criadoEm={notaImprimindo.criado_em}
+            descontoGeral={notaImprimindo.desconto_geral ?? 0}
+            motivoDescontoGeral={notaImprimindo.motivo_desconto_geral ?? null}
+            custoAdicional={notaImprimindo.custo_adicional ?? 0}
+            descricaoCustoAdicional={notaImprimindo.descricao_custo_adicional ?? null}
             itens={notaImprimindo.venda_itens || []}
           />
         )}
