@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { type AmbienteFiscal, cancelarNfce, normalizarResposta, tokenDaLoja } from "@/lib/focusNfe";
+import { type AmbienteFiscal, cancelarNota, normalizarResposta, type TipoNota, tokenDaLoja } from "@/lib/focusNfe";
 
 // Cancela uma NFC-e já autorizada (só admin/gerente; a SEFAZ exige justificativa de 15+ caracteres
 // e limita o prazo de cancelamento).
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const token = loja?.fiscal_chave ? tokenDaLoja(loja.fiscal_chave, ambiente) : null;
   if (!token) return NextResponse.json({ error: "Token da Focus não configurado." }, { status: 500 });
 
-  const resp = await cancelarNfce(ambiente, token, nota.referencia, justificativa.trim());
+  const resp = await cancelarNota((nota.tipo || "nfce") as TipoNota, ambiente, token, nota.referencia, justificativa.trim());
   const norm = normalizarResposta(ambiente, resp);
   const cancelou = resp.http < 400 && (resp.corpo.status === "cancelado" || resp.corpo.status_sefaz === "135");
   if (!cancelou) {

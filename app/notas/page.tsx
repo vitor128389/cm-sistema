@@ -191,6 +191,7 @@ export default function NotasPage() {
     const { data } = await supabase
       .from("notas_fiscais")
       .select("*")
+      .eq("tipo", "nfce")
       .order("criado_em", { ascending: true });
     const mapa: Record<string, NotaFiscal> = {};
     // só vale a nota do ambiente atual da loja (nota de teste não conta quando a loja está em produção);

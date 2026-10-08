@@ -47,16 +47,37 @@ async function chamar(
   return { http: resp.status, corpo: json };
 }
 
-export function enviarNfce(ambiente: AmbienteFiscal, token: string, referencia: string, dados: unknown) {
-  return chamar(ambiente, token, "POST", `/v2/nfce?ref=${encodeURIComponent(referencia)}`, dados);
+export type TipoNota = "nfce" | "nfe";
+
+export function enviarNota(tipo: TipoNota, ambiente: AmbienteFiscal, token: string, referencia: string, dados: unknown) {
+  return chamar(ambiente, token, "POST", `/v2/${tipo}?ref=${encodeURIComponent(referencia)}`, dados);
 }
 
-export function consultarNfce(ambiente: AmbienteFiscal, token: string, referencia: string) {
-  return chamar(ambiente, token, "GET", `/v2/nfce/${encodeURIComponent(referencia)}`);
+export function consultarNota(tipo: TipoNota, ambiente: AmbienteFiscal, token: string, referencia: string) {
+  return chamar(ambiente, token, "GET", `/v2/${tipo}/${encodeURIComponent(referencia)}`);
 }
 
-export function cancelarNfce(ambiente: AmbienteFiscal, token: string, referencia: string, justificativa: string) {
-  return chamar(ambiente, token, "DELETE", `/v2/nfce/${encodeURIComponent(referencia)}`, { justificativa });
+export function cancelarNota(tipo: TipoNota, ambiente: AmbienteFiscal, token: string, referencia: string, justificativa: string) {
+  return chamar(ambiente, token, "DELETE", `/v2/${tipo}/${encodeURIComponent(referencia)}`, { justificativa });
+}
+
+export const enviarNfce = (a: AmbienteFiscal, t: string, r: string, d: unknown) => enviarNota("nfce", a, t, r, d);
+export const consultarNfce = (a: AmbienteFiscal, t: string, r: string) => consultarNota("nfce", a, t, r);
+export const cancelarNfce = (a: AmbienteFiscal, t: string, r: string, j: string) => cancelarNota("nfce", a, t, r, j);
+
+export function cnpjValido(cnpj: string): boolean {
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const calc = (base: string) => {
+    let peso = base.length - 7;
+    let soma = 0;
+    for (const d of base) {
+      soma += Number(d) * peso--;
+      if (peso < 2) peso = 9;
+    }
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(cnpj.slice(0, 12)) === Number(cnpj[12]) && calc(cnpj.slice(0, 13)) === Number(cnpj[13]);
 }
 
 export interface NotaNormalizada {

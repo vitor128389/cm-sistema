@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { type AmbienteFiscal, consultarNfce, normalizarResposta, tokenDaLoja } from "@/lib/focusNfe";
+import { type AmbienteFiscal, consultarNota, normalizarResposta, type TipoNota, tokenDaLoja } from "@/lib/focusNfe";
 
 // Atualiza o status de uma nota (útil quando ficou "processando").
 export async function POST(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const token = loja?.fiscal_chave ? tokenDaLoja(loja.fiscal_chave, ambiente) : null;
   if (!token) return NextResponse.json({ error: "Token da Focus não configurado." }, { status: 500 });
 
-  const norm = normalizarResposta(ambiente, await consultarNfce(ambiente, token, nota.referencia));
+  const norm = normalizarResposta(ambiente, await consultarNota((nota.tipo || "nfce") as TipoNota, ambiente, token, nota.referencia));
   const { data: atualizada } = await admin
     .from("notas_fiscais")
     .update({ ...norm, atualizado_em: new Date().toISOString() })

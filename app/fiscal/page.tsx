@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { baixarDanfePdf, chamarFiscal, imprimirDanfe, type NotaFiscal } from "@/lib/fiscalCliente";
+import FormNfe, { type DadosNfe, enderecoVazio } from "@/components/FormNfe";
 
 interface VendaFiscal {
   id: string;
@@ -14,7 +15,16 @@ interface VendaFiscal {
   forma_pagamento: string;
   cancelada: boolean | null;
   criado_em: string;
-  clientes: { nome: string; cpf: string | null } | null;
+  clientes: {
+    nome: string;
+    cpf: string | null;
+    telefone: string | null;
+    endereco: string | null;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string | null;
+  } | null;
   venda_itens: { id: string; nome_produto: string; variante: string | null; quantidade: number; total: number; trocado?: boolean }[];
 }
 
@@ -60,10 +70,12 @@ export default function FiscalPage() {
   const [de, setDe] = useState(() => periodoMesAnterior().de);
   const [ate, setAte] = useState(() => periodoMesAnterior().ate);
   const [gerandoPacote, setGerandoPacote] = useState(false);
+  const [nfeAberta, setNfeAberta] = useState(false);
 
   useEffect(() => {
     setVenda(null);
     setNotas([]);
+    setNfeAberta(false);
     setAviso("");
     if (!lojaAtual) {
       setLoja(null);
@@ -105,9 +117,10 @@ export default function FiscalPage() {
     setBuscando(true);
     setVenda(null);
     setNotas([]);
+    setNfeAberta(false);
     const { data } = await supabase
       .from("vendas")
-      .select("id, numero_pedido, loja_id, total, forma_pagamento, cancelada, criado_em, clientes(nome, cpf), venda_itens(id, nome_produto, variante, quantidade, total, trocado)")
+      .select("id, numero_pedido, loja_id, total, forma_pagamento, cancelada, criado_em, clientes(nome, cpf, telefone, endereco, numero, complemento, bairro, cidade), venda_itens(id, nome_produto, variante, quantidade, total, trocado)")
       .eq("numero_pedido", n)
       .eq("loja_id", lojaAtual)
       .maybeSingle();
@@ -133,11 +146,18 @@ export default function FiscalPage() {
 
   // só vale a nota do ambiente atual da loja (nota de teste não conta em produção)
   const notasValidas = notas.filter((n) => !loja || n.ambiente === loja.fiscal_ambiente);
-  const vigente = notasValidas.find((n) => n.status === "autorizada" || n.status === "processando");
-  const ultimaComErro = notasValidas.find((n) => n.status === "erro");
+  const estado = (tipo: "nfce" | "nfe") => {
+    const lista = notasValidas.filter((n) => (n.tipo || "nfce") === tipo);
+    return {
+      vigente: lista.find((n) => n.status === "autorizada" || n.status === "processando"),
+      ultimaComErro: lista.find((n) => n.status === "erro"),
+    };
+  };
+  const nfce = estado("nfce");
+  const nfe = estado("nfe");
   const real = loja?.fiscal_ambiente === "producao";
 
-  async function acao(rota: "emitir" | "consultar" | "cancelar", corpo: Record<string, unknown>) {
+  async function acao(rota: "emitir" | "emitir-nfe" | "consultar" | "cancelar", corpo: Record<string, unknown>) {
     if (!venda) return;
     setOcupado(true);
     setAviso("");
@@ -147,7 +167,8 @@ export default function FiscalPage() {
       await carregarHistorico();
       if (nota.status === "erro") setAviso("A nota foi rejeitada: " + (nota.mensagem || "sem detalhes"));
       else if (nota.status === "processando") setAviso("A SEFAZ ainda está processando. Clique em Atualizar em instantes.");
-      else if (rota === "emitir" && nota.status === "autorizada") setAviso("Nota autorizada ✓");
+      else if ((rota === "emitir" || rota === "emitir-nfe") && nota.status === "autorizada") setAviso("Nota autorizada ✓");
+      if (rota === "emitir-nfe" && nota.status !== "erro") setNfeAberta(false);
     } catch (e) {
       setAviso((e as Error).message);
     } finally {
@@ -201,14 +222,137 @@ export default function FiscalPage() {
     acao("emitir", { vendaId: venda.id });
   }
 
-  function cancelar() {
-    if (!vigente) return;
+  function cancelar(notaId: string) {
     const motivo = prompt("Motivo do cancelamento da nota fiscal (mínimo 15 caracteres):");
     if (!motivo) return;
-    acao("cancelar", { notaId: vigente.id, justificativa: motivo });
+    acao("cancelar", { notaId, justificativa: motivo });
+  }
+
+  function dadosIniciaisNfe(): DadosNfe {
+    const c = venda?.clientes;
+    return {
+      tipo: "pf",
+      documento: c?.cpf || "",
+      nome: c?.nome || "",
+      situacaoIe: "nao_contribuinte",
+      inscricaoEstadual: "",
+      email: "",
+      telefone: c?.telefone || "",
+      endereco: { ...enderecoVazio(), logradouro: c?.endereco || "", numero: c?.numero || "", complemento: c?.complemento || "", bairro: c?.bairro || "", municipio: c?.cidade || "" },
+      entregaDiferente: false,
+      entrega: enderecoVazio(),
+    };
+  }
+
+  function emitirNfe(d: DadosNfe) {
+    if (!venda) return;
+    const texto = real
+      ? `ATENÇÃO: isso emite uma NF-e REAL (valor fiscal, vai para a SEFAZ) do pedido #${venda.numero_pedido}, no valor de ${formatarMoeda(venda.total)}, para ${d.nome}. Confirmar?`
+      : `Emitir NF-e de TESTE (sem valor fiscal) do pedido #${venda.numero_pedido}?`;
+    if (!confirm(texto)) return;
+    const tira = (e: DadosNfe["endereco"]) => ({
+      cep: e.cep,
+      logradouro: e.logradouro,
+      numero: e.numero,
+      complemento: e.complemento,
+      bairro: e.bairro,
+      municipio: e.municipio,
+      uf: e.uf,
+      codigoMunicipio: e.codigoMunicipio,
+    });
+    acao("emitir-nfe", {
+      vendaId: venda.id,
+      destinatario: {
+        tipo: d.tipo,
+        documento: d.documento,
+        nome: d.nome,
+        situacaoIe: d.situacaoIe,
+        inscricaoEstadual: d.inscricaoEstadual,
+        email: d.email,
+        telefone: d.telefone,
+        ...tira(d.endereco),
+      },
+      entrega: d.entregaDiferente ? { ...tira(d.entrega), nome: d.nome } : null,
+    });
   }
 
   const fiscalLigado = !!loja?.fiscal_ativo;
+
+  function blocoNota(tipo: "nfce" | "nfe", vigente: NotaFiscal | undefined, ultimaComErro: NotaFiscal | undefined) {
+    if (!venda) return null;
+    const nome = tipo === "nfce" ? "NFC-e (cupom, consumidor)" : "NF-e (nota completa, com dados do cliente)";
+    const sigla = tipo === "nfce" ? "NFCe" : "NFe";
+    return (
+      <div className="mt-4 border-t border-madeira-100 pt-4">
+        <p className="text-sm font-medium text-madeira-700 mb-2">{nome}</p>
+
+        {vigente ? (
+          <p className="mb-3">
+            <span className={`text-xs px-2 py-1 rounded font-medium ${COR_STATUS[vigente.status]}`}>
+              {ROTULO_STATUS[vigente.status]}
+              {vigente.numero ? ` · nº ${vigente.numero} série ${vigente.serie ?? ""}` : ""}
+              {vigente.ambiente === "homologacao" ? " · TESTE" : ""}
+            </span>
+          </p>
+        ) : ultimaComErro ? (
+          <p className="mb-3 text-xs text-red-700">Última tentativa rejeitada: {ultimaComErro.mensagem || "sem detalhes"}</p>
+        ) : (
+          <p className="mb-3 text-xs text-madeira-500">Nenhuma {tipo === "nfce" ? "NFC-e" : "NF-e"} emitida para esse pedido.</p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {!vigente && fiscalLigado && tipo === "nfce" && (
+            <button className="text-sm px-3 py-2 rounded bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50" disabled={ocupado} onClick={emitir}>
+              {ocupado ? "Emitindo..." : real ? "🧾 Emitir NFC-e" : "🧾 Emitir NFC-e (teste)"}
+            </button>
+          )}
+          {!vigente && fiscalLigado && tipo === "nfe" && !nfeAberta && (
+            <button className="text-sm px-3 py-2 rounded bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50" disabled={ocupado} onClick={() => setNfeAberta(true)}>
+              🧾 Emitir NF-e
+            </button>
+          )}
+          {vigente?.status === "processando" && (
+            <button className="btn-secundario text-sm" disabled={ocupado} onClick={() => acao("consultar", { notaId: vigente.id })}>
+              Atualizar status
+            </button>
+          )}
+          {vigente?.status === "autorizada" && vigente.url_danfe && (
+            <>
+              <button className="btn-primario text-sm" disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
+                🖨 Imprimir DANFE
+              </button>
+              <button
+                className="btn-secundario text-sm"
+                disabled={ocupado}
+                onClick={() => rodar(() => baixarDanfePdf(vigente.id, `${sigla}-pedido-${venda.numero_pedido}-${vigente.numero ?? "sn"}.pdf`))}
+              >
+                ⬇ Baixar PDF
+              </button>
+            </>
+          )}
+          {vigente?.status === "autorizada" && vigente.url_xml && (
+            <a className="btn-secundario text-sm" href={vigente.url_xml} target="_blank" rel="noreferrer">
+              ⬇ XML
+            </a>
+          )}
+          {vigente?.status === "autorizada" && (
+            <button className="text-sm px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50" disabled={ocupado} onClick={() => cancelar(vigente.id)}>
+              Cancelar nota
+            </button>
+          )}
+        </div>
+
+        {tipo === "nfe" && !vigente && nfeAberta && (
+          <FormNfe inicial={dadosIniciaisNfe()} ocupado={ocupado} real={real} onEmitir={emitirNfe} onCancelar={() => setNfeAberta(false)} />
+        )}
+        {vigente?.status === "autorizada" && (
+          <p className="text-xs text-madeira-500 mt-2">
+            {tipo === "nfce" ? '"Imprimir" abre a janela de impressão para escolher a impressora (térmica ou A4).' : '"Imprimir" abre o PDF da NF-e (A4); imprima por ele com Ctrl+P.'}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -280,76 +424,10 @@ export default function FiscalPage() {
           {venda.cancelada && <p className="mt-3 text-sm text-red-700 font-medium">Venda cancelada: não emite nota.</p>}
 
           {!venda.cancelada && (
-            <div className="mt-4 border-t border-madeira-100 pt-4">
-              <p className="text-sm font-medium text-madeira-700 mb-2">Nota fiscal de consumidor (NFC-e)</p>
-
-              {vigente ? (
-                <p className="mb-3">
-                  <span className={`text-xs px-2 py-1 rounded font-medium ${COR_STATUS[vigente.status]}`}>
-                    {ROTULO_STATUS[vigente.status]}
-                    {vigente.numero ? ` · nº ${vigente.numero} série ${vigente.serie ?? ""}` : ""}
-                    {vigente.ambiente === "homologacao" ? " · TESTE" : ""}
-                  </span>
-                </p>
-              ) : ultimaComErro ? (
-                <p className="mb-3 text-xs text-red-700">Última tentativa rejeitada: {ultimaComErro.mensagem || "sem detalhes"}</p>
-              ) : (
-                <p className="mb-3 text-xs text-madeira-500">Nenhuma nota emitida para esse pedido.</p>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                {!vigente && fiscalLigado && (
-                  <button
-                    className="text-sm px-3 py-2 rounded bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
-                    disabled={ocupado}
-                    onClick={emitir}
-                  >
-                    {ocupado ? "Emitindo..." : real ? "🧾 Emitir NFC-e" : "🧾 Emitir NFC-e (teste)"}
-                  </button>
-                )}
-                {vigente?.status === "processando" && (
-                  <button className="btn-secundario text-sm" disabled={ocupado} onClick={() => acao("consultar", { notaId: vigente.id })}>
-                    Atualizar status
-                  </button>
-                )}
-                {vigente?.status === "autorizada" && vigente.url_danfe && (
-                  <>
-                    <button className="btn-primario text-sm" disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
-                      🖨 Imprimir DANFE
-                    </button>
-                    <button
-                      className="btn-secundario text-sm"
-                      disabled={ocupado}
-                      onClick={() => rodar(() => baixarDanfePdf(vigente.id, `NFCe-pedido-${venda.numero_pedido}-${vigente.numero ?? "sn"}.pdf`))}
-                    >
-                      ⬇ Baixar PDF
-                    </button>
-                  </>
-                )}
-                {vigente?.status === "autorizada" && vigente.url_xml && (
-                  <a className="btn-secundario text-sm" href={vigente.url_xml} target="_blank" rel="noreferrer">
-                    ⬇ XML
-                  </a>
-                )}
-                {vigente?.status === "autorizada" && (
-                  <button className="text-sm px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50" disabled={ocupado} onClick={cancelar}>
-                    Cancelar nota
-                  </button>
-                )}
-                <button
-                  className="btn-secundario text-sm opacity-50 cursor-not-allowed"
-                  disabled
-                  title="Emissão de NF-e (modelo 55, com dados completos do cliente) ainda não está disponível"
-                >
-                  NF-e (em breve)
-                </button>
-              </div>
-              {vigente?.status === "autorizada" && (
-                <p className="text-xs text-madeira-500 mt-2">
-                  "Imprimir" abre a janela de impressão para escolher a impressora (térmica ou A4).
-                </p>
-              )}
-            </div>
+            <>
+              {blocoNota("nfce", nfce.vigente, nfce.ultimaComErro)}
+              {blocoNota("nfe", nfe.vigente, nfe.ultimaComErro)}
+            </>
           )}
         </div>
       )}
@@ -394,7 +472,9 @@ export default function FiscalPage() {
                 buscar(n);
               }}
             >
-              <span className="font-medium text-madeira-900">Pedido #{h.vendas?.numero_pedido ?? "?"}</span>
+              <span className="font-medium text-madeira-900">
+                {h.tipo === "nfe" ? "NF-e" : "NFC-e"} · Pedido #{h.vendas?.numero_pedido ?? "?"}
+              </span>
               <span className={`text-xs px-2 py-0.5 rounded font-medium ${COR_STATUS[h.status]}`}>{ROTULO_STATUS[h.status]}</span>
               <span className="text-xs text-madeira-500">
                 {h.numero ? `nº ${h.numero} série ${h.serie ?? ""} · ` : ""}

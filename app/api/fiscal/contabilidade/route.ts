@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { type AmbienteFiscal, consultarNfce, hostFocus, tokenDaLoja } from "@/lib/focusNfe";
+import { type AmbienteFiscal, consultarNota, hostFocus, type TipoNota, tokenDaLoja } from "@/lib/focusNfe";
 
 export const maxDuration = 60;
 
@@ -76,7 +76,8 @@ export async function GET(request: Request) {
   async function processar(n: Nota) {
     const venda = n.vendas as { numero_pedido?: number; total?: number } | null;
     const valor = Number(venda?.total ?? 0);
-    const base = `NFCe-${String(n.serie ?? "")}-${String(n.numero ?? "")}`;
+    const rotuloTipo = n.tipo === "nfe" ? "NFe" : "NFCe";
+    const base = `${rotuloTipo}-${String(n.serie ?? "")}-${String(n.numero ?? "")}`;
     const xml = await baixar(n.url_xml);
     if (xml) zip.file(`XML/${base}.xml`, xml);
     else faltando.push(`${base} (XML da nota)`);
@@ -84,7 +85,7 @@ export async function GET(request: Request) {
       // o XML do cancelamento vem na consulta da nota
       let xmlCanc: Buffer | null = null;
       try {
-        const c = (await consultarNfce("producao", token!, n.referencia)).corpo;
+        const c = (await consultarNota((n.tipo || "nfce") as TipoNota, "producao", token!, n.referencia)).corpo;
         xmlCanc = await baixar(typeof c.caminho_xml_cancelamento === "string" ? c.caminho_xml_cancelamento : null);
       } catch {}
       if (xmlCanc) zip.file(`XML/${base}-cancelamento.xml`, xmlCanc);
@@ -93,6 +94,7 @@ export async function GET(request: Request) {
     linhas.push([
       new Date(n.criado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       String(venda?.numero_pedido ?? ""),
+      rotuloTipo,
       String(n.serie ?? ""),
       String(n.numero ?? ""),
       n.status === "cancelada" ? "Cancelada" : "Autorizada",
@@ -105,19 +107,19 @@ export async function GET(request: Request) {
     } else qtdCancelada++;
   }
   for (let i = 0; i < notas.length; i += 5) await Promise.all(notas.slice(i, i + 5).map(processar));
-  linhas.sort((a, b) => a[0].localeCompare(b[0]) || Number(a[3]) - Number(b[3]));
+  linhas.sort((a, b) => a[0].localeCompare(b[0]) || Number(a[4]) - Number(b[4]));
 
   const cel = (v: string) => `"${v.replace(/"/g, '""')}"`;
   const csv = [
-    ["Data/hora emissão", "Pedido", "Série", "Nº NFC-e", "Situação", "Valor (R$)", "Chave de acesso"],
+    ["Data/hora emissão", "Pedido", "Tipo", "Série", "Nº da nota", "Situação", "Valor (R$)", "Chave de acesso"],
     ...linhas,
     [],
-    ["Notas autorizadas", String(qtdAutorizada), "", "", "", totalAutorizado.toFixed(2).replace(".", ","), ""],
+    ["Notas autorizadas", String(qtdAutorizada), "", "", "", "", totalAutorizado.toFixed(2).replace(".", ","), ""],
     ["Notas canceladas", String(qtdCancelada)],
   ]
     .map((l) => l.map(cel).join(";"))
     .join("\r\n");
-  zip.file(`Relatorio-NFCe-${de}-a-${ate}.csv`, "﻿" + csv);
+  zip.file(`Relatorio-notas-${de}-a-${ate}.csv`, "﻿" + csv);
   if (faltando.length) zip.file("AVISO-arquivos-nao-encontrados.txt", "Não foi possível baixar:\r\n" + faltando.join("\r\n"));
 
   const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });

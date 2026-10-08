@@ -74,9 +74,13 @@ export async function POST(request: Request) {
     .eq("venda_id", vendaId)
     .eq("ambiente", ambiente)
     .order("criado_em", { ascending: false });
-  const vigente = (anteriores || []).find((n) => n.status === "autorizada" || n.status === "processando");
+  const todas = anteriores || [];
+  const vigente = todas.find((n) => n.tipo === "nfce" && (n.status === "autorizada" || n.status === "processando"));
   if (vigente) {
     return NextResponse.json({ nota: vigente, jaExistia: true });
+  }
+  if (todas.some((n) => n.tipo === "nfe" && (n.status === "autorizada" || n.status === "processando"))) {
+    return NextResponse.json({ error: "Esse pedido já tem NF-e. Cancele a NF-e antes de emitir NFC-e (não pode ter as duas)." }, { status: 400 });
   }
 
   // itens + dados fiscais dos produtos
@@ -200,7 +204,7 @@ export async function POST(request: Request) {
     if (venda.clientes?.nome && ambiente === "producao") payload.nome_destinatario = venda.clientes.nome;
   }
 
-  const tentativa = (anteriores || []).length + 1;
+  const tentativa = todas.filter((n) => n.tipo === "nfce").length + 1;
   const referencia = `pedido-${venda.numero_pedido}-${String(loja.fiscal_chave).toLowerCase()}-${ambiente === "producao" ? "p" : "h"}${tentativa}`;
 
   const { data: registro, error: erroInsert } = await admin

@@ -2,6 +2,7 @@
 export interface NotaFiscal {
   id: string;
   venda_id: string;
+  tipo: "nfce" | "nfe";
   loja_id: string | null;
   ambiente: "homologacao" | "producao";
   status: "processando" | "autorizada" | "erro" | "cancelada";
@@ -14,7 +15,7 @@ export interface NotaFiscal {
   criado_em: string;
 }
 
-export async function chamarFiscal(rota: "emitir" | "consultar" | "cancelar", corpo: Record<string, unknown>): Promise<NotaFiscal> {
+export async function chamarFiscal(rota: "emitir" | "emitir-nfe" | "consultar" | "cancelar", corpo: Record<string, unknown>): Promise<NotaFiscal> {
   const resp = await fetch(`/api/fiscal/${rota}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,10 +41,24 @@ function criarIframe(src: string, largura: string): Promise<HTMLIFrameElement> {
   });
 }
 
-// Abre a janela de impressão do navegador (com a lista de impressoras) para o cupom.
-export async function imprimirDanfe(notaId: string): Promise<void> {
+// NFC-e: o DANFE é uma página HTML (cupom). NF-e: o DANFE é um PDF (A4).
+async function tipoDoDanfe(notaId: string): Promise<{ pdf: boolean; blob?: Blob }> {
   const chk = await fetch(urlDanfe(notaId));
   if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
+  if ((chk.headers.get("content-type") || "").includes("pdf")) return { pdf: true, blob: await chk.blob() };
+  return { pdf: false };
+}
+
+// Abre a janela de impressão do navegador (com a lista de impressoras).
+export async function imprimirDanfe(notaId: string): Promise<void> {
+  const t = await tipoDoDanfe(notaId);
+  if (t.pdf && t.blob) {
+    // PDF: abre no visualizador do navegador, de onde se imprime (Ctrl+P)
+    const url = URL.createObjectURL(t.blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    return;
+  }
   const f = await criarIframe(urlDanfe(notaId), "400px");
   f.style.left = "0";
   f.style.opacity = "0";
@@ -55,8 +70,18 @@ export async function imprimirDanfe(notaId: string): Promise<void> {
 
 // Gera um PDF do cupom (80 mm de largura, uma página só) e baixa.
 export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promise<void> {
-  const chk = await fetch(urlDanfe(notaId));
-  if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
+  const t = await tipoDoDanfe(notaId);
+  if (t.pdf && t.blob) {
+    const url = URL.createObjectURL(t.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return;
+  }
   const f = await criarIframe(urlDanfe(notaId), "420px");
   try {
     const doc = f.contentDocument;
@@ -107,5 +132,27 @@ export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promi
     pdf.save(nomeArquivo);
   } finally {
     f.remove();
+  }
+}
+
+export interface EnderecoCep {
+  logradouro: string;
+  bairro: string;
+  municipio: string;
+  uf: string;
+  codigoMunicipio: string;
+}
+
+// Busca endereço e código do município (IBGE) pelo CEP (ViaCEP).
+export async function buscarCep(cep: string): Promise<EnderecoCep | null> {
+  const c = cep.replace(/\D/g, "");
+  if (c.length !== 8) return null;
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${c}/json/`);
+    const j = await r.json();
+    if (!j || j.erro) return null;
+    return { logradouro: j.logradouro || "", bairro: j.bairro || "", municipio: j.localidade || "", uf: j.uf || "", codigoMunicipio: j.ibge || "" };
+  } catch {
+    return null;
   }
 }
