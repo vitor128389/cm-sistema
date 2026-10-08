@@ -41,6 +41,12 @@ const COR_STATUS: Record<NotaFiscal["status"], string> = {
   cancelada: "bg-gray-100 text-gray-600",
 };
 
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function periodoMesAnterior() {
+  const h = new Date();
+  return { de: iso(new Date(h.getFullYear(), h.getMonth() - 1, 1)), ate: iso(new Date(h.getFullYear(), h.getMonth(), 0)) };
+}
+
 export default function FiscalPage() {
   const { lojaAtual } = useLoja();
   const [loja, setLoja] = useState<LojaFiscal | null>(null);
@@ -51,6 +57,9 @@ export default function FiscalPage() {
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState("");
   const [historico, setHistorico] = useState<LinhaHistorico[]>([]);
+  const [de, setDe] = useState(() => periodoMesAnterior().de);
+  const [ate, setAte] = useState(() => periodoMesAnterior().ate);
+  const [gerandoPacote, setGerandoPacote] = useState(false);
 
   useEffect(() => {
     setVenda(null);
@@ -143,6 +152,34 @@ export default function FiscalPage() {
       setAviso((e as Error).message);
     } finally {
       setOcupado(false);
+    }
+  }
+
+  function escolherMes(valor: string) {
+    if (!/^\d{4}-\d{2}$/.test(valor)) return;
+    const [a, m] = valor.split("-").map(Number);
+    setDe(iso(new Date(a, m - 1, 1)));
+    setAte(iso(new Date(a, m, 0)));
+  }
+
+  async function gerarPacote() {
+    if (!lojaAtual) return;
+    setGerandoPacote(true);
+    setAviso("");
+    try {
+      const resp = await fetch(`/api/fiscal/contabilidade?lojaId=${lojaAtual}&de=${de}&ate=${ate}`);
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).error || "Não consegui gerar o pacote.");
+      const blob = await resp.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `Notas-fiscais-${loja?.nome ?? "loja"}-${de}-a-${ate}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setGerandoPacote(false);
     }
   }
 
@@ -316,6 +353,31 @@ export default function FiscalPage() {
           )}
         </div>
       )}
+
+      <div className="card p-5 mb-6">
+        <h2 className="font-display text-xl text-madeira-900">Pacote para a contadora</h2>
+        <p className="text-sm text-madeira-600 mb-3">
+          Gera um arquivo ZIP com os XMLs das notas reais do período (autorizadas e canceladas) e a planilha do relatório.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-madeira-600">
+            Mês
+            <input type="month" className="input-base block" onChange={(e) => escolherMes(e.target.value)} />
+          </label>
+          <label className="text-xs text-madeira-600">
+            De
+            <input type="date" className="input-base block" value={de} onChange={(e) => setDe(e.target.value)} />
+          </label>
+          <label className="text-xs text-madeira-600">
+            Até
+            <input type="date" className="input-base block" value={ate} onChange={(e) => setAte(e.target.value)} />
+          </label>
+          <button className="btn-primario" disabled={gerandoPacote || !lojaAtual} onClick={gerarPacote}>
+            {gerandoPacote ? "Gerando..." : "📦 Gerar pacote (XML + relatório)"}
+          </button>
+        </div>
+        <p className="text-xs text-madeira-500 mt-2">Vale para a loja selecionada no menu. Só gerente e admin conseguem gerar.</p>
+      </div>
 
       <h2 className="font-display text-xl text-madeira-900 mb-2">Últimas notas desta loja</h2>
       {historico.length === 0 ? (
