@@ -10,13 +10,14 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
   const [cfop, setCfop] = useState("5102");
   const [csosn, setCsosn] = useState("102");
   const [unidade, setUnidade] = useState("UN");
+  const [validado, setValidado] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
     setMsg("");
     supabase
       .from("produtos")
-      .select("ncm, cfop, csosn, unidade")
+      .select("ncm, ncm_validado, cfop, csosn, unidade")
       .eq("id", produtoId)
       .maybeSingle()
       .then(({ data }) => {
@@ -24,6 +25,7 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
         setCfop(data?.cfop || "5102");
         setCsosn(data?.csosn || "102");
         setUnidade(data?.unidade || "UN");
+        setValidado(!!data?.ncm_validado);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [produtoId]);
@@ -36,7 +38,7 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
     }
     const { error } = await supabase
       .from("produtos")
-      .update({ ncm: n || null, cfop, csosn, unidade })
+      .update({ ncm: n || null, ncm_validado: !!n && validado, cfop, csosn, unidade })
       .eq("id", produtoId);
     setMsg(error ? "Erro: " + error.message : "Dados fiscais salvos ✓");
   }
@@ -62,6 +64,10 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
           <input className="input-base" value={csosn} onChange={(e) => setCsosn(e.target.value)} />
         </label>
       </div>
+      <label className="flex items-center gap-2 mt-2 text-xs text-madeira-700">
+        <input type="checkbox" checked={validado} onChange={(e) => setValidado(e.target.checked)} />
+        NCM conferido pela contadora (obrigatório para nota em produção)
+      </label>
       <div className="flex items-center gap-3 mt-2">
         <button type="button" className="btn-secundario text-xs px-2 py-1" onClick={salvar}>
           Salvar dados fiscais

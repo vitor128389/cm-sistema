@@ -88,7 +88,7 @@ export async function POST(request: Request) {
   const idsProdutos = Array.from(new Set(itensNota.map((i) => i.produto_id).filter(Boolean))) as string[];
   const { data: produtos } = await admin
     .from("produtos")
-    .select("id, nome, ncm, cfop, csosn, unidade")
+    .select("id, nome, ncm, ncm_validado, cfop, csosn, unidade")
     .in("id", idsProdutos);
   const mapaProdutos = new Map((produtos || []).map((p) => [p.id, p]));
 
@@ -103,6 +103,21 @@ export async function POST(request: Request) {
       { error: `Falta o NCM (8 dígitos) no cadastro de: ${Array.from(new Set(semNcm)).join(", ")}.` },
       { status: 400 }
     );
+  }
+
+  // Em produção só emite com NCM conferido pela contadora (a sugestão automática não vale).
+  if (ambiente === "producao") {
+    const naoConferidos = itensNota
+      .filter((i) => !mapaProdutos.get(i.produto_id as string)?.ncm_validado)
+      .map((i) => i.nome_produto);
+    if (naoConferidos.length > 0) {
+      return NextResponse.json(
+        {
+          error: `NCM ainda não conferido pela contadora: ${Array.from(new Set(naoConferidos)).join(", ")}. Marque "NCM conferido" no cadastro do produto.`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   // O sistema guarda o preço "a prazo" nos itens e o total da venda é o valor realmente pago.
