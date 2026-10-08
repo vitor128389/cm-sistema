@@ -101,7 +101,7 @@ export default function NotasPage() {
   const [filtroRota, setFiltroRota] = useState<string>("todas");
   const [rotasParaFiltro, setRotasParaFiltro] = useState<{ id: string; nome: string; cor: string }[]>([]);
   const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
-  const [lojasFiscais, setLojasFiscais] = useState<Set<string>>(new Set());
+  const [lojasFiscais, setLojasFiscais] = useState<Map<string, string>>(new Map());
   const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
   const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
@@ -185,15 +185,18 @@ export default function NotasPage() {
   }
 
   async function carregarNotasFiscais() {
-    const { data: lojasF } = await supabase.from("lojas").select("id").eq("fiscal_ativo", true);
-    setLojasFiscais(new Set((lojasF || []).map((l) => l.id as string)));
+    const { data: lojasF } = await supabase.from("lojas").select("id, fiscal_ambiente").eq("fiscal_ativo", true);
+    const ambientes = new Map<string, string>((lojasF || []).map((l) => [l.id as string, l.fiscal_ambiente as string]));
+    setLojasFiscais(ambientes);
     const { data } = await supabase
       .from("notas_fiscais")
       .select("*")
       .order("criado_em", { ascending: true });
     const mapa: Record<string, NotaFiscal> = {};
+    // só vale a nota do ambiente atual da loja (nota de teste não conta quando a loja está em produção);
     // a mais recente de cada venda vence (exceto nota com erro, que não esconde uma autorizada)
     (data || []).forEach((n) => {
+      if (ambientes.get(n.loja_id as string) !== n.ambiente) return;
       const atual = mapa[n.venda_id as string];
       if (!atual || n.status !== "erro" || atual.status === "erro") mapa[n.venda_id as string] = n as NotaFiscal;
     });
@@ -212,7 +215,11 @@ export default function NotasPage() {
   }
 
   async function emitirNota(v: Venda) {
-    if (!confirm(`Emitir nota fiscal (NFC-e) do pedido #${v.numero_pedido}?`)) return;
+    const real = lojasFiscais.get(v.loja_id) === "producao";
+    const aviso = real
+      ? `ATENÇÃO: isso emite uma NOTA FISCAL REAL (valor fiscal, vai para a SEFAZ) do pedido #${v.numero_pedido}, no valor de ${formatarMoeda(v.total)}. Confirmar?`
+      : `Emitir nota fiscal de TESTE (sem valor fiscal) do pedido #${v.numero_pedido}?`;
+    if (!confirm(aviso)) return;
     setEmitindo(v.id);
     try {
       const nota = await chamarFiscal("emitir", { vendaId: v.id });
@@ -711,7 +718,7 @@ export default function NotasPage() {
                           onClick={() => emitirNota(v)}
                           title={nf?.mensagem ? "Última tentativa falhou: " + nf.mensagem : "Emitir nota fiscal (NFC-e)"}
                         >
-                          {ocupado ? "Emitindo..." : nf ? "🧾 Tentar emitir NFC-e de novo" : "🧾 Emitir NFC-e"}
+                          {ocupado ? "Emitindo..." : nf ? "🧾 Tentar emitir NFC-e de novo" : lojasFiscais.get(v.loja_id) === "producao" ? "🧾 Emitir NFC-e (REAL)" : "🧾 Emitir NFC-e (teste)"}
                         </button>
                       );
                     }
