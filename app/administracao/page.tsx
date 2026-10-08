@@ -36,6 +36,7 @@ const TELAS = [
   { chave: "clientes", label: "Clientes" },
   { chave: "encomendas", label: "Encomendas" },
   { chave: "notas", label: "Notas" },
+  { chave: "fiscal", label: "Emissões Fiscais" },
   { chave: "trocas", label: "Trocas" },
   { chave: "caixa", label: "Caixa" },
   { chave: "movimento", label: "Movimento" },
