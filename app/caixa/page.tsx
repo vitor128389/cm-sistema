@@ -372,6 +372,10 @@ export default function CaixaPage() {
                   <td className="px-4 py-2">Cartão (débito + crédito)</td>
                   <td className="px-4 py-2 text-right">{formatarMoeda(totalCartao)}</td>
                 </tr>
+                <tr className="border-b border-estofado-100">
+                  <td className="px-4 py-2">Link de pagamento</td>
+                  <td className="px-4 py-2 text-right">{formatarMoeda(turno.total_link || 0)}</td>
+                </tr>
                 <tr className="border-b border-estofado-100 font-semibold">
                   <td className="px-4 py-2">Total geral vendido</td>
                   <td className="px-4 py-2 text-right">{formatarMoeda(totalGeral)}</td>
