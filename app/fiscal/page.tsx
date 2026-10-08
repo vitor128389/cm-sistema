@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
-import { chamarFiscal, type NotaFiscal } from "@/lib/fiscalCliente";
+import { baixarDanfePdf, chamarFiscal, imprimirDanfe, type NotaFiscal } from "@/lib/fiscalCliente";
 
 interface VendaFiscal {
   id: string;
@@ -146,6 +146,15 @@ export default function FiscalPage() {
     }
   }
 
+  async function rodar(fn: () => Promise<void>) {
+    setAviso("");
+    try {
+      await fn();
+    } catch (e) {
+      setAviso((e as Error).message);
+    }
+  }
+
   function emitir() {
     if (!venda) return;
     const texto = real
@@ -267,9 +276,18 @@ export default function FiscalPage() {
                   </button>
                 )}
                 {vigente?.status === "autorizada" && vigente.url_danfe && (
-                  <a className="btn-secundario text-sm" href={vigente.url_danfe} target="_blank" rel="noreferrer">
-                    🖨 Abrir / imprimir DANFE
-                  </a>
+                  <>
+                    <button className="btn-primario text-sm" disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
+                      🖨 Imprimir DANFE
+                    </button>
+                    <button
+                      className="btn-secundario text-sm"
+                      disabled={ocupado}
+                      onClick={() => rodar(() => baixarDanfePdf(vigente.id, `NFCe-pedido-${venda.numero_pedido}-${vigente.numero ?? "sn"}.pdf`))}
+                    >
+                      ⬇ Baixar PDF
+                    </button>
+                  </>
                 )}
                 {vigente?.status === "autorizada" && vigente.url_xml && (
                   <a className="btn-secundario text-sm" href={vigente.url_xml} target="_blank" rel="noreferrer">
@@ -291,7 +309,7 @@ export default function FiscalPage() {
               </div>
               {vigente?.status === "autorizada" && (
                 <p className="text-xs text-madeira-500 mt-2">
-                  Para imprimir, abra o DANFE e use Ctrl+P (impressora térmica ou A4).
+                  "Imprimir" abre a janela de impressão para escolher a impressora (térmica ou A4).
                 </p>
               )}
             </div>

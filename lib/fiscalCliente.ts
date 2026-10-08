@@ -24,3 +24,50 @@ export async function chamarFiscal(rota: "emitir" | "consultar" | "cancelar", co
   if (!resp.ok) throw new Error(json.error || "Erro ao falar com a nota fiscal.");
   return json.nota as NotaFiscal;
 }
+
+async function buscarPdf(notaId: string, baixar: boolean): Promise<Blob> {
+  const resp = await fetch(`/api/fiscal/danfe?notaId=${encodeURIComponent(notaId)}${baixar ? "&baixar=1" : ""}`);
+  if (!resp.ok) {
+    let msg = "Não consegui abrir o DANFE.";
+    try {
+      msg = (await resp.json()).error || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  return await resp.blob();
+}
+
+// Abre direto a janela de impressão (escolher a impressora), sem baixar arquivo.
+export async function imprimirDanfe(notaId: string): Promise<void> {
+  const blob = await buscarPdf(notaId, false);
+  const url = URL.createObjectURL(blob);
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+  iframe.src = url;
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch {
+      window.open(url, "_blank"); // plano B: abre o PDF e imprime pelo visualizador
+    }
+  };
+  document.body.appendChild(iframe);
+  setTimeout(() => {
+    iframe.remove();
+    URL.revokeObjectURL(url);
+  }, 5 * 60 * 1000);
+}
+
+// Baixa o PDF do DANFE.
+export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promise<void> {
+  const blob = await buscarPdf(notaId, true);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
