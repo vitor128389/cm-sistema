@@ -53,21 +53,57 @@ export async function imprimirDanfe(notaId: string): Promise<void> {
   setTimeout(() => f.remove(), 5 * 60 * 1000);
 }
 
-// Gera um PDF do cupom (80 mm de largura) e baixa.
+// Gera um PDF do cupom (80 mm de largura, uma página só) e baixa.
 export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promise<void> {
   const chk = await fetch(urlDanfe(notaId));
   if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
-  const f = await criarIframe(urlDanfe(notaId), "320px");
+  const f = await criarIframe(urlDanfe(notaId), "420px");
   try {
     const doc = f.contentDocument;
-    if (!doc) throw new Error("Não consegui ler o DANFE.");
-    await new Promise((r) => setTimeout(r, 400)); // deixa imagens/estilos assentarem
-    const alturaPx = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
-    const larguraMm = 80;
-    const alturaMm = Math.ceil((alturaPx * larguraMm) / 320) + 4;
+    const win = f.contentWindow;
+    if (!doc || !win) throw new Error("Não consegui ler o DANFE.");
+    await new Promise((r) => setTimeout(r, 500)); // deixa imagens/estilos assentarem
+    const alto = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+    f.style.height = alto + "px";
+    await new Promise((r) => setTimeout(r, 100));
+
+    // recorta só a área que tem conteúdo (sem as margens cinzas da página)
+    let x1 = Infinity, y1 = Infinity, x2 = 0, y2 = 0;
+    doc.body.querySelectorAll("*").forEach((el) => {
+      const temTexto = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent || "").trim());
+      if (!temTexto && el.tagName !== "IMG") return;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return;
+      x1 = Math.min(x1, r.left + win.scrollX);
+      y1 = Math.min(y1, r.top + win.scrollY);
+      x2 = Math.max(x2, r.right + win.scrollX);
+      y2 = Math.max(y2, r.bottom + win.scrollY);
+    });
+    if (!isFinite(x1)) throw new Error("O DANFE veio vazio.");
+    const pad = 8;
+    const x = Math.max(0, Math.floor(x1 - pad));
+    const y = Math.max(0, Math.floor(y1 - pad));
+    const w = Math.ceil(x2 - x1 + pad * 2);
+    const h = Math.ceil(y2 - y1 + pad * 2);
+
+    const html2canvas = (await import("html2canvas")).default;
+    const canvas = await html2canvas(doc.documentElement, {
+      scale: 3,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      x,
+      y,
+      width: w,
+      height: h,
+      windowWidth: doc.documentElement.scrollWidth,
+      windowHeight: alto,
+    });
+
     const { jsPDF } = await import("jspdf");
+    const larguraMm = 80;
+    const alturaMm = (h * larguraMm) / w;
     const pdf = new jsPDF({ unit: "mm", format: [larguraMm, alturaMm] });
-    await pdf.html(doc.body, { x: 0, y: 0, width: larguraMm, windowWidth: 320, autoPaging: false });
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, larguraMm, alturaMm);
     pdf.save(nomeArquivo);
   } finally {
     f.remove();
