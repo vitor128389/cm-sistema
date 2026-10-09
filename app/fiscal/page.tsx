@@ -71,6 +71,7 @@ export default function FiscalPage() {
   const [ate, setAte] = useState(() => periodoMesAnterior().ate);
   const [gerandoPacote, setGerandoPacote] = useState(false);
   const [nfeAberta, setNfeAberta] = useState(false);
+  const [cartas, setCartas] = useState<{ id: string; nota_id: string; numero: number | null; texto: string; status: string; mensagem: string | null; criado_em: string }[]>([]);
   const [diagnostico, setDiagnostico] = useState<{ notaId: string; campos: Record<string, string> } | null>(null);
 
   useEffect(() => {
@@ -142,7 +143,37 @@ export default function FiscalPage() {
       .select("*")
       .eq("venda_id", vendaId)
       .order("criado_em", { ascending: false });
-    setNotas((data || []) as NotaFiscal[]);
+    const lista = (data || []) as NotaFiscal[];
+    setNotas(lista);
+    const ids = lista.filter((n) => n.tipo === "nfe").map((n) => n.id);
+    if (ids.length > 0) {
+      const { data: cc } = await supabase.from("cartas_correcao").select("*").in("nota_id", ids).order("criado_em", { ascending: true });
+      setCartas((cc || []) as typeof cartas);
+    } else setCartas([]);
+  }
+
+  async function emitirCarta(notaId: string) {
+    const texto = prompt(
+      "Escreva a correção (15 a 1000 caracteres).\nEx.: \"Razão social do destinatário correta: EMPRESA XYZ LTDA\".\nA carta NÃO pode mudar valores, impostos, datas nem trocar o destinatário."
+    );
+    if (!texto) return;
+    setOcupado(true);
+    setAviso("");
+    try {
+      const resp = await fetch("/api/fiscal/carta-correcao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notaId, correcao: texto }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.error || "Não consegui emitir a carta.");
+      setAviso("Carta de correção registrada ✓");
+      if (venda) await carregarNotas(venda.id);
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setOcupado(false);
+    }
   }
 
   // só vale a nota do ambiente atual da loja (nota de teste não conta em produção)
@@ -356,6 +387,11 @@ export default function FiscalPage() {
               ⬇ XML
             </a>
           )}
+          {vigente?.status === "autorizada" && tipo === "nfe" && (
+            <button className="btn-secundario text-sm" disabled={ocupado} onClick={() => emitirCarta(vigente.id)}>
+              ✏️ Carta de correção
+            </button>
+          )}
           {vigente?.status === "autorizada" && (
             <button className="btn-secundario text-sm" disabled={ocupado} onClick={() => diagnosticar(vigente.id)}>
               🔎 Verificar na SEFAZ
@@ -368,6 +404,36 @@ export default function FiscalPage() {
           )}
         </div>
 
+        {tipo === "nfe" && vigente && cartas.filter((c) => c.nota_id === vigente.id).length > 0 && (
+          <div className="mt-3 text-xs">
+            <p className="font-medium text-madeira-700 mb-1">Cartas de correção</p>
+            <ul className="space-y-1">
+              {cartas
+                .filter((c) => c.nota_id === vigente.id)
+                .map((c) => (
+                  <li key={c.id} className="p-2 rounded border border-madeira-100 bg-white">
+                    <span className={c.status === "autorizada" ? "text-green-700" : "text-red-700"}>
+                      {c.status === "autorizada" ? `CC-e nº ${c.numero ?? "?"} registrada` : `Rejeitada: ${c.mensagem || "sem detalhes"}`}
+                    </span>{" "}
+                    · {new Date(c.criado_em).toLocaleString("pt-BR")}
+                    <br />
+                    {c.texto}
+                    {c.status === "autorizada" && (
+                      <>
+                        {" "}
+                        <a className="underline text-blue-700" href={`/api/fiscal/carta-correcao?id=${c.id}&arquivo=pdf`} target="_blank" rel="noreferrer">
+                          PDF
+                        </a>{" "}
+                        <a className="underline text-blue-700" href={`/api/fiscal/carta-correcao?id=${c.id}&arquivo=xml`} target="_blank" rel="noreferrer">
+                          XML
+                        </a>
+                      </>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
         {vigente && diagnostico?.notaId === vigente.id && (
           <div className="mt-3 p-3 rounded border border-madeira-200 bg-white text-xs">
             <p className="font-medium text-madeira-700 mb-1">Retorno da Focus / SEFAZ</p>
