@@ -1,5 +1,6 @@
 "use client";
 
+import CustosDeposito from "@/components/CustosDeposito";
 import CamposFiscaisProduto from "@/components/CamposFiscaisProduto";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -17,6 +18,7 @@ type Aba =
   | "lojas"
   | "caixas"
   | "estoque"
+  | "custos-deposito"
   | "entrada-nota"
   | "usuarios"
   | "permissoes"
@@ -114,6 +116,7 @@ export default function AdministracaoPage() {
             ["lojas", "Lojas"],
             ["caixas", "Caixas"],
             ["estoque", "Estoque"],
+            ["custos-deposito", "Custos do Depósito"],
             ["entrada-nota", "Entrada de nota"],
             ["usuarios", "Usuários"],
             ["permissoes", "Permissões"],
@@ -140,6 +143,7 @@ export default function AdministracaoPage() {
       {aba === "lojas" && <AbaLojas />}
       {aba === "caixas" && <AbaCaixas />}
       {aba === "estoque" && <AbaEstoque />}
+      {aba === "custos-deposito" && <CustosDeposito />}
       {aba === "entrada-nota" && <EntradaNota />}
       {aba === "usuarios" && <AbaUsuarios />}
       {aba === "permissoes" && <AbaPermissoes />}

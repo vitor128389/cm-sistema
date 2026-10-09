@@ -55,7 +55,6 @@ interface LinhaDeposito {
   tipoMovel: string;
   variante: string | null; // tecido/cor/espessura — o que a variante representar nesse produto
   quantidade: number;
-  custo: number;
   precoVenda: number;
 }
 
@@ -149,7 +148,6 @@ export default function DepositoPage() {
               tipoMovel: tipoMovelDeposito(p.nome),
               variante: v.nome_variante,
               quantidade: v.estoque,
-              custo: v.custo || 0,
               precoVenda: v.preco_avista,
             });
           }
@@ -165,7 +163,6 @@ export default function DepositoPage() {
           tipoMovel: tipoMovelDeposito(p.nome),
           variante: null,
           quantidade: p.quantidade_estoque || 0,
-          custo: p.custo,
           precoVenda: p.preco_venda,
         });
       }
@@ -343,7 +340,6 @@ export default function DepositoPage() {
                           <th className="px-4 py-3 font-medium">Produto</th>
                           <th className="px-4 py-3 font-medium">Tecido/Cor</th>
                           <th className="px-4 py-3 font-medium">Qtd.</th>
-                          <th className="px-4 py-3 font-medium">Custo</th>
                           <th className="px-4 py-3 font-medium">Venda</th>
                           <th className="px-4 py-3 font-medium">Ações</th>
                         </tr>
@@ -363,7 +359,6 @@ export default function DepositoPage() {
                                 l.quantidade
                               )}
                             </td>
-                            <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.custo)}</td>
                             <td className="px-4 py-3 text-madeira-600">{formatarMoeda(l.precoVenda)}</td>
                             <td className="px-4 py-3">
                               <div className="flex gap-2">
