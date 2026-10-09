@@ -414,6 +414,7 @@ function VenderPageConteudo() {
       .eq("status", "aberto")
       .eq("loja_id", lojaAtual)
       .order("aberto_em", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
     setTurnoAtual(data);
@@ -1418,12 +1419,29 @@ function VenderPageConteudo() {
         .insert({ caixa_id: caixasLoja[0].id, fundo_inicial: fundoInicial, status: "aberto", loja_id: lojaAtual })
         .select("id")
         .single();
-      if (erroAbrir || !novoTurno) {
-        alert("Erro ao abrir o caixa: " + (erroAbrir?.message || "tente novamente."));
+      let turnoAberto = novoTurno;
+      if (erroAbrir?.code === "23505") {
+        // outra aba/pessoa abriu o caixa ao mesmo tempo: usa o que já está aberto
+        const { data: existente } = await supabase
+          .from("turnos_caixa")
+          .select("id")
+          .eq("caixa_id", caixasLoja[0].id)
+          .eq("status", "aberto")
+          .order("aberto_em", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        turnoAberto = existente;
+      } else if (erroAbrir) {
+        alert("Erro ao abrir o caixa: " + erroAbrir.message);
         return;
       }
-      turnoParaUsar = novoTurno;
-      setTurnoAtual(novoTurno);
+      if (!turnoAberto) {
+        alert("Erro ao abrir o caixa: tente novamente.");
+        return;
+      }
+      turnoParaUsar = turnoAberto;
+      setTurnoAtual(turnoAberto);
     }
 
     setSalvando(true);

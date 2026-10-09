@@ -143,6 +143,8 @@ export default function CaixaPage() {
       });
       setFundoInicial("0");
       carregarTurno();
+    } else if (error.code === "23505") {
+      carregarTurno(); // já foi aberto ao mesmo tempo: só mostra o que está aberto
     } else {
       alert("Erro ao abrir o caixa: " + error.message);
     }
