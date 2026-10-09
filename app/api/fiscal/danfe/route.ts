@@ -46,21 +46,22 @@ export async function GET(request: Request) {
 
   // embute as imagens como data URI (evita imagem quebrada/bloqueada e permite gerar o PDF)
   const imgs = Array.from(new Set(Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)).map((m) => m[1])));
-  for (const src of imgs) {
-    if (src.startsWith("data:")) continue;
-    try {
-      const abs = new URL(src, nota.url_danfe).toString();
-      const permitido = abs.startsWith(host) || abs.startsWith("https://");
-      if (!permitido) continue;
-      const r = await fetch(abs, { headers: abs.startsWith(host) ? auth : {}, cache: "no-store" });
-      if (!r.ok) continue;
-      const tipo = r.headers.get("content-type") || "image/png";
-      const b64 = Buffer.from(await r.arrayBuffer()).toString("base64");
-      html = html.split(src).join(`data:${tipo};base64,${b64}`);
-    } catch {
-      // imagem que não carregar fica como veio
-    }
-  }
+  const baixadas = await Promise.all(
+    imgs.map(async (src) => {
+      if (src.startsWith("data:")) return null;
+      try {
+        const abs = new URL(src, nota.url_danfe).toString();
+        if (!(abs.startsWith(host) || abs.startsWith("https://"))) return null;
+        const r = await fetch(abs, { headers: abs.startsWith(host) ? auth : {}, cache: "no-store" });
+        if (!r.ok) return null;
+        const tipo = r.headers.get("content-type") || "image/png";
+        return { src, uri: `data:${tipo};base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}` };
+      } catch {
+        return null; // imagem que não carregar fica como veio
+      }
+    }),
+  );
+  for (const i of baixadas) if (i) html = html.split(i.src).join(i.uri);
   if (!/<base\s/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}<base href="${host}/">`);
 
   return new NextResponse(html, {

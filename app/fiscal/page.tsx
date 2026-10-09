@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
-import { baixarDanfePdf, chamarFiscal, imprimirDanfe, type NotaFiscal } from "@/lib/fiscalCliente";
+import { baixarDanfePdf, chamarFiscal, imprimirDanfe, preaquecerDanfe, type NotaFiscal } from "@/lib/fiscalCliente";
 import FormNfe, { type DadosNfe, enderecoVazio } from "@/components/FormNfe";
 
 interface VendaFiscal {
@@ -370,7 +370,7 @@ export default function FiscalPage() {
           )}
           {vigente?.status === "autorizada" && vigente.url_danfe && (
             <>
-              <button className="btn-primario text-sm" disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
+              <button className="btn-primario text-sm" onMouseEnter={() => preaquecerDanfe(vigente.id)} onTouchStart={() => preaquecerDanfe(vigente.id)} disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
                 🖨 Imprimir DANFE
               </button>
               <button

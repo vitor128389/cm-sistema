@@ -42,36 +42,54 @@ function criarIframe(src: string, largura: string): Promise<HTMLIFrameElement> {
 }
 
 // NFC-e: o DANFE é uma página HTML (cupom). NF-e: o DANFE é um PDF (A4).
-async function tipoDoDanfe(notaId: string): Promise<{ pdf: boolean; blob?: Blob }> {
+// Busca uma vez só e guarda na memória: o 2º clique (imprimir depois de baixar) é instantâneo.
+const cacheDanfe = new Map<string, { pdf: boolean; blob: Blob }>();
+
+async function tipoDoDanfe(notaId: string): Promise<{ pdf: boolean; blob: Blob }> {
+  const guardado = cacheDanfe.get(notaId);
+  if (guardado) return guardado;
   const chk = await fetch(urlDanfe(notaId));
   if (!chk.ok) throw new Error((await chk.json().catch(() => ({}))).error || "Não consegui abrir o DANFE.");
-  if ((chk.headers.get("content-type") || "").includes("pdf")) return { pdf: true, blob: await chk.blob() };
-  return { pdf: false };
+  const pdf = (chk.headers.get("content-type") || "").includes("pdf");
+  const r = { pdf, blob: await chk.blob() };
+  cacheDanfe.set(notaId, r);
+  return r;
+}
+
+// Começa a buscar o DANFE antes do clique (chamar ao passar o mouse no botão).
+export function preaquecerDanfe(notaId: string): void {
+  void tipoDoDanfe(notaId).catch(() => {});
+  void import("html2canvas").catch(() => {});
+  void import("jspdf").catch(() => {});
 }
 
 // Abre a janela de impressão do navegador (com a lista de impressoras).
 export async function imprimirDanfe(notaId: string): Promise<void> {
   const t = await tipoDoDanfe(notaId);
-  if (t.pdf && t.blob) {
+  if (t.pdf) {
     // PDF: abre no visualizador do navegador, de onde se imprime (Ctrl+P)
     const url = URL.createObjectURL(t.blob);
     window.open(url, "_blank");
     setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     return;
   }
-  const f = await criarIframe(urlDanfe(notaId), "400px");
+  const urlHtml = URL.createObjectURL(t.blob);
+  const f = await criarIframe(urlHtml, "400px");
   f.style.left = "0";
   f.style.opacity = "0";
   f.style.pointerEvents = "none";
   f.contentWindow?.focus();
   f.contentWindow?.print();
-  setTimeout(() => f.remove(), 5 * 60 * 1000);
+  setTimeout(() => {
+    f.remove();
+    URL.revokeObjectURL(urlHtml);
+  }, 5 * 60 * 1000);
 }
 
 // Gera um PDF do cupom (80 mm de largura, uma página só) e baixa.
 export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promise<void> {
   const t = await tipoDoDanfe(notaId);
-  if (t.pdf && t.blob) {
+  if (t.pdf) {
     const url = URL.createObjectURL(t.blob);
     const a = document.createElement("a");
     a.href = url;
@@ -82,15 +100,15 @@ export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promi
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     return;
   }
-  const f = await criarIframe(urlDanfe(notaId), "420px");
+  const urlHtml = URL.createObjectURL(t.blob);
+  const f = await criarIframe(urlHtml, "420px");
   try {
     const doc = f.contentDocument;
     const win = f.contentWindow;
     if (!doc || !win) throw new Error("Não consegui ler o DANFE.");
-    await new Promise((r) => setTimeout(r, 500)); // deixa imagens/estilos assentarem
+    await Promise.all(Array.from(doc.images).map((im) => (im.complete ? null : new Promise((r) => { im.onload = im.onerror = () => r(null); }))));
     const alto = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
     f.style.height = alto + "px";
-    await new Promise((r) => setTimeout(r, 100));
 
     // recorta só a área que tem conteúdo (sem as margens cinzas da página)
     let x1 = Infinity, y1 = Infinity, x2 = 0, y2 = 0;
@@ -113,7 +131,7 @@ export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promi
 
     const html2canvas = (await import("html2canvas")).default;
     const canvas = await html2canvas(doc.documentElement, {
-      scale: 3,
+      scale: 2,
       backgroundColor: "#ffffff",
       useCORS: true,
       x,
@@ -128,10 +146,11 @@ export async function baixarDanfePdf(notaId: string, nomeArquivo: string): Promi
     const larguraMm = 80;
     const alturaMm = (h * larguraMm) / w;
     const pdf = new jsPDF({ unit: "mm", format: [larguraMm, alturaMm] });
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, larguraMm, alturaMm);
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, larguraMm, alturaMm);
     pdf.save(nomeArquivo);
   } finally {
     f.remove();
+    URL.revokeObjectURL(urlHtml);
   }
 }
 
