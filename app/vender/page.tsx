@@ -1,5 +1,6 @@
 "use client";
 
+import { somarDiasUteis } from "@/lib/diasUteis";
 import { Suspense } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -39,26 +40,6 @@ function normalizarDataParaIso(data: string): string | null {
   const partesBr = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); // DD/MM/AAAA
   if (partesBr) return `${partesBr[3]}-${partesBr[2]}-${partesBr[1]}`;
   return null; // formato desconhecido — melhor não salvar do que salvar errado
-}
-
-// Soma N dias úteis a partir de hoje, pulando sábado e domingo — usado nas
-// opções rápidas de prazo (6/10/15 dias úteis). Retorna no formato
-// YYYY-MM-DD, igual o campo de data espera.
-function somarDiasUteis(quantidade: number): string {
-  const data = new Date();
-  data.setHours(0, 0, 0, 0);
-  let restantes = quantidade;
-  while (restantes > 0) {
-    data.setDate(data.getDate() + 1);
-    const diaSemana = data.getDay(); // 0 = domingo, 6 = sábado
-    if (diaSemana !== 0 && diaSemana !== 6) {
-      restantes--;
-    }
-  }
-  const ano = data.getFullYear();
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${ano}-${mes}-${dia}`;
 }
 
 // Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
