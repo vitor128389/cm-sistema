@@ -89,20 +89,20 @@ async function buscarCnpj(cnpj: string): Promise<DadosCnpj | null> {
   const c = cnpj.replace(/\D/g, "");
   if (c.length !== 14) return null;
   try {
-    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${c}`);
+    const r = await fetch(`/api/fiscal/cnpj?cnpj=${c}`);
     if (!r.ok) return null;
     const j = await r.json();
     return {
-      nome: String(j.razao_social || ""),
+      nome: String(j.nome || ""),
       endereco: {
         cep: String(j.cep || ""),
-        logradouro: [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(" "),
+        logradouro: String(j.logradouro || ""),
         numero: String(j.numero || ""),
         complemento: String(j.complemento || ""),
         bairro: String(j.bairro || ""),
         municipio: String(j.municipio || ""),
         uf: String(j.uf || ""),
-        codigoMunicipio: String(j.codigo_municipio_ibge || ""),
+        codigoMunicipio: String(j.codigoMunicipio || ""),
       },
     };
   } catch {
