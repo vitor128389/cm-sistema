@@ -74,6 +74,12 @@ export default function FiscalPage() {
   const [cartas, setCartas] = useState<{ id: string; nota_id: string; numero: number | null; texto: string; status: string; mensagem: string | null; criado_em: string }[]>([]);
   const [diagnostico, setDiagnostico] = useState<{ notaId: string; campos: Record<string, string> } | null>(null);
 
+  // Assim que a nota aparece na tela, já deixa o cupom pronto: o clique em Imprimir abre na hora.
+  useEffect(() => {
+    const n = notas.find((x) => x.status === "autorizada" && x.url_danfe && x.tipo === "nfce" && x.venda_id === venda?.id);
+    if (n) preaquecerDanfe(n.id);
+  }, [notas, venda?.id]);
+
   useEffect(() => {
     setVenda(null);
     setNotas([]);

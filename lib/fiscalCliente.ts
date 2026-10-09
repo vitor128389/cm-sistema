@@ -56,9 +56,36 @@ async function tipoDoDanfe(notaId: string): Promise<{ pdf: boolean; blob: Blob }
   return r;
 }
 
-// Começa a buscar o DANFE antes do clique (chamar ao passar o mouse no botão).
+// Cupom já carregado numa página invisível: no clique, a impressão abre na hora.
+const iframesPreparados = new Map<string, Promise<HTMLIFrameElement | null>>();
+
+function prepararIframe(notaId: string): Promise<HTMLIFrameElement | null> {
+  const existente = iframesPreparados.get(notaId);
+  if (existente) return existente;
+  const p = tipoDoDanfe(notaId)
+    .then(async (t) => {
+      if (t.pdf) return null;
+      const f = await criarIframe(URL.createObjectURL(t.blob), "400px");
+      f.style.left = "0";
+      f.style.opacity = "0";
+      f.style.pointerEvents = "none";
+      setTimeout(() => {
+        f.remove();
+        iframesPreparados.delete(notaId);
+      }, 10 * 60 * 1000);
+      return f;
+    })
+    .catch(() => {
+      iframesPreparados.delete(notaId);
+      return null;
+    });
+  iframesPreparados.set(notaId, p);
+  return p;
+}
+
+// Começa a buscar o DANFE antes do clique (ao abrir a nota ou passar o mouse no botão).
 export function preaquecerDanfe(notaId: string): void {
-  void tipoDoDanfe(notaId).catch(() => {});
+  void prepararIframe(notaId);
   void import("html2canvas").catch(() => {});
   void import("jspdf").catch(() => {});
 }
@@ -73,17 +100,10 @@ export async function imprimirDanfe(notaId: string): Promise<void> {
     setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     return;
   }
-  const urlHtml = URL.createObjectURL(t.blob);
-  const f = await criarIframe(urlHtml, "400px");
-  f.style.left = "0";
-  f.style.opacity = "0";
-  f.style.pointerEvents = "none";
+  const f = await prepararIframe(notaId);
+  if (!f) throw new Error("Não consegui abrir o DANFE.");
   f.contentWindow?.focus();
   f.contentWindow?.print();
-  setTimeout(() => {
-    f.remove();
-    URL.revokeObjectURL(urlHtml);
-  }, 5 * 60 * 1000);
 }
 
 // Gera um PDF do cupom (80 mm de largura, uma página só) e baixa.
