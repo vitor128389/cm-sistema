@@ -71,6 +71,7 @@ export default function FiscalPage() {
   const [ate, setAte] = useState(() => periodoMesAnterior().ate);
   const [gerandoPacote, setGerandoPacote] = useState(false);
   const [nfeAberta, setNfeAberta] = useState(false);
+  const [diagnostico, setDiagnostico] = useState<{ notaId: string; campos: Record<string, string> } | null>(null);
 
   useEffect(() => {
     setVenda(null);
@@ -228,6 +229,26 @@ export default function FiscalPage() {
     acao("cancelar", { notaId, justificativa: motivo });
   }
 
+  async function diagnosticar(notaId: string) {
+    setAviso("");
+    setDiagnostico(null);
+    setOcupado(true);
+    try {
+      const resp = await fetch("/api/fiscal/diagnostico", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notaId }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) throw new Error(json.error || "Não consegui consultar.");
+      setDiagnostico({ notaId, campos: json.campos });
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   function dadosIniciaisNfe(): DadosNfe {
     const c = venda?.clientes;
     return {
@@ -336,12 +357,32 @@ export default function FiscalPage() {
             </a>
           )}
           {vigente?.status === "autorizada" && (
+            <button className="btn-secundario text-sm" disabled={ocupado} onClick={() => diagnosticar(vigente.id)}>
+              🔎 Verificar na SEFAZ
+            </button>
+          )}
+          {vigente?.status === "autorizada" && (
             <button className="text-sm px-3 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50" disabled={ocupado} onClick={() => cancelar(vigente.id)}>
               Cancelar nota
             </button>
           )}
         </div>
 
+        {vigente && diagnostico?.notaId === vigente.id && (
+          <div className="mt-3 p-3 rounded border border-madeira-200 bg-white text-xs">
+            <p className="font-medium text-madeira-700 mb-1">Retorno da Focus / SEFAZ</p>
+            <table className="w-full">
+              <tbody>
+                {Object.entries(diagnostico.campos).map(([k, v]) => (
+                  <tr key={k} className="border-t border-madeira-100">
+                    <td className="pr-3 py-0.5 text-madeira-500 align-top">{k}</td>
+                    <td className="py-0.5 break-all">{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {tipo === "nfe" && !vigente && nfeAberta && (
           <FormNfe inicial={dadosIniciaisNfe()} ocupado={ocupado} real={real} onEmitir={emitirNfe} onCancelar={() => setNfeAberta(false)} />
         )}
