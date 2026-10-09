@@ -18,7 +18,6 @@ type Aba =
   | "lojas"
   | "caixas"
   | "estoque"
-  | "custos-deposito"
   | "entrada-nota"
   | "usuarios"
   | "permissoes"
@@ -116,7 +115,6 @@ export default function AdministracaoPage() {
             ["lojas", "Lojas"],
             ["caixas", "Caixas"],
             ["estoque", "Estoque"],
-            ["custos-deposito", "Custos do Depósito"],
             ["entrada-nota", "Entrada de nota"],
             ["usuarios", "Usuários"],
             ["permissoes", "Permissões"],
@@ -142,8 +140,7 @@ export default function AdministracaoPage() {
 
       {aba === "lojas" && <AbaLojas />}
       {aba === "caixas" && <AbaCaixas />}
-      {aba === "estoque" && <AbaEstoque />}
-      {aba === "custos-deposito" && <CustosDeposito />}
+      {aba === "estoque" && <EstoqueComCustos />}
       {aba === "entrada-nota" && <EntradaNota />}
       {aba === "usuarios" && <AbaUsuarios />}
       {aba === "permissoes" && <AbaPermissoes />}
@@ -532,6 +529,34 @@ function AbaCaixas() {
 }
 
 /* ==================== ESTOQUE ==================== */
+// Aba Estoque: o estoque normal + uma opção separada com os custos do Depósito.
+function EstoqueComCustos() {
+  const [modo, setModo] = useState<"estoque" | "custos">("estoque");
+  return (
+    <div>
+      <div className="flex gap-2 mb-5">
+        {(
+          [
+            ["estoque", "Estoque"],
+            ["custos", "Custos do Depósito"],
+          ] as ["estoque" | "custos", string][]
+        ).map(([valor, label]) => (
+          <button
+            key={valor}
+            className={`text-sm px-3 py-1.5 rounded-full border ${
+              modo === valor ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600 hover:bg-madeira-50"
+            }`}
+            onClick={() => setModo(valor)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {modo === "estoque" ? <AbaEstoque /> : <CustosDeposito />}
+    </div>
+  );
+}
+
 function AbaEstoque() {
   const { lojaAtual } = useLoja();
   const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
