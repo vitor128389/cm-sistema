@@ -79,6 +79,37 @@ function BlocoEndereco({ titulo, v, onChange }: { titulo: string; v: EnderecoFor
   );
 }
 
+interface DadosCnpj {
+  nome: string;
+  endereco: EnderecoForm;
+}
+
+// Consulta pública do CNPJ (BrasilAPI): razão social + endereço + código do município.
+async function buscarCnpj(cnpj: string): Promise<DadosCnpj | null> {
+  const c = cnpj.replace(/\D/g, "");
+  if (c.length !== 14) return null;
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${c}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return {
+      nome: String(j.razao_social || ""),
+      endereco: {
+        cep: String(j.cep || ""),
+        logradouro: [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(" "),
+        numero: String(j.numero || ""),
+        complemento: String(j.complemento || ""),
+        bairro: String(j.bairro || ""),
+        municipio: String(j.municipio || ""),
+        uf: String(j.uf || ""),
+        codigoMunicipio: String(j.codigo_municipio_ibge || ""),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function FormNfe({
   inicial,
   ocupado,
@@ -94,6 +125,29 @@ export default function FormNfe({
 }) {
   const [d, setD] = useState<DadosNfe>(inicial);
   const set = (c: Partial<DadosNfe>) => setD((a) => ({ ...a, ...c }));
+  const [msgCnpj, setMsgCnpj] = useState("");
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+
+  async function procurarCnpj() {
+    setMsgCnpj("");
+    if (d.documento.replace(/\D/g, "").length !== 14) {
+      setMsgCnpj("Digite o CNPJ completo (14 números).");
+      return;
+    }
+    setBuscandoCnpj(true);
+    const r = await buscarCnpj(d.documento);
+    setBuscandoCnpj(false);
+    if (!r) {
+      setMsgCnpj("Não consegui buscar esse CNPJ. Preencha o nome e o endereço da empresa à mão.");
+      return;
+    }
+    setD((a) => ({
+      ...a,
+      nome: r.nome || a.nome,
+      endereco: { ...a.endereco, ...Object.fromEntries(Object.entries(r.endereco).filter(([, v]) => v)) } as EnderecoForm,
+    }));
+    setMsgCnpj(`Empresa encontrada: ${r.nome}. Confira o nome e o endereço.`);
+  }
 
   return (
     <div className="mt-3 p-4 rounded-lg border border-madeira-200 bg-madeira-50 space-y-4">
@@ -102,12 +156,26 @@ export default function FormNfe({
           <input type="radio" checked={d.tipo === "pf"} onChange={() => set({ tipo: "pf" })} /> Pessoa física (CPF)
         </label>
         <label className="flex items-center gap-1">
-          <input type="radio" checked={d.tipo === "pj"} onChange={() => set({ tipo: "pj" })} /> Empresa (CNPJ)
+          <input type="radio" checked={d.tipo === "pj"} onChange={() => set({ tipo: "pj", documento: "", nome: "" })} /> Empresa (CNPJ)
         </label>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <input className="input-base" inputMode="numeric" placeholder={d.tipo === "pf" ? "CPF" : "CNPJ"} value={d.documento} onChange={(e) => set({ documento: e.target.value })} />
+        <div className="flex gap-1">
+          <input
+            className="input-base w-full"
+            inputMode="numeric"
+            placeholder={d.tipo === "pf" ? "CPF" : "CNPJ"}
+            value={d.documento}
+            onChange={(e) => set({ documento: e.target.value })}
+            onBlur={() => d.tipo === "pj" && d.documento.replace(/\D/g, "").length === 14 && procurarCnpj()}
+          />
+          {d.tipo === "pj" && (
+            <button type="button" className="btn-secundario text-xs px-2 whitespace-nowrap" disabled={buscandoCnpj} onClick={procurarCnpj}>
+              {buscandoCnpj ? "..." : "Buscar CNPJ"}
+            </button>
+          )}
+        </div>
         <input className="input-base" placeholder={d.tipo === "pf" ? "Nome completo" : "Razão social"} value={d.nome} onChange={(e) => set({ nome: e.target.value })} />
         {d.tipo === "pj" && (
           <>
@@ -124,6 +192,8 @@ export default function FormNfe({
         <input className="input-base" placeholder="E-mail (opcional)" value={d.email} onChange={(e) => set({ email: e.target.value })} />
         <input className="input-base" placeholder="Telefone (opcional)" inputMode="tel" value={d.telefone} onChange={(e) => set({ telefone: e.target.value })} />
       </div>
+
+      {d.tipo === "pj" && msgCnpj && <p className="text-xs text-madeira-600 -mt-2">{msgCnpj}</p>}
 
       <BlocoEndereco titulo="Endereço do cliente" v={d.endereco} onChange={(endereco) => set({ endereco })} />
 
