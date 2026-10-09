@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
@@ -71,6 +71,7 @@ export default function CaixaPage() {
       .select("*")
       .eq("caixa_id", caixaSelecionada)
       .order("aberto_em", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -95,9 +96,34 @@ export default function CaixaPage() {
     }
   }
 
+  const abrindoRef = useRef(false);
+  const [abrindo, setAbrindo] = useState(false);
+
   async function abrirCaixa() {
+    if (abrindoRef.current) return; // evita clique duplo abrir dois turnos
+    abrindoRef.current = true;
+    setAbrindo(true);
+    try {
+      await abrirCaixaInterno();
+    } finally {
+      abrindoRef.current = false;
+      setAbrindo(false);
+    }
+  }
+
+  async function abrirCaixaInterno() {
     if (!lojaAtual || !caixaSelecionada) {
       alert("Selecione uma loja ativa no menu lateral antes de abrir o caixa.");
+      return;
+    }
+    const { data: jaAberto } = await supabase
+      .from("turnos_caixa")
+      .select("id")
+      .eq("caixa_id", caixaSelecionada)
+      .eq("status", "aberto")
+      .limit(1);
+    if (jaAberto && jaAberto.length > 0) {
+      carregarTurno();
       return;
     }
     const { error } = await supabase.from("turnos_caixa").insert({
@@ -335,7 +361,7 @@ export default function CaixaPage() {
               onChange={(e) => setFundoInicial(e.target.value)}
             />
           </label>
-          <button className="btn-primario w-full" onClick={abrirCaixa}>
+          <button className="btn-primario w-full" onClick={abrirCaixa} disabled={abrindo}>
             Abrir caixa
           </button>
         </div>
