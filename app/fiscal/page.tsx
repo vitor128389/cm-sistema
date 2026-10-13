@@ -65,6 +65,7 @@ export default function FiscalPage() {
   const [notas, setNotas] = useState<NotaFiscal[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  const [preparandoDanfe, setPreparandoDanfe] = useState(false);
   const [aviso, setAviso] = useState("");
   const [historico, setHistorico] = useState<LinhaHistorico[]>([]);
   const [de, setDe] = useState(() => periodoMesAnterior().de);
@@ -76,9 +77,8 @@ export default function FiscalPage() {
 
   // Assim que a nota aparece na tela, já deixa o cupom pronto: o clique em Imprimir abre na hora.
   useEffect(() => {
-    const n = notas.find((x) => x.status === "autorizada" && x.url_danfe && x.tipo === "nfce" && x.venda_id === venda?.id);
-    if (n) preaquecerDanfe(n.id);
-  }, [notas, venda?.id]);
+    notas.filter((x) => x.status === "autorizada" && x.url_danfe && x.tipo === "nfce").forEach((x) => preaquecerDanfe(x.id));
+  }, [notas]);
 
   useEffect(() => {
     setVenda(null);
@@ -376,8 +376,12 @@ export default function FiscalPage() {
           )}
           {vigente?.status === "autorizada" && vigente.url_danfe && (
             <>
-              <button className="btn-primario text-sm" onMouseEnter={() => preaquecerDanfe(vigente.id)} onTouchStart={() => preaquecerDanfe(vigente.id)} disabled={ocupado} onClick={() => rodar(() => imprimirDanfe(vigente.id))}>
-                🖨 Imprimir DANFE
+              <button className="btn-primario text-sm" onMouseEnter={() => preaquecerDanfe(vigente.id)} onTouchStart={() => preaquecerDanfe(vigente.id)} disabled={ocupado} onClick={async () => {
+                setPreparandoDanfe(true);
+                await rodar(() => imprimirDanfe(vigente.id));
+                setPreparandoDanfe(false);
+              }}>
+                {preparandoDanfe ? "Preparando..." : "🖨 Imprimir DANFE"}
               </button>
               <button
                 className="btn-secundario text-sm"

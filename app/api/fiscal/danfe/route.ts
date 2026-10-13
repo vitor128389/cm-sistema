@@ -39,9 +39,13 @@ export async function GET(request: Request) {
     try {
       const abs = String(nota.url_xml).startsWith("http") ? String(nota.url_xml) : host + nota.url_xml;
       if (abs.startsWith(host)) {
-        const rx = await fetch(abs, { headers: auth, cache: "no-store" });
+        // XML e símbolo em paralelo (o símbolo é o mesmo em toda nota e fica guardado na memória)
+        const [rx, logo] = await Promise.all([
+          fetch(abs, { headers: auth, cache: "no-store" }),
+          logoOriginalNfce(nota.url_danfe, host, auth),
+        ]);
         if (rx.ok) {
-          const cupom = await montarCupomNfce(await rx.text(), await logoOriginalNfce(nota.url_danfe, host, auth));
+          const cupom = await montarCupomNfce(await rx.text(), logo);
           if (cupom) {
             return new NextResponse(cupom, {
               headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
@@ -106,7 +110,15 @@ export async function GET(request: Request) {
 }
 
 // Pega o símbolo original da NFC-e no DANFE da Focus (primeira imagem que não seja o QR Code).
+let logoGuardado: string | null = null;
 async function logoOriginalNfce(urlDanfe: string, host: string, auth: Record<string, string>): Promise<string | null> {
+  if (logoGuardado) return logoGuardado;
+  const l = await buscarLogoNfce(urlDanfe, host, auth);
+  if (l) logoGuardado = l;
+  return l;
+}
+
+async function buscarLogoNfce(urlDanfe: string, host: string, auth: Record<string, string>): Promise<string | null> {
   try {
     const r = await fetch(urlDanfe, { headers: auth, cache: "no-store" });
     if (!r.ok) return null;
