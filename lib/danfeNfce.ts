@@ -204,7 +204,6 @@ export async function montarCupomNfce(xml: string, logoUri?: string | null): Pro
   ${vTroco > 0 ? `<div class="par"><span>Troco R$</span><span>${brl(vTroco)}</span></div>` : ""}
 
   <div class="sep"></div>
-  <div class="peq centro">Tributos Totais Incidentes (Lei Federal 12.741/2012): R$ ${brl(total.vTotTrib)}</div>
   <div class="sep"></div>
 
   <div class="centro">NFC-e nº ${esc(String(ide.nNF || "").padStart(9, "0"))} &nbsp; Série ${esc(ide.serie)} &nbsp; ${esc(dataHora(ide.dhEmi))}</div>
