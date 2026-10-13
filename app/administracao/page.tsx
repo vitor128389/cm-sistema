@@ -12,6 +12,8 @@ import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
 import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import EntradaNota from "@/components/EntradaNota";
+import ComprovanteCancelamento88mm, { type DadosCancelamento } from "@/components/ComprovanteCancelamento88mm";
+import { definirTamanhoPagina } from "@/lib/imprimir";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
 type Aba =
@@ -4872,6 +4874,55 @@ function AbaCancelarNota() {
   const [motivo, setMotivo] = useState("");
   const [cancelando, setCancelando] = useState(false);
   const [erro, setErro] = useState("");
+  const [comprovante, setComprovante] = useState<DadosCancelamento | null>(null);
+  const [canceladas, setCanceladas] = useState<DadosCancelamento[]>([]);
+
+  // Todas as notas (pedidos) já canceladas, da mais recente pra mais antiga.
+  async function carregarCanceladas() {
+    const [{ data: vs }, { data: ls }] = await Promise.all([
+      supabase
+        .from("vendas")
+        .select(
+          "numero_pedido, loja_id, total, forma_pagamento, criado_em, cancelada_em, motivo_cancelamento, clientes(nome), venda_itens(nome_produto, variante, quantidade, total)"
+        )
+        .eq("cancelada", true)
+        .order("cancelada_em", { ascending: false, nullsFirst: false })
+        .limit(300),
+      supabase.from("lojas").select("*"),
+    ]);
+    const lojas = (ls || []) as LojaCompleta[];
+    setCanceladas(
+      (vs || []).map((v) => {
+        const cli = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+        return {
+          numeroPedido: v.numero_pedido,
+          clienteNome: cli?.nome || "Cliente",
+          total: v.total,
+          formaPagamento: v.forma_pagamento,
+          criadoEm: v.criado_em,
+          canceladaEm: v.cancelada_em,
+          motivo: v.motivo_cancelamento,
+          itens: (v.venda_itens || []).map((i) => ({
+            nome: i.nome_produto,
+            variante: i.variante,
+            quantidade: i.quantidade,
+            total: i.total,
+          })),
+          loja: lojas.find((l) => l.id === v.loja_id) || null,
+        } as DadosCancelamento;
+      })
+    );
+  }
+
+  useEffect(() => {
+    carregarCanceladas();
+  }, []);
+
+  function imprimirComprovante(d: DadosCancelamento) {
+    setComprovante(d);
+    definirTamanhoPagina("cupom88");
+    setTimeout(() => window.print(), 150);
+  }
 
   async function buscar() {
     setErro("");
@@ -5008,9 +5059,25 @@ function AbaCancelarNota() {
         dadosAntes: { cancelada: false, total: venda.total },
         dadosDepois: { cancelada: true, motivo_cancelamento: motivo.trim() },
       });
+      const { data: lojaDados } = await supabase.from("lojas").select("*").eq("id", venda.loja_id).maybeSingle();
+      const dados: DadosCancelamento = {
+        numeroPedido: venda.numero_pedido,
+        clienteNome: venda.clientes?.nome || "Cliente",
+        total: venda.total,
+        formaPagamento: venda.forma_pagamento,
+        criadoEm: null,
+        canceladaEm: new Date().toISOString(),
+        motivo: motivo.trim(),
+        itens: venda.venda_itens.map((i) => ({ nome: i.nome_produto, variante: i.variante, quantidade: i.quantidade })),
+        loja: (lojaDados as LojaCompleta | null) || null,
+      };
+      const { data: vOrig } = await supabase.from("vendas").select("criado_em").eq("id", venda.id).maybeSingle();
+      dados.criadoEm = vOrig?.criado_em || null;
       setVenda(null);
       setNumeroPedido("");
       setMotivo("");
+      carregarCanceladas();
+      imprimirComprovante(dados); // já abre a impressão do comprovante de cancelamento
     } catch (e) {
       alert("Erro ao cancelar: " + (e as Error).message);
     } finally {
@@ -5020,6 +5087,9 @@ function AbaCancelarNota() {
 
   return (
     <div className="max-w-2xl">
+      <div id="area-impressao" className="cupom-88mm">
+        {comprovante && <ComprovanteCancelamento88mm {...comprovante} />}
+      </div>
       <h2 className="font-display text-xl mb-1">Cancelar nota</h2>
       <p className="text-sm text-madeira-600 mb-4">
         Cancela um pedido e devolve ao estoque os produtos que eram de pronta entrega. Pede o motivo do
@@ -5085,6 +5155,34 @@ function AbaCancelarNota() {
           )}
         </div>
       )}
+
+      <div className="mt-8">
+        <h3 className="font-display text-lg mb-2">Notas canceladas ({canceladas.length})</h3>
+        {canceladas.length === 0 ? (
+          <p className="text-sm text-madeira-500">Nenhuma nota cancelada ainda.</p>
+        ) : (
+          <div className="space-y-2">
+            {canceladas.map((c) => (
+              <div key={c.numeroPedido} className="card p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    Pedido #{c.numeroPedido} — {c.clienteNome}{" "}
+                    <span className="font-normal text-madeira-500">· {c.loja?.nome || "—"}</span>
+                  </p>
+                  <p className="text-xs text-madeira-500">
+                    {formatarMoeda(c.total)} · cancelado em{" "}
+                    {c.canceladaEm ? new Date(c.canceladaEm).toLocaleString("pt-BR") : "—"}
+                  </p>
+                  <p className="text-xs text-madeira-600 mt-1">Motivo: {c.motivo || "—"}</p>
+                </div>
+                <button className="btn-secundario text-xs px-2 py-1 shrink-0" onClick={() => imprimirComprovante(c)}>
+                  🧾 Comprovante
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
