@@ -67,7 +67,7 @@ const SELO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
 <text x="60" y="92" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="19" fill="#000">NFC-e</text>
 </svg>`;
 
-export async function montarCupomNfce(xml: string): Promise<string | null> {
+export async function montarCupomNfce(xml: string, logoUri?: string | null): Promise<string | null> {
   let raiz: No;
   try {
     raiz = parser.parse(xml) as No;
@@ -97,7 +97,8 @@ export async function montarCupomNfce(xml: string): Promise<string | null> {
 
   const qrUrl = String(supl.qrCode || "");
   const qrImg = qrUrl ? await QRCode.toDataURL(qrUrl, { margin: 0, width: 360, errorCorrectionLevel: "M" }) : "";
-  const seloImg = `data:image/svg+xml;base64,${Buffer.from(SELO_SVG).toString("base64")}`;
+  // símbolo original da NFC-e (o mesmo do DANFE da Focus); o SVG simples só entra se não vier.
+  const seloImg = logoUri || `data:image/svg+xml;base64,${Buffer.from(SELO_SVG).toString("base64")}`;
 
   const nome = String(emit.xNome || "");
   const fantasia = String(emit.xFant || "");
@@ -153,7 +154,7 @@ export async function montarCupomNfce(xml: string): Promise<string | null> {
     font-family:Arial,Helvetica,sans-serif; font-weight:700; font-size:10.5px; line-height:1.3;
     -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .topo{ display:flex; align-items:center; gap:6px; }
-  .topo img{ width:15mm; height:15mm; flex:none; }
+  .topo img{ width:15mm; height:15mm; object-fit:contain; flex:none; }
   .empresa{ flex:1; text-align:center; }
   .empresa .nome{ font-size:12.5px; font-weight:900; }
   .empresa .peq{ font-size:9.5px; }

@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       if (abs.startsWith(host)) {
         const rx = await fetch(abs, { headers: auth, cache: "no-store" });
         if (rx.ok) {
-          const cupom = await montarCupomNfce(await rx.text());
+          const cupom = await montarCupomNfce(await rx.text(), await logoOriginalNfce(nota.url_danfe, host, auth));
           if (cupom) {
             return new NextResponse(cupom, {
               headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
@@ -103,4 +103,24 @@ export async function GET(request: Request) {
   return new NextResponse(html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
   });
+}
+
+// Pega o símbolo original da NFC-e no DANFE da Focus (primeira imagem que não seja o QR Code).
+async function logoOriginalNfce(urlDanfe: string, host: string, auth: Record<string, string>): Promise<string | null> {
+  try {
+    const r = await fetch(urlDanfe, { headers: auth, cache: "no-store" });
+    if (!r.ok) return null;
+    const html = await r.text();
+    const srcs = Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)).map((m) => m[1]);
+    const src = srcs.find((x) => !/qr/i.test(x)) || null;
+    if (!src) return null;
+    if (src.startsWith("data:")) return src;
+    const abs = new URL(src, urlDanfe).toString();
+    const ri = await fetch(abs, { headers: abs.startsWith(host) ? auth : {}, cache: "no-store" });
+    if (!ri.ok) return null;
+    const tipo = ri.headers.get("content-type") || "image/png";
+    return `data:${tipo};base64,${Buffer.from(await ri.arrayBuffer()).toString("base64")}`;
+  } catch {
+    return null;
+  }
 }
