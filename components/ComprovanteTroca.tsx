@@ -17,7 +17,7 @@ interface ClienteResumo {
   bairro?: string | null;
 }
 
-interface Props {
+export interface PropsComprovanteTroca {
   numeroTroca: number;
   numeroPedidoOriginal: number;
   cliente: ClienteResumo;
@@ -36,7 +36,7 @@ interface Props {
 // Sofá "2 e 3 lugares" trocado como conjunto é salvo em 2 linhas (peça de 2 e
 // peça de 3 lugares) porque cada peça baixa do estoque separadamente — mas no
 // comprovante aparece como UM produto só, com os valores somados.
-interface ItemMesclavel {
+export interface ItemMesclavel {
   produto_nome: string;
   variante: string | null;
   quantidade: number;
@@ -45,7 +45,7 @@ interface ItemMesclavel {
   tipo_entrega?: string | null;
 }
 
-function mesclarConjuntosSofa<T extends ItemMesclavel>(itens: T[]): T[] {
+export function mesclarConjuntosSofa<T extends ItemMesclavel>(itens: T[]): T[] {
   const resultado: T[] = [];
   const usados = new Set<number>();
   const padrao = /^(.*?)\s+—\s+(2|3) Lugares(.*)$/;
@@ -124,7 +124,7 @@ function ViaTroca({
   rotaNome,
   rotaCor,
   rotulo,
-}: Props & { rotulo: string }) {
+}: PropsComprovanteTroca & { rotulo: string }) {
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
   const devolvidosExibir = mesclarConjuntosSofa(devolvidos);
@@ -279,7 +279,7 @@ function ViaTroca({
   );
 }
 
-export default function ComprovanteTroca(props: Props) {
+export default function ComprovanteTroca(props: PropsComprovanteTroca) {
   return (
     <>
       <ViaTroca {...props} rotulo="Via da loja" />

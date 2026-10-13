@@ -8,6 +8,7 @@ import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { definirTamanhoPagina } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
+import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import type {
   Venda,
   VendaItem,
@@ -116,6 +117,7 @@ export default function TrocasPage() {
     rotaCor: string | null;
   } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
+  const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
 
   async function buscarPedido() {
     if (!buscaPedido.trim()) return;
@@ -668,30 +670,55 @@ export default function TrocasPage() {
             {concluida.diferenca === 0 && "Troca sem diferença de valor."}
           </p>
           <div className="flex gap-3">
-            <button className="btn-secundario" onClick={() => { definirTamanhoPagina("a4"); window.print(); }}>
+            <button
+              className="btn-secundario"
+              onClick={() => {
+                setFormatoImpressao("a4");
+                definirTamanhoPagina("a4");
+                setTimeout(() => window.print(), 50);
+              }}
+            >
               🖨 IMPRIMIR COMPROVANTE DE TROCA
+            </button>
+            <button
+              className="btn-secundario"
+              onClick={() => {
+                setFormatoImpressao("cupom88");
+                definirTamanhoPagina("cupom88");
+                setTimeout(() => window.print(), 50);
+              }}
+              title="Imprimir cupom para impressora térmica 88mm"
+            >
+              🧾 Cupom 88mm
             </button>
             <button className="btn-primario" onClick={novaTroca}>
               Fazer outra troca
             </button>
           </div>
 
-          <div id="area-impressao">
-            <ComprovanteTroca
-              numeroTroca={concluida.numeroTroca}
-              numeroPedidoOriginal={concluida.numeroPedidoOriginal}
-              cliente={concluida.cliente}
-              devolvidos={concluida.devolvidos}
-              novos={concluida.novos}
-              tipoPreco={tipoPreco}
-              diferenca={concluida.diferenca}
-              diferencaCobrada={concluida.diferencaCobrada}
-              parcelasDiferenca={concluida.parcelasDiferenca}
-              formaPagamentoDiferenca={concluida.diferenca !== 0 ? concluida.formaPagDiferenca : null}
-              loja={lojaInfo}
-              rotaNome={concluida.rotaNome}
-              rotaCor={concluida.rotaCor}
-            />
+          <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
+            {(() => {
+              const dadosTroca = {
+                numeroTroca: concluida.numeroTroca,
+                numeroPedidoOriginal: concluida.numeroPedidoOriginal,
+                cliente: concluida.cliente,
+                devolvidos: concluida.devolvidos,
+                novos: concluida.novos,
+                tipoPreco,
+                diferenca: concluida.diferenca,
+                diferencaCobrada: concluida.diferencaCobrada,
+                parcelasDiferenca: concluida.parcelasDiferenca,
+                formaPagamentoDiferenca: concluida.diferenca !== 0 ? concluida.formaPagDiferenca : null,
+                loja: lojaInfo,
+                rotaNome: concluida.rotaNome,
+                rotaCor: concluida.rotaCor,
+              };
+              return formatoImpressao === "cupom88" ? (
+                <ComprovanteTrocaCupom88mm {...dadosTroca} />
+              ) : (
+                <ComprovanteTroca {...dadosTroca} />
+              );
+            })()}
           </div>
         </div>
       ) : (

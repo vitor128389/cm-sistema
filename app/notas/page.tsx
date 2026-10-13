@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
+import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
@@ -362,15 +363,17 @@ export default function NotasPage() {
     return false;
   });
 
-  async function imprimirTroca(t: TrocaGrupo) {
+  async function imprimirTroca(t: TrocaGrupo, formato: "a4" | "cupom88" = "a4") {
+    setNotaImprimindo(null);
+    setFormatoImpressao(formato);
     setTrocaImprimindo(t);
     if (t.loja_id) {
       const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
       setLojaImprimindo(data as LojaCompleta | null);
     }
-    definirTamanhoPagina("a4");
+    definirTamanhoPagina(formato);
     setTimeout(async () => {
-      await ajustarEscalaImpressaoA4();
+      if (formato === "a4") await ajustarEscalaImpressaoA4();
       window.print();
     }, 100);
   }
@@ -869,6 +872,13 @@ export default function NotasPage() {
                     <button className="btn-secundario text-xs px-2 py-1" onClick={() => imprimirTroca(t)}>
                       🖨
                     </button>
+                    <button
+                      className="btn-secundario text-xs px-2 py-1"
+                      onClick={() => imprimirTroca(t, "cupom88")}
+                      title="Imprimir cupom para impressora térmica 88mm"
+                    >
+                      🧾 88mm
+                    </button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3 text-sm text-madeira-600">
@@ -1005,8 +1015,10 @@ export default function NotasPage() {
             itens={notaImprimindo.venda_itens || []}
           />
         )}
-        {trocaImprimindo && (
-          <ComprovanteTroca
+        {trocaImprimindo && (() => {
+          const T = formatoImpressao === "cupom88" ? ComprovanteTrocaCupom88mm : ComprovanteTroca;
+          return (
+            <T
             numeroTroca={trocaImprimindo.numero_troca}
             numeroPedidoOriginal={trocaImprimindo.vendas?.numero_pedido || 0}
             cliente={{
@@ -1031,7 +1043,8 @@ export default function NotasPage() {
             rotaNome={trocaImprimindo.rota_nome ?? null}
             rotaCor={trocaImprimindo.rota_cor ?? null}
           />
-        )}
+          );
+        })()}
       </div>
     </div>
   );
