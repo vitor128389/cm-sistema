@@ -33,6 +33,61 @@ interface Props {
   rotaCor?: string | null;
 }
 
+// Sofá "2 e 3 lugares" trocado como conjunto é salvo em 2 linhas (peça de 2 e
+// peça de 3 lugares) porque cada peça baixa do estoque separadamente — mas no
+// comprovante aparece como UM produto só, com os valores somados.
+interface ItemMesclavel {
+  produto_nome: string;
+  variante: string | null;
+  quantidade: number;
+  valor_unitario_avista: number;
+  valor_unitario_aprazo: number;
+  tipo_entrega?: string | null;
+}
+
+function mesclarConjuntosSofa<T extends ItemMesclavel>(itens: T[]): T[] {
+  const resultado: T[] = [];
+  const usados = new Set<number>();
+  const padrao = /^(.*?)\s+—\s+(2|3) Lugares(.*)$/;
+
+  itens.forEach((item, i) => {
+    if (usados.has(i)) return;
+    const m = item.variante ? padrao.exec(item.variante) : null;
+    if (m && m[2] === "2") {
+      const [, prefixo, , sufixo] = m;
+      const idxPar = itens.findIndex((outro, j) => {
+        if (j === i || usados.has(j) || !outro.variante) return false;
+        const mo = padrao.exec(outro.variante);
+        return (
+          !!mo &&
+          mo[2] === "3" &&
+          mo[1] === prefixo &&
+          mo[3] === sufixo &&
+          outro.produto_nome === item.produto_nome &&
+          outro.quantidade === item.quantidade &&
+          (outro.tipo_entrega ?? null) === (item.tipo_entrega ?? null)
+        );
+      });
+      if (idxPar !== -1) {
+        const par = itens[idxPar];
+        usados.add(i);
+        usados.add(idxPar);
+        const jaTemNoNome = item.produto_nome.toUpperCase().includes("2 E 3 LUGARES");
+        resultado.push({
+          ...item,
+          variante: jaTemNoNome ? `${prefixo}${sufixo}` : `${prefixo} — 2 e 3 Lugares${sufixo}`,
+          valor_unitario_avista: item.valor_unitario_avista + par.valor_unitario_avista,
+          valor_unitario_aprazo: item.valor_unitario_aprazo + par.valor_unitario_aprazo,
+        });
+        return;
+      }
+    }
+    resultado.push(item);
+  });
+
+  return resultado;
+}
+
 function enderecoLojaTexto(loja?: LojaCompleta | null): string | null {
   if (!loja) return null;
   const partes = [
@@ -72,6 +127,8 @@ function ViaTroca({
 }: Props & { rotulo: string }) {
   const enderecoLoja = enderecoLojaTexto(loja);
   const enderecoCliente = enderecoClienteTexto(cliente);
+  const devolvidosExibir = mesclarConjuntosSofa(devolvidos);
+  const novosExibir = mesclarConjuntosSofa(novos);
   const valorItem = (v: { valor_unitario_avista: number; valor_unitario_aprazo: number }, qtd: number) =>
     (tipoPreco === "avista" ? v.valor_unitario_avista : v.valor_unitario_aprazo) * qtd;
 
@@ -129,7 +186,7 @@ function ViaTroca({
           </tr>
         </thead>
         <tbody>
-          {devolvidos.map((d) => (
+          {devolvidosExibir.map((d) => (
             <tr key={d.id}>
               <td>
                 {d.produto_nome}
@@ -152,7 +209,7 @@ function ViaTroca({
           </tr>
         </thead>
         <tbody>
-          {novos.map((n) => {
+          {novosExibir.map((n) => {
             const temBracosAlmofada = n.variante?.includes("Braços de Almofada");
             const varianteSemBracos = n.variante?.replace(/ — Braços de Almofada$/, "") || null;
             return (
