@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { type AmbienteFiscal, hostFocus, tokenDaLoja } from "@/lib/focusNfe";
+import { montarCupomNfce } from "@/lib/danfeNfce";
 
 export const maxDuration = 30;
 
@@ -31,6 +32,27 @@ export async function GET(request: Request) {
   const { data: loja } = await admin.from("lojas").select("fiscal_chave").eq("id", nota.loja_id).maybeSingle();
   const token = loja?.fiscal_chave ? tokenDaLoja(loja.fiscal_chave, ambiente) : null;
   const auth: Record<string, string> = token ? { Authorization: "Basic " + Buffer.from(`${token}:`).toString("base64") } : {};
+
+  // NFC-e: monta o cupom no nosso modelo (selo NFC-e + nome da loja) a partir do XML autorizado.
+  // Se o XML não puder ser lido, cai no cupom padrão da Focus (abaixo).
+  if (nota.tipo !== "nfe" && nota.url_xml) {
+    try {
+      const abs = String(nota.url_xml).startsWith("http") ? String(nota.url_xml) : host + nota.url_xml;
+      if (abs.startsWith(host)) {
+        const rx = await fetch(abs, { headers: auth, cache: "no-store" });
+        if (rx.ok) {
+          const cupom = await montarCupomNfce(await rx.text());
+          if (cupom) {
+            return new NextResponse(cupom, {
+              headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
+            });
+          }
+        }
+      }
+    } catch {
+      /* cai no cupom da Focus */
+    }
+  }
 
   const resp = await fetch(nota.url_danfe, { headers: auth, cache: "no-store" });
   if (!resp.ok) return NextResponse.json({ error: "Não consegui buscar o DANFE na Focus." }, { status: 502 });
