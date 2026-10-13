@@ -115,7 +115,7 @@ export async function montarCupomNfce(xml: string, logoUri?: string | null): Pro
       const p = (d.prod as No) || {};
       return `<tr>
         <td class="c">${esc(d["@_nItem"])}</td>
-        <td>${esc(p.cProd)}</td>
+        <td class="cod">${esc(String(p.cProd ?? "").slice(0, 5))}</td>
         <td class="desc">${esc(p.xProd)}</td>
         <td class="r">${qtd(p.qCom)}</td>
         <td class="c">${esc(p.uCom)}</td>
@@ -164,7 +164,8 @@ export async function montarCupomNfce(xml: string, logoUri?: string | null): Pro
   table{ width:100%; border-collapse:collapse; font-size:9.5px; }
   th{ text-align:left; border-bottom:1.5px solid #000; padding:2px 1px; font-weight:900; }
   td{ padding:2px 1px; vertical-align:top; }
-  td.desc{ width:38%; word-break:break-word; }
+  td.cod{ font-size:8.5px; white-space:nowrap; padding-right:10px; }
+  td.desc{ width:38%; word-break:break-word; padding-left:2px; }
   .r{ text-align:right; } .c{ text-align:center; }
   .sep{ border-top:1.5px dashed #000; margin:5px 0; }
   .par{ display:flex; justify-content:space-between; gap:6px; }
