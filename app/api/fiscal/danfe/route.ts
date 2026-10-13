@@ -64,6 +64,20 @@ export async function GET(request: Request) {
   for (const i of baixadas) if (i) html = html.split(i.src).join(i.uri);
   if (!/<base\s/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}<base href="${host}/">`);
 
+  // Legibilidade na impressora térmica: preto puro (a térmica "falha" no cinza), letra mais
+  // encorpada, sem suavização e QR Code/imagens com borda nítida.
+  const estiloNitidez = `<style>
+    html,body{background:#fff!important}
+    body,body *{color:#000!important;opacity:1!important;filter:none!important;text-shadow:none!important;
+      font-family:Arial,Helvetica,sans-serif!important;font-weight:700!important;
+      -webkit-text-stroke:0.35px #000;-webkit-font-smoothing:none;text-rendering:geometricPrecision}
+    img{image-rendering:pixelated;image-rendering:crisp-edges}
+    hr{border-color:#000!important}
+    *{border-color:#000!important}
+    @media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style>`;
+  html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${estiloNitidez}</head>`) : estiloNitidez + html;
+
   return new NextResponse(html, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
   });
