@@ -984,6 +984,7 @@ export default function NotasPage() {
         {notaImprimindo && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={notaImprimindo.numero_pedido}
+            criadoEm={notaImprimindo.criado_em}
             rotaNome={notaImprimindo.rota_nome ?? null}
             rotaCor={notaImprimindo.rota_cor ?? null}
             descontoGeral={notaImprimindo.desconto_geral ?? 0}
@@ -1042,6 +1043,7 @@ export default function NotasPage() {
             loja={lojaImprimindo}
             rotaNome={trocaImprimindo.rota_nome ?? null}
             rotaCor={trocaImprimindo.rota_cor ?? null}
+            criadoEm={trocaImprimindo.criado_em}
           />
           );
         })()}

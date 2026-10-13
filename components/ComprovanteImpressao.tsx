@@ -48,6 +48,7 @@ interface Props {
   loja?: LojaCompleta | null;
   tag?: string;
   lojasPorId?: Record<string, string>;
+  criadoEm?: string | null;
 }
 
 function enderecoLojaTexto(loja?: LojaCompleta | null): string | null {
@@ -247,6 +248,7 @@ function ViaComprovante({
   loja,
   tag,
   lojasPorId,
+  criadoEm,
   rotulo,
 }: Props & { rotulo: string }) {
   const ehViaLoja = rotulo === "Via da loja";
@@ -318,7 +320,7 @@ function ViaComprovante({
         </div>
       </div>
       <p style={{ margin: "4px 0 6px", fontSize: "0.82rem", color: COR_SECUNDARIO }}>
-        {rotulo} {tag ? `· ${tag}` : ""} · {new Date().toLocaleString("pt-BR")}
+        {rotulo} {tag ? `· ${tag}` : ""} · {(criadoEm ? new Date(criadoEm) : new Date()).toLocaleString("pt-BR")}
       </p>
 
       <p style={{ fontWeight: 700, fontSize: "0.88rem", margin: "0 0 2px", color: COR_VERDE_ESCURO }}>Cliente</p>

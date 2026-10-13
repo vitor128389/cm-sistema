@@ -32,6 +32,7 @@ export default function ComprovanteTrocaCupom88mm({
   formaPagamentoDiferenca,
   loja,
   rotaNome,
+  criadoEm,
 }: PropsComprovanteTroca) {
   const devolvidosExibir = mesclarConjuntosSofa(devolvidos);
   const novosExibir = mesclarConjuntosSofa(novos);
@@ -46,7 +47,7 @@ export default function ComprovanteTrocaCupom88mm({
     .filter(Boolean)
     .join(" - ");
   const p = (extra: React.CSSProperties = {}): React.CSSProperties => ({ margin: "2px 0", ...extra });
-  const dataHora = new Date().toLocaleString("pt-BR");
+  const dataHora = (criadoEm ? new Date(criadoEm) : new Date()).toLocaleString("pt-BR");
   const tituloLista = (t: string) => <p style={p({ fontSize: 14, fontWeight: 900, margin: "6px 0 2px" })}>{t}</p>;
 
   return (

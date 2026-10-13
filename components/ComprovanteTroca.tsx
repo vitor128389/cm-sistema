@@ -31,6 +31,7 @@ export interface PropsComprovanteTroca {
   loja?: LojaCompleta | null;
   rotaNome?: string | null;
   rotaCor?: string | null;
+  criadoEm?: string | null;
 }
 
 // Sofá "2 e 3 lugares" trocado como conjunto é salvo em 2 linhas (peça de 2 e
@@ -123,6 +124,7 @@ function ViaTroca({
   loja,
   rotaNome,
   rotaCor,
+  criadoEm,
   rotulo,
 }: PropsComprovanteTroca & { rotulo: string }) {
   const enderecoLoja = enderecoLojaTexto(loja);
@@ -162,7 +164,7 @@ function ViaTroca({
         </div>
       </div>
       <p style={{ margin: "4px 0 6px", fontSize: "0.68rem", color: "#666" }}>
-        {rotulo} · {new Date().toLocaleString("pt-BR")}
+        {rotulo} · {(criadoEm ? new Date(criadoEm) : new Date()).toLocaleString("pt-BR")}
       </p>
 
       <p style={{ fontWeight: 700, fontSize: "0.85rem", margin: "4px 0", textAlign: "center", border: "1px solid #222", padding: "3px" }}>
