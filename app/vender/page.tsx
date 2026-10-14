@@ -96,6 +96,8 @@ function VenderPageConteudo() {
       sem_numero: boolean | null;
       complemento: string | null;
       cidade: string | null;
+      povoado?: string | null;
+      bairro?: string | null;
       cliente_celulares: { celular: string; nome_responsavel: string | null }[];
     }[]
   >([]);
@@ -486,6 +488,7 @@ function VenderPageConteudo() {
     complemento: string | null;
     cidade?: string | null;
     povoado?: string | null;
+    bairro?: string | null;
     cliente_celulares?: { celular: string; nome_responsavel: string | null }[];
   }) {
     setClienteIdExistente(c.id);
@@ -493,7 +496,7 @@ function VenderPageConteudo() {
     setCpf(c.cpf ? formatarCpfExibicao(c.cpf) : "");
     setSemCpf(!c.cpf);
     setEndereco(c.endereco || "");
-    setBairro((c as { bairro?: string | null }).bairro || "");
+    setBairro(c.bairro || "");
     setNumero(c.numero || "");
     setSemNumero(c.sem_numero || false);
     setComplemento(c.complemento || "");
@@ -522,7 +525,7 @@ function VenderPageConteudo() {
     }
     const { data } = await supabase
       .from("clientes")
-      .select("id, nome, cpf, endereco, numero, sem_numero, complemento, cidade, povoado, cliente_celulares(celular, nome_responsavel)")
+      .select("id, nome, cpf, endereco, numero, sem_numero, complemento, cidade, povoado, bairro, cliente_celulares(celular, nome_responsavel)")
       .eq("loja_id", lojaAtual)
       .ilike("nome", `%${v.trim()}%`)
       .limit(6);
