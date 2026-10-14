@@ -9,6 +9,7 @@ import { definirTamanhoPagina } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
+import ListaTrocas from "@/components/ListaTrocas";
 import type {
   Venda,
   VendaItem,
@@ -1144,6 +1145,8 @@ export default function TrocasPage() {
           )}
         </>
       )}
+
+      {!concluida && <ListaTrocas />}
     </div>
   );
 }
