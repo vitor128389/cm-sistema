@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/format";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { lerPdfComoLinhas, interpretarLinhasNota, nomeVariante, type NotaLida } from "@/lib/lerNotaFiscal";
+import { lerNotaXml } from "@/lib/lerNotaXml";
 import type { ProdutoComVariantes } from "@/types";
 
 interface Linha {
@@ -100,17 +101,41 @@ function NovaEntrada() {
     return n > 0 ? String(arredondar(custo * n)) : "";
   }
 
+  const [chaveDigitada, setChaveDigitada] = useState("");
+
+  // Aceita o XML (mais confiável) ou o PDF do DANFE.
   async function aoEscolherArquivo(file: File | undefined) {
     if (!file) return;
+    await processar(async () => {
+      const ehXml = /\.xml$/i.test(file.name) || file.type.includes("xml");
+      if (ehXml) return lerNotaXml(await file.text());
+      return interpretarLinhasNota(await lerPdfComoLinhas(await file.arrayBuffer()));
+    }, "Não consegui encontrar produtos nesse arquivo. Confira se é o XML ou o DANFE da nota fiscal.");
+  }
+
+  // Busca o XML da nota pela chave de acesso (44 números).
+  async function buscarPelaChave() {
+    const chave = chaveDigitada.replace(/\D/g, "");
+    if (chave.length !== 44) {
+      setMsg("A chave de acesso tem 44 números. Confira e tente de novo.");
+      return;
+    }
+    await processar(async () => {
+      const r = await fetch(`/api/fiscal/nfe-recebida?chave=${chave}`);
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Não consegui baixar a nota pela chave.");
+      return lerNotaXml(await r.text());
+    }, "A nota veio sem produtos.");
+  }
+
+  async function processar(ler: () => Promise<NotaLida>, msgSemItens: string) {
     setMsg(null);
     setLendo(true);
     setNota(null);
     setLinhas([]);
     try {
-      const linhasPdf = await lerPdfComoLinhas(await file.arrayBuffer());
-      const lida = interpretarLinhasNota(linhasPdf);
+      const lida = await ler();
       if (lida.itens.length === 0) {
-        setMsg("Não consegui encontrar produtos nesse PDF. Confira se é o DANFE da nota fiscal.");
+        setMsg(msgSemItens);
         return;
       }
       // junta o mesmo produto de acabamentos diferentes numa linha só
@@ -154,7 +179,7 @@ function NovaEntrada() {
         setJaLancada(!!data);
       } else setJaLancada(false);
     } catch (e) {
-      setMsg("Erro ao ler o PDF: " + (e instanceof Error ? e.message : String(e)));
+      setMsg("Erro ao ler a nota: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLendo(false);
     }
@@ -293,16 +318,30 @@ function NovaEntrada() {
       <div className="bg-white border border-estofado-100 rounded-xl p-4">
         <h2 className="font-display text-xl text-madeira-900">Entrada de nota fiscal</h2>
         <p className="text-sm text-madeira-600 mt-1">
-          Envie o PDF da nota (DANFE). Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
+          Envie o <b>XML</b> da nota (o mais certinho), o PDF (DANFE) ou digite a <b>chave de acesso</b>. Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
           (sem IPI); preço de venda = custo × fator, e você pode ajustar cada um.
         </p>
         <input
           type="file"
-          accept="application/pdf"
+          accept=".xml,application/xml,text/xml,application/pdf"
           className="mt-3 text-sm"
           disabled={lendo || salvando}
           onChange={(e) => aoEscolherArquivo(e.target.files?.[0])}
         />
+        <div className="flex flex-wrap gap-2 mt-3 items-center">
+          <input
+            className="input-base max-w-md"
+            placeholder="Ou cole a chave de acesso (44 números)"
+            value={chaveDigitada}
+            onChange={(e) => setChaveDigitada(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && buscarPelaChave()}
+            inputMode="numeric"
+            disabled={lendo || salvando}
+          />
+          <button className="btn-secundario" onClick={buscarPelaChave} disabled={lendo || salvando}>
+            Buscar pela chave
+          </button>
+        </div>
         {lendo && <p className="text-sm text-madeira-600 mt-2">Lendo a nota…</p>}
         {msg && <p className="text-sm mt-2 font-medium text-madeira-900">{msg}</p>}
       </div>
