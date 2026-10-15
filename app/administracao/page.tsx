@@ -35,6 +35,7 @@ type Aba =
 const TELAS = [
   { chave: "painel", label: "Painel" },
   { chave: "vender", label: "Vender" },
+  { chave: "orcamentos", label: "Orçamentos" },
   { chave: "produtos", label: "Produtos" },
   { chave: "clientes", label: "Clientes" },
   { chave: "encomendas", label: "Encomendas" },

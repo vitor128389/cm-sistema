@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const TELAS_PROTEGIDAS = [
   "painel",
   "vender",
+  "orcamentos",
   "produtos",
   "clientes",
   "encomendas",
@@ -21,6 +22,7 @@ export type Tela = (typeof TELAS_PROTEGIDAS)[number];
 const ROTA_PARA_TELA: Record<string, Tela> = {
   "/": "painel",
   "/vender": "vender",
+  "/orcamentos": "orcamentos",
   "/produtos": "produtos",
   "/clientes": "clientes",
   "/encomendas": "encomendas",

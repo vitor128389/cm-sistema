@@ -11,6 +11,7 @@ import { useMenu } from "@/contexts/MenuContext";
 const ITENS: { href: string; label: string; tela: Tela }[] = [
   { href: "/", label: "Painel", tela: "painel" },
   { href: "/vender", label: "Vender", tela: "vender" },
+  { href: "/orcamentos", label: "Orçamentos", tela: "orcamentos" },
   { href: "/produtos", label: "Produtos", tela: "produtos" },
   { href: "/clientes", label: "Clientes", tela: "clientes" },
   { href: "/encomendas", label: "Encomendas", tela: "encomendas" },
