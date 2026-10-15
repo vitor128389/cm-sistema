@@ -101,30 +101,20 @@ function NovaEntrada() {
     return n > 0 ? String(arredondar(custo * n)) : "";
   }
 
-  const [chaveDigitada, setChaveDigitada] = useState("");
-
   // Aceita o XML (mais confiável) ou o PDF do DANFE.
   async function aoEscolherArquivo(file: File | undefined) {
     if (!file) return;
     await processar(async () => {
       const ehXml = /\.xml$/i.test(file.name) || file.type.includes("xml");
       if (ehXml) return lerNotaXml(await file.text());
-      return interpretarLinhasNota(await lerPdfComoLinhas(await file.arrayBuffer()));
+      const linhasPdf = await lerPdfComoLinhas(await file.arrayBuffer());
+      if (linhasPdf.join("").trim().length < 30) {
+        throw new Error(
+          "Esse PDF é uma imagem (foto/escaneado), sem texto para ler. Envie o XML da nota ou o PDF original da fábrica (não o escaneado/melhorado)."
+        );
+      }
+      return interpretarLinhasNota(linhasPdf);
     }, "Não consegui encontrar produtos nesse arquivo. Confira se é o XML ou o DANFE da nota fiscal.");
-  }
-
-  // Busca o XML da nota pela chave de acesso (44 números).
-  async function buscarPelaChave() {
-    const chave = chaveDigitada.replace(/\D/g, "");
-    if (chave.length !== 44) {
-      setMsg("A chave de acesso tem 44 números. Confira e tente de novo.");
-      return;
-    }
-    await processar(async () => {
-      const r = await fetch(`/api/fiscal/nfe-recebida?chave=${chave}`);
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Não consegui baixar a nota pela chave.");
-      return lerNotaXml(await r.text());
-    }, "A nota veio sem produtos.");
   }
 
   async function processar(ler: () => Promise<NotaLida>, msgSemItens: string) {
@@ -318,7 +308,7 @@ function NovaEntrada() {
       <div className="bg-white border border-estofado-100 rounded-xl p-4">
         <h2 className="font-display text-xl text-madeira-900">Entrada de nota fiscal</h2>
         <p className="text-sm text-madeira-600 mt-1">
-          Envie o <b>XML</b> da nota (o mais certinho), o PDF (DANFE) ou digite a <b>chave de acesso</b>. Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
+          Envie o <b>XML</b> da nota (o mais certinho) ou o PDF (DANFE). Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
           (sem IPI); preço de venda = custo × fator, e você pode ajustar cada um.
         </p>
         <input
@@ -328,20 +318,6 @@ function NovaEntrada() {
           disabled={lendo || salvando}
           onChange={(e) => aoEscolherArquivo(e.target.files?.[0])}
         />
-        <div className="flex flex-wrap gap-2 mt-3 items-center">
-          <input
-            className="input-base max-w-md"
-            placeholder="Ou cole a chave de acesso (44 números)"
-            value={chaveDigitada}
-            onChange={(e) => setChaveDigitada(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && buscarPelaChave()}
-            inputMode="numeric"
-            disabled={lendo || salvando}
-          />
-          <button className="btn-secundario" onClick={buscarPelaChave} disabled={lendo || salvando}>
-            Buscar pela chave
-          </button>
-        </div>
         {lendo && <p className="text-sm text-madeira-600 mt-2">Lendo a nota…</p>}
         {msg && <p className="text-sm mt-2 font-medium text-madeira-900">{msg}</p>}
       </div>
