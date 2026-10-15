@@ -8,6 +8,8 @@ import { carregarProdutosComEstoque } from "@/lib/produtos";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
 import { abrirWhatsAppComTexto } from "@/lib/whatsapp";
 import ComprovanteOrcamento, { type DadosOrcamentoImpressao } from "@/components/ComprovanteOrcamento";
+import ComprovanteOrcamento88mm from "@/components/ComprovanteOrcamento88mm";
+import { gerarOrcamentoPdf } from "@/lib/gerarOrcamentoPdf";
 import {
   calcularTotais,
   dataBrCurta,
@@ -92,6 +94,7 @@ export default function OrcamentosPage() {
   const [buscaSalvos, setBuscaSalvos] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusOrcamento>("todos");
   const [imprimindo, setImprimindo] = useState<DadosOrcamentoImpressao | null>(null);
+  const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
   const temporizadorCliente = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -324,18 +327,53 @@ export default function OrcamentosPage() {
     return { id: id as string, numero: numeroOrc as number, criadoEm, validade };
   }
 
-  function imprimir(dados: DadosOrcamentoImpressao) {
+  function imprimir(dados: DadosOrcamentoImpressao, formato: "a4" | "cupom88" = "a4") {
+    setFormatoImpressao(formato);
     setImprimindo(dados);
-    definirTamanhoPagina("a4");
+    definirTamanhoPagina(formato);
     setTimeout(async () => {
-      await ajustarEscalaImpressaoA4();
+      if (formato === "a4") await ajustarEscalaImpressaoA4();
       window.print();
     }, 150);
   }
 
-  async function salvarEImprimir() {
+  async function salvarEImprimir(formato: "a4" | "cupom88") {
     const r = await salvar();
-    if (r) imprimir({ ...dadosParaImpressao(r.numero, r.criadoEm), validade: r.validade });
+    if (r) imprimir({ ...dadosParaImpressao(r.numero, r.criadoEm), validade: r.validade }, formato);
+  }
+
+  // Gera o PDF (mesmo visual da impressão) e abre o menu de compartilhar do
+  // celular; no computador baixa o arquivo e abre o WhatsApp pra anexar.
+  async function enviarPdf(dados: DadosOrcamentoImpressao) {
+    const blob = await gerarOrcamentoPdf(dados);
+    const nomeArquivo = `orcamento-${dados.numero ?? "novo"}-${dados.clienteNome.trim().split(" ")[0].toLowerCase()}.pdf`;
+    const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
+    if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({ files: [arquivo], title: `Orçamento ${dados.numero ?? ""}`, text: `Orçamento — ${dados.clienteNome}` });
+      } catch {
+        // cancelou o compartilhamento
+      }
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeArquivo;
+    a.click();
+    URL.revokeObjectURL(url);
+    const tel = (dados.clienteTelefone || "").replace(/\D/g, "");
+    if (tel.length >= 8) {
+      alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
+      window.open(linkWhatsApp(dados.clienteTelefone!, `Olá! Segue o seu orçamento em PDF.`), "_blank", "noopener");
+    } else {
+      alert("PDF baixado. Esse cliente não tem telefone pra abrir o WhatsApp direto — anexe o arquivo na conversa.");
+    }
+  }
+
+  async function salvarEEnviarPdf() {
+    const r = await salvar();
+    if (r) await enviarPdf({ ...dadosParaImpressao(r.numero, r.criadoEm), validade: r.validade });
   }
 
   function mensagemAtual(numeroOrc: number | null) {
@@ -628,8 +666,12 @@ export default function OrcamentosPage() {
                 <div className="rounded bg-[#E8F1EC] text-[#123C2E] px-3 py-2 flex justify-between font-bold"><span>A prazo</span><span>{formatarMoeda(totais.totalPrazo)}</span></div>
                 <div className="grid gap-2 pt-2">
                   <button className="btn-primario" disabled={salvando} onClick={salvar}>{salvando ? "Salvando…" : editandoId ? "Salvar alterações" : "Salvar orçamento"}</button>
-                  <button className="btn-secundario" disabled={salvando} onClick={salvarEImprimir}>Salvar e imprimir</button>
-                  <button className="btn-secundario" disabled={salvando} onClick={salvarEWhatsApp}>Salvar e enviar no WhatsApp</button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="btn-secundario" disabled={salvando} onClick={() => salvarEImprimir("a4")}>Imprimir A4</button>
+                    <button className="btn-secundario" disabled={salvando} onClick={() => salvarEImprimir("cupom88")}>Imprimir 88mm</button>
+                  </div>
+                  <button className="btn-secundario" disabled={salvando} onClick={salvarEEnviarPdf}>Salvar e enviar PDF</button>
+                  <button className="btn-secundario" disabled={salvando} onClick={salvarEWhatsApp}>Salvar e enviar texto no WhatsApp</button>
                   <button className="text-sm underline text-madeira-700" onClick={limpar}>Limpar tudo / novo</button>
                 </div>
               </div>
@@ -678,8 +720,10 @@ export default function OrcamentosPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 text-sm">
                       <button className="btn-secundario !py-1 !px-3" onClick={() => abrirParaEditar(o)}>Editar</button>
-                      <button className="btn-secundario !py-1 !px-3" onClick={() => imprimir(dadosDoSalvo(o))}>Imprimir</button>
-                      <button className="btn-secundario !py-1 !px-3" onClick={() => whatsappDoSalvo(o)}>WhatsApp</button>
+                      <button className="btn-secundario !py-1 !px-3" onClick={() => imprimir(dadosDoSalvo(o), "a4")}>Imprimir A4</button>
+                      <button className="btn-secundario !py-1 !px-3" onClick={() => imprimir(dadosDoSalvo(o), "cupom88")}>Cupom 88mm</button>
+                      <button className="btn-secundario !py-1 !px-3" onClick={() => enviarPdf(dadosDoSalvo(o))}>Enviar PDF</button>
+                      <button className="btn-secundario !py-1 !px-3" onClick={() => whatsappDoSalvo(o)}>Texto WhatsApp</button>
                       <button className="btn-secundario !py-1 !px-3" onClick={() => abrirParaEditar(o, true)}>Duplicar</button>
                       {o.status !== "aprovado" && <button className="btn-secundario !py-1 !px-3" onClick={() => mudarStatus(o, "aprovado")}>Marcar aprovado</button>}
                       {o.status !== "recusado" && <button className="btn-secundario !py-1 !px-3" onClick={() => mudarStatus(o, "recusado")}>Recusado</button>}
@@ -695,8 +739,8 @@ export default function OrcamentosPage() {
       </div>
 
       {imprimindo && (
-        <div id="area-impressao">
-          <ComprovanteOrcamento {...imprimindo} />
+        <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
+          {formatoImpressao === "cupom88" ? <ComprovanteOrcamento88mm {...imprimindo} /> : <ComprovanteOrcamento {...imprimindo} />}
         </div>
       )}
     </div>
