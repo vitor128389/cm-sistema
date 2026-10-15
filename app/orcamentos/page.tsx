@@ -41,6 +41,23 @@ interface OpcaoProduto {
   nome: string;
   variante: string | null;
   preco: number;
+  sofaConjunto?: boolean; // produto "2 e 3 lugares": pergunta 2, 3 ou conjunto ao clicar
+}
+
+// Variante de sofá em peças: "Suede — 2 Lugares" (às vezes com " — Com Braços" no fim)
+const REGEX_PECA = /^(.*?) — (\d) Lugares(.*)$/;
+function pecasDoSofa(p: ProdutoComVariantes) {
+  const mapa = new Map<string, { tecido: string; sufixo: string; p2?: number; p3?: number }>();
+  p.produto_variantes.forEach((v) => {
+    const m = v.nome_variante.match(REGEX_PECA);
+    if (!m) return;
+    const chave = `${m[1]}|${m[3]}`;
+    const g = mapa.get(chave) || { tecido: m[1], sufixo: m[3].replace(/^ — /, ""), p2: undefined, p3: undefined };
+    if (m[2] === "2") g.p2 = Number(v.preco_avista);
+    if (m[2] === "3") g.p3 = Number(v.preco_avista);
+    mapa.set(chave, g);
+  });
+  return Array.from(mapa.values());
 }
 
 let contador = 0;
@@ -78,6 +95,8 @@ export default function OrcamentosPage() {
   const [sugestoesCliente, setSugestoesCliente] = useState<ClienteBusca[]>([]);
   const [itens, setItens] = useState<ItemOrcamento[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
+  const [escolhendoSofa, setEscolhendoSofa] = useState<ProdutoComVariantes | null>(null);
+  const [tecidoSofa, setTecidoSofa] = useState("");
   const [desconto, setDesconto] = useState("");
   const [frete, setFrete] = useState("");
   const [forma, setForma] = useState<FormaExibicao>("ambos");
@@ -161,7 +180,20 @@ export default function OrcamentosPage() {
   // ---------- produtos ----------
   const opcoes: OpcaoProduto[] = useMemo(() => {
     const lista: OpcaoProduto[] = [];
+    // sofás "X 2 E 3 LUGARES" cobrem 2, 3 e conjunto — então os cadastros
+    // soltos "X 2 LUGARES" / "X 3 LUGARES" não entram na busca (evita duplicar)
+    const basesConjunto = new Set(
+      produtos.filter((p) => p.tipo_precificacao === "tecido_peca").map((p) => p.nome.replace(/\s*2 E 3 LUGARES\s*$/i, "").trim().toUpperCase())
+    );
     produtos.forEach((p) => {
+      const solto = p.nome.trim().toUpperCase().match(/^(.*?)\s*[23] LUGARES$/);
+      if (p.tipo_precificacao !== "tecido_peca" && solto && basesConjunto.has(solto[1].trim())) return;
+      if (p.tipo_precificacao === "tecido_peca") {
+        const pecas = pecasDoSofa(p);
+        const menor = Math.min(...pecas.map((g) => g.p2 ?? g.p3 ?? Infinity));
+        lista.push({ produtoId: p.id, nome: p.nome, variante: null, preco: Number.isFinite(menor) ? menor : Number(p.preco_venda), sofaConjunto: true });
+        return;
+      }
       if (p.produto_variantes?.length) {
         p.produto_variantes.forEach((v) =>
           lista.push({ produtoId: p.id, nome: p.nome, variante: v.nome_variante === "Padrão" ? null : v.nome_variante, preco: Number(v.preco_avista) })
@@ -186,12 +218,40 @@ export default function OrcamentosPage() {
   }, [buscaProduto, opcoes]);
 
   function adicionarOpcao(o: OpcaoProduto) {
+    if (o.sofaConjunto) {
+      const p = produtos.find((x) => x.id === o.produtoId);
+      if (p) {
+        const pecas = pecasDoSofa(p);
+        const primeiro = pecas[0];
+        setTecidoSofa(primeiro ? `${primeiro.tecido}|${primeiro.sufixo}` : "");
+        setEscolhendoSofa(p);
+        setBuscaProduto("");
+        return;
+      }
+    }
     setItens((atual) => {
       const igual = atual.find((i) => i.produto_id === o.produtoId && i.variante === o.variante && i.valor_avista === o.preco);
       if (igual) return atual.map((i) => (i === igual ? { ...i, quantidade: i.quantidade + 1 } : i));
       return [...atual, { chave: novaChave(), produto_id: o.produtoId, nome: o.nome, variante: o.variante, quantidade: 1, valor_avista: o.preco }];
     });
     setBuscaProduto("");
+  }
+
+  function adicionarSofa(tipo: "2" | "3" | "conjunto") {
+    if (!escolhendoSofa) return;
+    const g = pecasDoSofa(escolhendoSofa).find((x) => `${x.tecido}|${x.sufixo}` === tecidoSofa);
+    if (!g) return;
+    const extra = g.sufixo ? ` — ${g.sufixo}` : "";
+    const nomeVar = tipo === "2" ? `${g.tecido} — 2 Lugares${extra}` : tipo === "3" ? `${g.tecido} — 3 Lugares${extra}` : `${g.tecido} — Conjunto 2 e 3 Lugares${extra}`;
+    const preco = tipo === "2" ? g.p2 ?? 0 : tipo === "3" ? g.p3 ?? 0 : (g.p2 ?? 0) + (g.p3 ?? 0);
+    const id = escolhendoSofa.id;
+    const nome = escolhendoSofa.nome;
+    setItens((atual) => {
+      const igual = atual.find((i) => i.produto_id === id && i.variante === nomeVar && i.valor_avista === preco);
+      if (igual) return atual.map((i) => (i === igual ? { ...i, quantidade: i.quantidade + 1 } : i));
+      return [...atual, { chave: novaChave(), produto_id: id, nome, variante: nomeVar, quantidade: 1, valor_avista: preco }];
+    });
+    setEscolhendoSofa(null);
   }
 
   function adicionarAvulso() {
@@ -492,6 +552,40 @@ export default function OrcamentosPage() {
           Monte o orçamento do cliente, imprima ou mande pelo WhatsApp. Não baixa estoque nem gera nota{nomeLoja ? ` — loja ${nomeLoja}` : ""}.
         </p>
 
+        {escolhendoSofa && (() => {
+          const grupos = pecasDoSofa(escolhendoSofa);
+          const atual = grupos.find((x) => `${x.tecido}|${x.sufixo}` === tecidoSofa);
+          const botoes: { tipo: "2" | "3" | "conjunto"; rotulo: string; preco: number | undefined }[] = [
+            { tipo: "2", rotulo: "Só o 2 lugares", preco: atual?.p2 },
+            { tipo: "3", rotulo: "Só o 3 lugares", preco: atual?.p3 },
+            { tipo: "conjunto", rotulo: "Conjunto 2 e 3 lugares", preco: atual?.p2 !== undefined && atual?.p3 !== undefined ? atual.p2 + atual.p3 : undefined },
+          ];
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEscolhendoSofa(null)}>
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+                <h3 className="font-display text-xl text-madeira-900">{escolhendoSofa.nome}</h3>
+                <p className="text-sm text-madeira-700 mb-3">Qual você quer no orçamento?</p>
+                <label className="text-sm block mb-3">Tecido
+                  <select className="input-base mt-1" value={tecidoSofa} onChange={(e) => setTecidoSofa(e.target.value)}>
+                    {grupos.map((g) => (
+                      <option key={`${g.tecido}|${g.sufixo}`} value={`${g.tecido}|${g.sufixo}`}>{g.tecido}{g.sufixo ? ` — ${g.sufixo}` : ""}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid gap-2">
+                  {botoes.map((b) => (
+                    <button key={b.tipo} type="button" disabled={b.preco === undefined} className="btn-secundario flex justify-between items-center disabled:opacity-40" onClick={() => adicionarSofa(b.tipo)}>
+                      <span>{b.rotulo}</span>
+                      <span className="font-bold">{b.preco !== undefined ? formatarMoeda(b.preco) : "—"}</span>
+                    </button>
+                  ))}
+                </div>
+                <button className="mt-3 text-sm underline text-madeira-700" onClick={() => setEscolhendoSofa(null)}>Cancelar</button>
+              </div>
+            </div>
+          );
+        })()}
+
         {mensagem && (
           <div className={`mb-4 rounded px-3 py-2 text-sm ${mensagem.tipo === "ok" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
             {mensagem.texto}
@@ -561,7 +655,7 @@ export default function OrcamentosPage() {
                         <li key={o.produtoId + idx}>
                           <button type="button" className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm flex justify-between gap-3" onClick={() => adicionarOpcao(o)}>
                             <span>{o.nome}{o.variante ? ` — ${o.variante}` : ""}</span>
-                            <span className="font-semibold whitespace-nowrap">{formatarMoeda(o.preco)}</span>
+                            <span className="font-semibold whitespace-nowrap">{o.sofaConjunto ? `a partir de ${formatarMoeda(o.preco)}` : formatarMoeda(o.preco)}</span>
                           </button>
                         </li>
                       ))}
