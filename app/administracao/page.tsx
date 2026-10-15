@@ -531,7 +531,7 @@ function AbaCaixas() {
 }
 
 /* ==================== ESTOQUE ==================== */
-// Aba Estoque: o estoque normal + uma opção separada com os custos do Depósito.
+// Aba Estoque: o estoque da loja. A opção "Depósito" traz o estoque/cadastro do Depósito e os custos dele.
 function EstoqueComCustos() {
   const [modo, setModo] = useState<"estoque" | "custos">("estoque");
   return (
@@ -540,7 +540,7 @@ function EstoqueComCustos() {
         {(
           [
             ["estoque", "Estoque"],
-            ["custos", "Custos do Depósito"],
+            ["custos", "Depósito"],
           ] as ["estoque" | "custos", string][]
         ).map(([valor, label]) => (
           <button
@@ -554,16 +554,26 @@ function EstoqueComCustos() {
           </button>
         ))}
       </div>
-      {modo === "estoque" ? <AbaEstoque /> : <CustosDeposito />}
+      {modo === "estoque" ? (
+        <AbaEstoque />
+      ) : (
+        <div>
+          {/* estoque e cadastro de produtos do Depósito + os custos do Depósito */}
+          <AbaEstoque modoDeposito />
+          <div className="mt-10 pt-6 border-t border-estofado-100">
+            <CustosDeposito />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function AbaEstoque() {
+function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
   const { lojaAtual } = useLoja();
   const [depositoLojaId, setDepositoLojaId] = useState<string | null>(null);
-  const [usandoDeposito, setUsandoDeposito] = useState(false);
-  const lojaEstoqueEfetiva = usandoDeposito && depositoLojaId ? depositoLojaId : lojaAtual;
+  const usandoDeposito = modoDeposito; // Estoque = loja atual; aba Depósito = estoque do Depósito
+  const lojaEstoqueEfetiva = usandoDeposito ? depositoLojaId : lojaAtual; // na aba Depósito nunca cai na loja atual
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -1546,23 +1556,11 @@ function AbaEstoque() {
         </div>
       )}
 
-      {depositoLojaId && (
-        <>
-          <label className="flex items-center gap-2 mb-1 text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded px-3 py-2 max-w-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={usandoDeposito}
-              onChange={(e) => setUsandoDeposito(e.target.checked)}
-            />
-            📦 Gerenciar o estoque do Depósito (em vez da loja atual)
-          </label>
-          {usandoDeposito && (
-            <p className="text-xs text-madeira-500 mb-3">
-              Mostrando só o que já tem estoque no Depósito. Pra lançar um produto novo lá, busca ele pelo
-              nome — aí aparece mesmo sem estoque ainda.
-            </p>
-          )}
-        </>
+      {modoDeposito && (
+        <p className="text-xs text-madeira-500 mb-3">
+          Estoque do <b>Depósito</b>. Mostra só o que já tem estoque no Depósito. Pra lançar um produto novo lá, busca
+          ele pelo nome — aí aparece mesmo sem estoque ainda.
+        </p>
       )}
 
       {/* ---------------- ADICIONAR PRODUTOS AO ESTOQUE ---------------- */}
