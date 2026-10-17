@@ -48,6 +48,16 @@ const TELAS = [
   { chave: "administracao", label: "Administração" },
   { chave: "ia", label: "Assistente IA" },
 ];
+// Mesma organização do menu lateral — usada na tela de cadastro de usuário.
+const GRUPOS_PERMISSAO: { titulo: string; telas: string[] }[] = [
+  { titulo: "Dashboard", telas: ["painel"] },
+  { titulo: "Cadastros", telas: ["produtos", "clientes"] },
+  { titulo: "Comercial", telas: ["vender", "orcamentos", "encomendas", "notas", "trocas"] },
+  { titulo: "Financeiro", telas: ["caixa", "movimento"] },
+  { titulo: "Suprimentos", telas: ["deposito"] },
+  { titulo: "Fiscal", telas: ["fiscal"] },
+  { titulo: "Configurações", telas: ["administracao", "ia"] },
+];
 const FUNCOES = ["vendedor", "producao", "caixa", "gerente", "admin"] as const;
 
 // Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
@@ -2077,6 +2087,13 @@ function AbaUsuarios() {
     }
   }
 
+  function alternarGrupo(telas: string[]) {
+    const todas = telas.every((t) => telasSelecionadas[t]);
+    const novo = { ...telasSelecionadas };
+    telas.forEach((t) => (novo[t] = !todas));
+    setTelasSelecionadas(novo);
+  }
+
   function alternarTela(tela: string) {
     setTelasSelecionadas({ ...telasSelecionadas, [tela]: !telasSelecionadas[tela] });
   }
@@ -2327,13 +2344,42 @@ function AbaUsuarios() {
             Permissões dessa pessoa — já vieram marcadas conforme o cargo <strong>{funcao}</strong>, ajuste se
             precisar:
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-            {TELAS.map((t) => (
-              <label key={t.chave} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={!!telasSelecionadas[t.chave]} onChange={() => alternarTela(t.chave)} />
-                {t.label}
-              </label>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+            {GRUPOS_PERMISSAO.map((g) => {
+              const marcadas = g.telas.filter((t) => telasSelecionadas[t]).length;
+              const todas = marcadas === g.telas.length;
+              const alguma = marcadas > 0 && !todas;
+              const filhos = g.telas.length > 1 ? g.telas : [];
+              return (
+                <div key={g.titulo} className="card p-3 min-h-[110px]">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-madeira-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={todas}
+                      ref={(el) => {
+                        if (el) el.indeterminate = alguma;
+                      }}
+                      onChange={() => alternarGrupo(g.telas)}
+                    />
+                    {g.titulo}
+                  </label>
+                  {filhos.length > 0 && (
+                    <div className="mt-2 ml-5 space-y-1.5">
+                      {filhos.map((chave) => (
+                        <label key={chave} className="flex items-center gap-2 text-sm text-madeira-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!telasSelecionadas[chave]}
+                            onChange={() => alternarTela(chave)}
+                          />
+                          {TELAS.find((t) => t.chave === chave)?.label ?? chave}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <button className="btn-primario" disabled={salvando} onClick={salvarUsuario}>

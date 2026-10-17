@@ -396,3 +396,9 @@ body {
     background: #0e1410;
   }
 }
+
+/* lista da "Loja ativa" no menu lateral: fundo escuro com letra clara (antes ficava branco no branco) */
+aside select option {
+  background: #111a13;
+  color: #ffffff;
+}
