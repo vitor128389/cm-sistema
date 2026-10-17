@@ -28,7 +28,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* aplica o modo escuro salvo antes da página aparecer (evita piscar branco) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("tema")==="dark")document.documentElement.classList.add("dark")}catch(e){}`,
+          }}
+        />
+      </head>
       <body className={`${fraunces.variable} ${inter.variable} font-sans flex`}>
         <LojaProvider>
           <MenuProvider>

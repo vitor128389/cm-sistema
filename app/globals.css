@@ -197,3 +197,202 @@ body {
     min-height: 40px;
   }
 }
+
+/* ==========================================================================
+   MODO ESCURO — só na tela (a impressão continua sempre clara).
+   A classe "dark" é colocada no <html> pelo botão da barra superior.
+   ========================================================================== */
+@media screen {
+  html.dark {
+    color-scheme: dark;
+  }
+  html.dark body {
+    background-color: #0e1410;
+    color: #e5eae2;
+  }
+  html.dark ::placeholder {
+    color: #7d9374;
+  }
+  html.dark select option {
+    background: #17201a;
+    color: #e5eae2 !important;
+  }
+
+  /* componentes */
+  html.dark .card {
+    background: #17201a;
+    border-color: #2a382c;
+  }
+  html.dark .input-base {
+    background: #101712;
+    border-color: #34463a;
+    color: #e5eae2;
+  }
+  html.dark .input-base:focus {
+    border-color: #6f9a5c;
+    box-shadow: 0 0 0 3px rgba(111, 154, 92, 0.2);
+  }
+  html.dark .btn-primario,
+  html.dark .opcao-btn.ativo {
+    background: #2c5e18;
+    border-color: #2c5e18;
+    color: #fff;
+  }
+  html.dark .btn-primario:hover {
+    background: #35721e;
+  }
+  html.dark .btn-secundario {
+    border-color: #7fa56c;
+    color: #cfe3c6;
+  }
+  html.dark .btn-secundario:hover {
+    background: #1f2d22;
+  }
+  html.dark .opcao-btn {
+    background: #101712;
+    border-color: #34463a;
+    color: #cfe3c6;
+  }
+  html.dark .opcao-btn:hover {
+    border-color: #6f9a5c;
+  }
+  html.dark .tag-encomenda {
+    color: #86d99a;
+  }
+
+  /* fundos */
+  html.dark .bg-white,
+  html.dark .bg-estofado-50 {
+    background-color: #17201a;
+  }
+  html.dark .bg-madeira-50,
+  html.dark .bg-gray-100,
+  html.dark .bg-\[\#E8F1EC\] {
+    background-color: #1d2a20;
+  }
+  html.dark .bg-madeira-100,
+  html.dark .bg-gray-200 {
+    background-color: #243528;
+  }
+  html.dark .bg-madeira-700,
+  html.dark .bg-madeira-800 {
+    background-color: #2c5e18;
+  }
+  html.dark .hover\:bg-madeira-50:hover {
+    background-color: #223226;
+  }
+
+  /* textos */
+  html.dark .text-madeira-900,
+  html.dark .text-black {
+    color: #e8efe5;
+  }
+  html.dark .text-madeira-800 {
+    color: #dbe6d7;
+  }
+  html.dark .text-madeira-700,
+  html.dark .hover\:text-madeira-700:hover {
+    color: #c5d6bf;
+  }
+  html.dark .text-madeira-600,
+  html.dark .text-gray-600,
+  html.dark .text-gray-700 {
+    color: #b3c7ab;
+  }
+  html.dark .text-madeira-500 {
+    color: #96ab8c;
+  }
+  html.dark .text-madeira-400 {
+    color: #87a07b;
+  }
+  html.dark .text-\[\#123C2E\] {
+    color: #cfe3c6;
+  }
+  /* botões de fundo verde mantêm texto branco */
+  html.dark .bg-madeira-700.text-madeira-700,
+  html.dark .bg-madeira-700 .text-madeira-700 {
+    color: #fff;
+  }
+
+  /* bordas */
+  html.dark .border-estofado-50,
+  html.dark .border-estofado-100,
+  html.dark .border-estofado-200,
+  html.dark .border-madeira-100,
+  html.dark .divide-estofado-100 > :not([hidden]) ~ :not([hidden]),
+  html.dark .divide-madeira-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #2a382c;
+  }
+  html.dark .border-madeira-200 {
+    border-color: #34463a;
+  }
+  html.dark .border-madeira-300 {
+    border-color: #46594a;
+  }
+  html.dark .border-madeira-700 {
+    border-color: #7fa56c;
+  }
+
+  /* avisos coloridos (verde / vermelho / amarelo / azul) */
+  html.dark .bg-green-50,
+  html.dark .bg-green-100,
+  html.dark .hover\:bg-green-50:hover {
+    background-color: rgba(34, 197, 94, 0.13);
+  }
+  html.dark .text-green-700,
+  html.dark .text-green-800 {
+    color: #86d99a;
+  }
+  html.dark .border-green-100,
+  html.dark .border-green-200 {
+    border-color: rgba(34, 197, 94, 0.35);
+  }
+  html.dark .bg-red-50,
+  html.dark .bg-red-100,
+  html.dark .hover\:bg-red-50:hover {
+    background-color: rgba(239, 68, 68, 0.14);
+  }
+  html.dark .text-red-600,
+  html.dark .text-red-700,
+  html.dark .text-red-800 {
+    color: #fca5a5;
+  }
+  html.dark .border-red-100,
+  html.dark .border-red-200,
+  html.dark .border-red-300 {
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+  html.dark .bg-amber-50,
+  html.dark .bg-amber-100,
+  html.dark .hover\:bg-amber-50:hover {
+    background-color: rgba(245, 158, 11, 0.14);
+  }
+  html.dark .text-amber-700,
+  html.dark .text-amber-800 {
+    color: #fcd34d;
+  }
+  html.dark .border-amber-200,
+  html.dark .border-amber-300,
+  html.dark .border-amber-400 {
+    border-color: rgba(245, 158, 11, 0.45);
+  }
+  html.dark .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.14);
+  }
+  html.dark .text-blue-700 {
+    color: #93c5fd;
+  }
+
+  /* barra de rolagem discreta */
+  html.dark ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  html.dark ::-webkit-scrollbar-thumb {
+    background: #2f4033;
+    border-radius: 6px;
+  }
+  html.dark ::-webkit-scrollbar-track {
+    background: #0e1410;
+  }
+}

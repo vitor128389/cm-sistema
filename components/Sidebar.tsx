@@ -7,22 +7,23 @@ import { supabase } from "@/lib/supabase";
 import { obterPermissoesEfetivas, type Tela } from "@/lib/permissoes";
 import { useLoja } from "@/contexts/LojaContext";
 import { useMenu } from "@/contexts/MenuContext";
+import Icone, { type NomeIcone } from "@/components/Icones";
 
-const ITENS: { href: string; label: string; tela: Tela }[] = [
-  { href: "/", label: "Painel", tela: "painel" },
-  { href: "/vender", label: "Vender", tela: "vender" },
-  { href: "/orcamentos", label: "Orçamentos", tela: "orcamentos" },
-  { href: "/produtos", label: "Produtos", tela: "produtos" },
-  { href: "/clientes", label: "Clientes", tela: "clientes" },
-  { href: "/encomendas", label: "Encomendas", tela: "encomendas" },
-  { href: "/notas", label: "Notas", tela: "notas" },
-  { href: "/fiscal", label: "Fiscal", tela: "fiscal" },
-  { href: "/trocas", label: "Trocas", tela: "trocas" },
-  { href: "/caixa", label: "Caixa", tela: "caixa" },
-  { href: "/movimento", label: "Movimento", tela: "movimento" },
-  { href: "/deposito", label: "Depósito", tela: "deposito" },
-  { href: "/administracao", label: "Administração", tela: "administracao" },
-  { href: "/ia", label: "Assistente IA", tela: "ia" },
+const ITENS: { href: string; label: string; tela: Tela; icone: NomeIcone }[] = [
+  { href: "/", label: "Painel", tela: "painel", icone: "painel" },
+  { href: "/vender", label: "Vender", tela: "vender", icone: "vender" },
+  { href: "/orcamentos", label: "Orçamentos", tela: "orcamentos", icone: "orcamentos" },
+  { href: "/produtos", label: "Produtos", tela: "produtos", icone: "produtos" },
+  { href: "/clientes", label: "Clientes", tela: "clientes", icone: "clientes" },
+  { href: "/encomendas", label: "Encomendas", tela: "encomendas", icone: "encomendas" },
+  { href: "/notas", label: "Notas", tela: "notas", icone: "notas" },
+  { href: "/fiscal", label: "Fiscal", tela: "fiscal", icone: "fiscal" },
+  { href: "/trocas", label: "Trocas", tela: "trocas", icone: "trocas" },
+  { href: "/caixa", label: "Caixa", tela: "caixa", icone: "caixa" },
+  { href: "/movimento", label: "Movimento", tela: "movimento", icone: "movimento" },
+  { href: "/deposito", label: "Depósito", tela: "deposito", icone: "deposito" },
+  { href: "/administracao", label: "Administração", tela: "administracao", icone: "administracao" },
+  { href: "/ia", label: "Assistente IA", tela: "ia", icone: "ia" },
 ];
 
 export default function Sidebar() {
@@ -96,7 +97,7 @@ export default function Sidebar() {
                 onChange={(e) => setLojaAtual(e.target.value || null)}
               >
                 {lojas.map((l) => (
-                  <option key={l.id} value={l.id} className="text-black">
+                  <option key={l.id} value={l.id}>
                     {l.nome}
                   </option>
                 ))}
@@ -115,13 +116,14 @@ export default function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={fecharMenu}
-                className={`block px-3 py-2 rounded text-sm transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
                   ativo
                     ? "bg-[#204411] text-white"
                     : "text-madeira-200 hover:bg-[#204411]/50 hover:text-white"
                 }`}
               >
-                {item.label}
+                <Icone nome={item.icone} tamanho={18} className={ativo ? "opacity-100" : "opacity-80"} />
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
@@ -139,8 +141,9 @@ export default function Sidebar() {
           )}
           <button
             onClick={sair}
-            className="text-xs text-madeira-300 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-xs text-madeira-300 hover:text-white transition-colors"
           >
+            <Icone nome="sair" tamanho={14} />
             Sair
           </button>
         </div>

@@ -5,10 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useMenu } from "@/contexts/MenuContext";
 import NotificacoesSino from "@/components/NotificacoesSino";
+import BotaoTema from "@/components/BotaoTema";
 
 const NOMES_PAGINA: Record<string, string> = {
   "/": "Painel",
   "/vender": "Vender",
+  "/orcamentos": "Orçamentos",
+  "/fiscal": "Fiscal",
+  "/trocas": "Trocas",
+  "/deposito": "Depósito",
+  "/ia": "Assistente IA",
   "/produtos": "Produtos",
   "/clientes": "Clientes",
   "/encomendas": "Encomendas",
@@ -83,6 +89,7 @@ export default function TopBar() {
             Bem-vindo, <strong className="text-madeira-900">{nome}</strong>
           </span>
         )}
+        <BotaoTema />
         <NotificacoesSino />
         <button
           type="button"
