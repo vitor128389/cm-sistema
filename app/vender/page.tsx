@@ -748,8 +748,8 @@ function VenderPageConteudo() {
     return TECIDOS;
   }
 
-  function nomeVarianteConjunto(peca: "2" | "3", bracosOverride?: boolean): string {
-    return `${tecidoSel} — ${peca} Lugares${sufixoBracos(bracosOverride)}`;
+  function nomeVarianteConjunto(peca: "2" | "3", bracosOverride?: boolean, tecidoOverride?: string): string {
+    return `${tecidoOverride ?? tecidoSel} — ${peca} Lugares${sufixoBracos(bracosOverride)}`;
   }
 
   function estoquePecaConjunto(peca: "2" | "3", bracosOverride?: boolean): number {
@@ -760,21 +760,26 @@ function VenderPageConteudo() {
     return v?.estoque || 0;
   }
 
-  function precoPecaConjunto(peca: "2" | "3", bracosOverride?: boolean): number {
+  function precoPecaConjunto(peca: "2" | "3", bracosOverride?: boolean, tecidoOverride?: string): number {
     if (!produtoSelecionado) return 0;
     const v = produtoSelecionado.produto_variantes.find(
-      (vv) => vv.nome_variante === nomeVarianteConjunto(peca, bracosOverride)
+      (vv) => vv.nome_variante === nomeVarianteConjunto(peca, bracosOverride, tecidoOverride)
     );
     return v?.preco_avista || 0;
   }
 
-  function atualizarValorConjunto(peca: "" | "2" | "3" | "conjunto", bracosOverride?: boolean) {
+  // tecidoOverride: usado no mesmo clique que troca o tecido — o estado
+  // tecidoSel ainda não atualizou, então sem isso o preço saía do tecido anterior.
+  function atualizarValorConjunto(peca: "" | "2" | "3" | "conjunto", bracosOverride?: boolean, tecidoOverride?: string) {
     if (peca === "2" || peca === "3") {
-      setValorUnitario(Math.round(precoPecaConjunto(peca, bracosOverride) * 1.1 * 100) / 100);
+      setValorUnitario(Math.round(precoPecaConjunto(peca, bracosOverride, tecidoOverride) * 1.1 * 100) / 100);
     } else if (peca === "conjunto") {
       setValorUnitario(
-        Math.round((precoPecaConjunto("2", bracosOverride) + precoPecaConjunto("3", bracosOverride)) * 1.1 * 100) /
-          100
+        Math.round(
+          (precoPecaConjunto("2", bracosOverride, tecidoOverride) + precoPecaConjunto("3", bracosOverride, tecidoOverride)) *
+            1.1 *
+            100
+        ) / 100
       );
     } else {
       setValorUnitario(0);
@@ -2098,7 +2103,7 @@ function VenderPageConteudo() {
                           onClick={() => {
                             setTecidoSel(t);
                             if (ehConjuntoSofa()) {
-                              atualizarValorConjunto(pecaSel);
+                              atualizarValorConjunto(pecaSel, undefined, t);
                             } else {
                               atualizarValorPelaVariante(produtoSelecionado, `${t}${sufixoBracos()}`);
                             }
