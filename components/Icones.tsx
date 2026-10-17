@@ -18,7 +18,8 @@ export type NomeIcone =
   | "ia"
   | "lua"
   | "sol"
-  | "sair";
+  | "sair"
+  | "seta";
 
 const CAMINHOS: Record<NomeIcone, React.ReactNode> = {
   painel: (
@@ -138,6 +139,7 @@ const CAMINHOS: Record<NomeIcone, React.ReactNode> = {
       <path d="m19.07 4.93-1.41 1.41" />
     </>
   ),
+  seta: <polyline points="6 9 12 15 18 9" />,
   sair: (
     <>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

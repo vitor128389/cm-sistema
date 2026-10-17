@@ -9,21 +9,63 @@ import { useLoja } from "@/contexts/LojaContext";
 import { useMenu } from "@/contexts/MenuContext";
 import Icone, { type NomeIcone } from "@/components/Icones";
 
-const ITENS: { href: string; label: string; tela: Tela; icone: NomeIcone }[] = [
-  { href: "/", label: "Painel", tela: "painel", icone: "painel" },
-  { href: "/vender", label: "Vender", tela: "vender", icone: "vender" },
-  { href: "/orcamentos", label: "Orçamentos", tela: "orcamentos", icone: "orcamentos" },
-  { href: "/produtos", label: "Produtos", tela: "produtos", icone: "produtos" },
-  { href: "/clientes", label: "Clientes", tela: "clientes", icone: "clientes" },
-  { href: "/encomendas", label: "Encomendas", tela: "encomendas", icone: "encomendas" },
-  { href: "/notas", label: "Notas", tela: "notas", icone: "notas" },
-  { href: "/fiscal", label: "Fiscal", tela: "fiscal", icone: "fiscal" },
-  { href: "/trocas", label: "Trocas", tela: "trocas", icone: "trocas" },
-  { href: "/caixa", label: "Caixa", tela: "caixa", icone: "caixa" },
-  { href: "/movimento", label: "Movimento", tela: "movimento", icone: "movimento" },
-  { href: "/deposito", label: "Depósito", tela: "deposito", icone: "deposito" },
-  { href: "/administracao", label: "Administração", tela: "administracao", icone: "administracao" },
-  { href: "/ia", label: "Assistente IA", tela: "ia", icone: "ia" },
+type Item = { href: string; label: string; tela: Tela };
+type Grupo = { id: string; label: string; icone: NomeIcone; itens: Item[] };
+
+// Painel fica solto no topo; o resto é organizado em grupos que abrem/fecham.
+const PAINEL: Item = { href: "/", label: "Painel", tela: "painel" };
+const GRUPOS: Grupo[] = [
+  {
+    id: "cadastros",
+    label: "Cadastros",
+    icone: "clientes",
+    itens: [
+      { href: "/produtos", label: "Produtos", tela: "produtos" },
+      { href: "/clientes", label: "Clientes", tela: "clientes" },
+    ],
+  },
+  {
+    id: "comercial",
+    label: "Comercial",
+    icone: "vender",
+    itens: [
+      { href: "/vender", label: "Vender", tela: "vender" },
+      { href: "/orcamentos", label: "Orçamentos", tela: "orcamentos" },
+      { href: "/encomendas", label: "Encomendas", tela: "encomendas" },
+      { href: "/notas", label: "Notas", tela: "notas" },
+      { href: "/trocas", label: "Trocas", tela: "trocas" },
+    ],
+  },
+  {
+    id: "financeiro",
+    label: "Financeiro",
+    icone: "caixa",
+    itens: [
+      { href: "/caixa", label: "Caixa", tela: "caixa" },
+      { href: "/movimento", label: "Movimento", tela: "movimento" },
+    ],
+  },
+  {
+    id: "suprimentos",
+    label: "Suprimentos",
+    icone: "deposito",
+    itens: [{ href: "/deposito", label: "Depósito", tela: "deposito" }],
+  },
+  {
+    id: "fiscal",
+    label: "Fiscal",
+    icone: "fiscal",
+    itens: [{ href: "/fiscal", label: "Notas fiscais (NFC-e / NF-e)", tela: "fiscal" }],
+  },
+  {
+    id: "config",
+    label: "Configurações",
+    icone: "administracao",
+    itens: [
+      { href: "/administracao", label: "Administração", tela: "administracao" },
+      { href: "/ia", label: "Assistente IA", tela: "ia" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -34,6 +76,8 @@ export default function Sidebar() {
   const [permissoes, setPermissoes] = useState<Record<Tela, boolean> | null>(null);
   const { souAdmin, lojas, lojaAtual, setLojaAtual } = useLoja();
   const { menuAberto, fecharMenu } = useMenu();
+  const [fechados, setFechados] = useState<Record<string, boolean>>({});
+  const [abertosManual, setAbertosManual] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -67,10 +111,8 @@ export default function Sidebar() {
 
   if (pathname === "/login") return null;
 
-  const itensVisiveis = ITENS.filter((item) => {
-    if (!permissoes) return false; // ainda carregando — não mostra nada de errado por um instante
-    return permissoes[item.tela];
-  });
+  const podeVer = (item: Item) => !!permissoes && permissoes[item.tela];
+  const rotaAtiva = (href: string) => (href === "/" ? pathname === "/" : !!pathname?.startsWith(href));
 
   return (
     <>
@@ -106,25 +148,68 @@ export default function Sidebar() {
           </div>
         )}
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          {itensVisiveis.map((item) => {
-            const ativo =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname?.startsWith(item.href);
+          {podeVer(PAINEL) && (
+            <Link
+              href={PAINEL.href}
+              onClick={fecharMenu}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                rotaAtiva("/") ? "bg-[#204411] text-white" : "text-madeira-200 hover:bg-[#204411]/50 hover:text-white"
+              }`}
+            >
+              <Icone nome="painel" tamanho={18} />
+              <span>Painel</span>
+            </Link>
+          )}
+          {GRUPOS.map((g) => {
+            const visiveis = g.itens.filter(podeVer);
+            if (visiveis.length === 0) return null;
+            const temAtivo = visiveis.some((i) => rotaAtiva(i.href));
+            // aberto se o usuário abriu, ou se a página atual é daqui (a menos que ele tenha fechado)
+            const aberto = fechados[g.id] ? false : abertosManual[g.id] || temAtivo;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={fecharMenu}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
-                  ativo
-                    ? "bg-[#204411] text-white"
-                    : "text-madeira-200 hover:bg-[#204411]/50 hover:text-white"
-                }`}
-              >
-                <Icone nome={item.icone} tamanho={18} className={ativo ? "opacity-100" : "opacity-80"} />
-                <span className="truncate">{item.label}</span>
-              </Link>
+              <div key={g.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (aberto) {
+                      setFechados((f) => ({ ...f, [g.id]: true }));
+                      setAbertosManual((a) => ({ ...a, [g.id]: false }));
+                    } else {
+                      setFechados((f) => ({ ...f, [g.id]: false }));
+                      setAbertosManual((a) => ({ ...a, [g.id]: true }));
+                    }
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                    temAtivo ? "text-white" : "text-madeira-200 hover:bg-[#204411]/50 hover:text-white"
+                  }`}
+                  aria-expanded={aberto}
+                >
+                  <Icone nome={g.icone} tamanho={18} />
+                  <span className="flex-1 text-left truncate">{g.label}</span>
+                  <Icone nome="seta" tamanho={14} className={`transition-transform ${aberto ? "rotate-180" : ""}`} />
+                </button>
+                {aberto && (
+                  <div className="ml-[21px] mt-0.5 mb-1 pl-3 border-l border-white/15 space-y-0.5">
+                    {visiveis.map((item) => {
+                      const ativo = rotaAtiva(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={fecharMenu}
+                          className={`block px-3 py-1.5 rounded-md text-[13px] transition-colors ${
+                            ativo
+                              ? "bg-[#204411] text-white"
+                              : "text-madeira-300 hover:bg-[#204411]/50 hover:text-white"
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
