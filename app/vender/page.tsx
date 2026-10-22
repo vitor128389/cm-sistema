@@ -148,6 +148,12 @@ function VenderPageConteudo() {
   const [valorUnitario, setValorUnitario] = useState(0);
   const [observacaoItem, setObservacaoItem] = useState("");
   const [descontoItem, setDescontoItem] = useState("");
+  // Promoção dos estofados (configurada em Administração > Promoção): vale
+  // pras 3 lojas e aplica o desconto automático no item. Se a pessoa mexer
+  // no desconto na mão (ou estiver editando um item do carrinho), a
+  // promoção para de sobrescrever.
+  const [promo, setPromo] = useState<{ ativo: boolean; percentual: number; nome: string; categorias: string[] } | null>(null);
+  const descontoManualRef = useRef(false);
   const [motivoDescontoItem, setMotivoDescontoItem] = useState("");
   const [descontoVendaGeral, setDescontoVendaGeral] = useState("");
   const [motivoDescontoVendaGeral, setMotivoDescontoVendaGeral] = useState("");
@@ -795,6 +801,7 @@ function VenderPageConteudo() {
   }
 
   function selecionarProduto(p: ProdutoComVariantes) {
+    descontoManualRef.current = false;
     setProdutoSelecionado(p);
     setBuscaProduto(p.nome);
     setDropdownAberto(false);
@@ -908,6 +915,30 @@ function VenderPageConteudo() {
     const usar = bracosOverride !== undefined ? bracosOverride : bracosAlmofada;
     return usar ? " — Com Braços" : " — Sem Braços";
   }
+
+  useEffect(() => {
+    supabase
+      .from("promocao_config")
+      .select("ativo, percentual, nome, categorias")
+      .eq("id", 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setPromo({ ...data, percentual: Number(data.percentual) });
+      });
+  }, []);
+
+  // Aplica o desconto da promoção automaticamente nos estofados escolhidos
+  // lá na Administração. O valor entra no mesmo campo de desconto do item,
+  // então o resto do fluxo (a prazo, comprovante, relatório) não muda.
+  useEffect(() => {
+    if (!promo?.ativo || promo.percentual <= 0 || !produtoSelecionado || descontoManualRef.current) return;
+    if (!promo.categorias.includes(produtoSelecionado.categoria)) return;
+    const base = valorAVistaAtual() * quantidade;
+    if (base <= 0) return;
+    setDescontoItem(String(Math.round(base * promo.percentual) / 100));
+    setMotivoDescontoItem(`${promo.nome} ${promo.percentual}%`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promo, produtoSelecionado, tecidoSel, espessuraSel, pecaSel, bracosAlmofada, quantidade]);
 
   function valorAVistaAtual(): number {
     if (!produtoSelecionado) return 0;
@@ -1176,6 +1207,7 @@ function VenderPageConteudo() {
     }
 
     selecionarProduto(produto);
+    descontoManualRef.current = true;
     setQuantidade(item.quantidade);
     setTipoEntrega(item.tipoEntrega);
     setObservacaoItem(item.observacao || "");
@@ -2433,7 +2465,10 @@ function VenderPageConteudo() {
                       className="input-base"
                       type="number"
                       value={descontoItem}
-                      onChange={(e) => setDescontoItem(e.target.value)}
+                      onChange={(e) => {
+                        descontoManualRef.current = true;
+                        setDescontoItem(e.target.value);
+                      }}
                       placeholder="0,00"
                     />
                   </label>

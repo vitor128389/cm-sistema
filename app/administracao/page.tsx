@@ -30,6 +30,7 @@ type Aba =
   | "ia"
   | "categorias"
   | "rotas"
+  | "promocao"
   | "cancelar";
 
 const TELAS = [
@@ -138,6 +139,7 @@ export default function AdministracaoPage() {
             ["ia", "IA"],
             ["categorias", "Categorias"],
             ["rotas", "Rotas de Entrega"],
+            ["promocao", "Promoção"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -164,6 +166,7 @@ export default function AdministracaoPage() {
       {aba === "ia" && <AbaIA />}
       {aba === "categorias" && <AbaCategorias />}
       {aba === "rotas" && <AbaRotas />}
+      {aba === "promocao" && <AbaPromocao />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -5469,6 +5472,130 @@ function AbaCancelarTroca() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ==================== PROMOÇÃO DOS ESTOFADOS ==================== */
+function AbaPromocao() {
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [ativo, setAtivo] = useState(false);
+  const [percentual, setPercentual] = useState("20");
+  const [nome, setNome] = useState("Promoção");
+  const [categoriasSel, setCategoriasSel] = useState<string[]>([]);
+  const [categoriasTecido, setCategoriasTecido] = useState<string[]>([]);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const [{ data: cfg }, { data: cats }] = await Promise.all([
+        supabase.from("promocao_config").select("*").eq("id", 1).maybeSingle(),
+        supabase.from("categorias_config").select("nome, tipo").order("nome"),
+      ]);
+      if (cfg) {
+        setAtivo(cfg.ativo);
+        setPercentual(String(cfg.percentual));
+        setNome(cfg.nome);
+        setCategoriasSel(cfg.categorias || []);
+      }
+      // "Estofados" = as categorias que vendem por tecido (sofás, poltronas, cabeceiras, puffs...)
+      setCategoriasTecido((cats || []).filter((c) => c.tipo === "tecido").map((c) => c.nome));
+      setCarregando(false);
+    })();
+  }, []);
+
+  function alternarCategoria(nomeCat: string) {
+    setCategoriasSel((atual) =>
+      atual.includes(nomeCat) ? atual.filter((c) => c !== nomeCat) : [...atual, nomeCat]
+    );
+  }
+
+  async function salvar() {
+    const pct = parseFloat(percentual.replace(",", "."));
+    if (isNaN(pct) || pct < 0 || pct > 100) {
+      alert("Digite uma porcentagem entre 0 e 100.");
+      return;
+    }
+    if (ativo && categoriasSel.length === 0) {
+      alert("Marque pelo menos uma categoria de estofado.");
+      return;
+    }
+    setSalvando(true);
+    const { error } = await supabase
+      .from("promocao_config")
+      .update({
+        ativo,
+        percentual: pct,
+        nome: nome.trim() || "Promoção",
+        categorias: categoriasSel,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq("id", 1);
+    setSalvando(false);
+    if (error) {
+      alert("Erro ao salvar (só administrador pode alterar): " + error.message);
+      return;
+    }
+    registrarAuditoria({
+      categoria: "Configurações",
+      acao: "alteracao",
+      registroTipo: "promocao",
+      registroNome: nome.trim() || "Promoção",
+      descricao: `Promoção dos estofados ${ativo ? `ATIVADA em ${pct}%` : "DESATIVADA"} (${categoriasSel.join(", ") || "nenhuma categoria"})`,
+    });
+    setMsg("Salvo! Já vale nas 3 lojas — quem estiver com a tela de vender aberta precisa recarregar a página.");
+    setTimeout(() => setMsg(""), 6000);
+  }
+
+  if (carregando) return <p className="text-madeira-500">Carregando...</p>;
+
+  return (
+    <div className="max-w-xl">
+      <h2 className="font-display text-xl text-madeira-900 mb-1">Promoção dos estofados</h2>
+      <p className="text-sm text-madeira-600 mb-5">
+        Quando ligada, o desconto entra sozinho na hora de vender os estofados marcados abaixo, em todas as lojas
+        (o catálogo é um só). O vendedor ainda pode ajustar o desconto na mão. Só administrador altera.
+      </p>
+
+      <label className="flex items-center gap-3 mb-5 cursor-pointer">
+        <input type="checkbox" className="w-5 h-5" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} />
+        <span className={`font-medium ${ativo ? "text-green-700" : "text-madeira-600"}`}>
+          {ativo ? "Promoção LIGADA" : "Promoção desligada"}
+        </span>
+      </label>
+
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        <label className="block">
+          <span className="text-xs text-madeira-600 mb-1 block">Desconto (%)</span>
+          <input
+            className="input-base"
+            inputMode="decimal"
+            value={percentual}
+            onChange={(e) => setPercentual(e.target.value)}
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs text-madeira-600 mb-1 block">Nome (aparece como motivo do desconto)</span>
+          <input className="input-base" value={nome} onChange={(e) => setNome(e.target.value)} />
+        </label>
+      </div>
+
+      <p className="text-xs text-madeira-600 mb-2">Categorias que entram na promoção:</p>
+      <div className="grid sm:grid-cols-2 gap-2 mb-5">
+        {categoriasTecido.map((c) => (
+          <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={categoriasSel.includes(c)} onChange={() => alternarCategoria(c)} />
+            {c}
+          </label>
+        ))}
+      </div>
+
+      <button className="btn-primario" onClick={salvar} disabled={salvando}>
+        {salvando ? "Salvando..." : "Salvar promoção"}
+      </button>
+      {msg && <p className="text-sm text-green-700 mt-3">{msg}</p>}
     </div>
   );
 }
