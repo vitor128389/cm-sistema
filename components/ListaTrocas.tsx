@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
@@ -18,6 +19,7 @@ export default function ListaTrocas() {
   const [trocas, setTrocas] = useState<TrocaGrupo[]>([]);
   const [busca, setBusca] = useState("");
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
+  const [itensRestantes, setItensRestantes] = useState<ItemRestante[] | undefined>(undefined);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
 
@@ -54,7 +56,9 @@ export default function ListaTrocas() {
 
   async function imprimirTroca(t: TrocaGrupo, formato: "a4" | "cupom88" = "a4") {
     setFormatoImpressao(formato);
-    setTrocaImprimindo(t);
+    const ctx = await carregarContextoTroca(supabase, t);
+    setTrocaImprimindo(ctx.troca);
+    setItensRestantes(ctx.restantes);
     if (t.loja_id) {
       const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
       setLojaImprimindo(data as LojaCompleta | null);
@@ -239,6 +243,7 @@ export default function ListaTrocas() {
             rotaNome={trocaImprimindo.rota_nome ?? null}
             rotaCor={trocaImprimindo.rota_cor ?? null}
             criadoEm={trocaImprimindo.criado_em}
+              itensRestantes={itensRestantes}
           />
           );
         })()}

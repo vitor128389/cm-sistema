@@ -1,9 +1,17 @@
 import { formatarMoeda } from "@/lib/format";
+import type { ItemRestante } from "@/lib/trocaContexto";
 import type { LojaCompleta, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
 
 const COR_VERDE_ESCURO = "#123C2E";
 const COR_VERDE_FUNDO = "#E8F1EC";
 const COR_LARANJA = "#C2660D";
+const COR_AZUL = "#1D4ED8";
+
+function origemInfo(i: { tipo_entrega?: string | null; origem_deposito?: boolean | null }) {
+  if (i.tipo_entrega === "encomenda") return { texto: "ENCOMENDA", cor: COR_LARANJA };
+  if (i.origem_deposito) return { texto: "DEPÓSITO", cor: COR_AZUL };
+  return { texto: "PRONTA ENTREGA", cor: COR_VERDE_ESCURO };
+}
 
 interface ClienteResumo {
   nome: string;
@@ -32,6 +40,7 @@ export interface PropsComprovanteTroca {
   rotaNome?: string | null;
   rotaCor?: string | null;
   criadoEm?: string | null;
+  itensRestantes?: ItemRestante[];
 }
 
 // Sofá "2 e 3 lugares" trocado como conjunto é salvo em 2 linhas (peça de 2 e
@@ -126,6 +135,7 @@ function ViaTroca({
   rotaNome,
   rotaCor,
   criadoEm,
+  itensRestantes,
   rotulo,
 }: PropsComprovanteTroca & { rotulo: string }) {
   const enderecoLoja = enderecoLojaTexto(loja);
@@ -194,6 +204,8 @@ function ViaTroca({
               <td>
                 {d.produto_nome}
                 {d.variante ? ` — ${d.variante}` : ""}
+                {" — "}
+                <span style={{ color: origemInfo(d).cor, fontWeight: 700 }}>{origemInfo(d).texto}</span>
               </td>
               <td>{d.quantidade}</td>
               <td>{formatarMoeda(valorItem(d, d.quantidade))}</td>
@@ -237,9 +249,7 @@ function ViaTroca({
                     </span>
                   )}
                   {" — "}
-                  <span style={{ color: n.tipo_entrega === "encomenda" ? COR_LARANJA : COR_VERDE_ESCURO, fontWeight: 700 }}>
-                    {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : n.origem_deposito ? "PRONTA ENTREGA · DEPÓSITO" : "PRONTA ENTREGA"}
-                  </span>
+                  <span style={{ color: origemInfo(n).cor, fontWeight: 700 }}>{origemInfo(n).texto}</span>
                 </td>
                 <td>{n.quantidade}</td>
                 <td>{formatarMoeda(valorItem(n, n.quantidade))}</td>
@@ -272,6 +282,35 @@ function ViaTroca({
           <strong>Valor devolvido ao cliente: {formatarMoeda(Math.abs(diferenca))}</strong>
           {formaPagamentoDiferenca ? ` — Forma: ${formaPagamentoDiferenca}` : ""}
         </p>
+      )}
+
+      {itensRestantes && (
+        <>
+          <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "8px 0 2px" }}>
+            SITUAÇÃO FINAL DO PEDIDO (o que o cliente fica com)
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Qtd.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...itensRestantes, ...novosExibir].map((i, idx) => (
+                <tr key={`${i.produto_nome}-${idx}`}>
+                  <td>
+                    {i.produto_nome}
+                    {i.variante ? ` — ${i.variante}` : ""}
+                    {" — "}
+                    <span style={{ color: origemInfo(i).cor, fontWeight: 700 }}>{origemInfo(i).texto}</span>
+                  </td>
+                  <td>{i.quantidade}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
 
       <div style={{ marginTop: 10 }}>

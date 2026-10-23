@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
@@ -107,6 +108,7 @@ export default function NotasPage() {
   const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
+  const [itensRestantes, setItensRestantes] = useState<ItemRestante[] | undefined>(undefined);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
   const [mensagemSelecionada, setMensagemSelecionada] = useState<Record<string, string>>({});
@@ -355,7 +357,9 @@ export default function NotasPage() {
 
   async function imprimirTroca(t: TrocaGrupo, formato: "a4" | "cupom88" = "a4") {
     setNotaImprimindo(null);
-    setTrocaImprimindo(t);
+    const ctx = await carregarContextoTroca(supabase, t);
+    setTrocaImprimindo(ctx.troca);
+    setItensRestantes(ctx.restantes);
     setFormatoImpressao(formato);
     if (t.loja_id) {
       const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
@@ -847,6 +851,7 @@ export default function NotasPage() {
               rotaNome={trocaImprimindo.rota_nome ?? null}
               rotaCor={trocaImprimindo.rota_cor ?? null}
               criadoEm={trocaImprimindo.criado_em}
+              itensRestantes={itensRestantes}
             />
           );
         })()}

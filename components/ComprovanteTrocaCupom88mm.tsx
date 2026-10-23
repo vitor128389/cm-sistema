@@ -19,6 +19,12 @@ function Linha({ esquerda, direita, tamanho = 15 }: { esquerda: string; direita:
   );
 }
 
+function rotulo(i: { tipo_entrega?: string | null; origem_deposito?: boolean | null }) {
+  if (i.tipo_entrega === "encomenda") return "[ENCOMENDA]";
+  if (i.origem_deposito) return "[DEPÓSITO]";
+  return "[PRONTA ENTREGA]";
+}
+
 export default function ComprovanteTrocaCupom88mm({
   numeroTroca,
   numeroPedidoOriginal,
@@ -33,6 +39,7 @@ export default function ComprovanteTrocaCupom88mm({
   loja,
   rotaNome,
   criadoEm,
+  itensRestantes,
 }: PropsComprovanteTroca) {
   const devolvidosExibir = mesclarConjuntosSofa(devolvidos);
   const novosExibir = mesclarConjuntosSofa(novos);
@@ -96,6 +103,8 @@ export default function ComprovanteTrocaCupom88mm({
           <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
             {d.produto_nome}
             {d.variante ? ` — ${d.variante}` : ""}
+            <br />
+            <span style={{ fontSize: 12, fontWeight: 900 }}>{rotulo(d)}</span>
           </span>
           <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {d.quantidade}</span>
           <span style={{ width: "22mm", textAlign: "right", whiteSpace: "nowrap" }}>
@@ -113,7 +122,7 @@ export default function ComprovanteTrocaCupom88mm({
             {n.variante ? ` — ${n.variante}` : ""}
             <br />
             <span style={{ fontSize: 12, fontWeight: 900 }}>
-              {n.tipo_entrega === "encomenda" ? "[ENCOMENDA]" : n.origem_deposito ? "[PRONTA ENTREGA · DEPÓSITO]" : "[PRONTA ENTREGA]"}
+              {rotulo(n)}
             </span>
           </span>
           <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {n.quantidade}</span>
@@ -123,6 +132,24 @@ export default function ComprovanteTrocaCupom88mm({
         </div>
       ))}
       <Divisor />
+
+      {itensRestantes && (
+        <>
+          {tituloLista("SITUAÇÃO FINAL DO PEDIDO")}
+          {[...itensRestantes, ...novosExibir].map((i, idx) => (
+            <div key={`${i.produto_nome}-${idx}`} style={{ display: "flex", alignItems: "flex-start", fontSize: 14, margin: "4px 0" }}>
+              <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
+                {i.produto_nome}
+                {i.variante ? ` — ${i.variante}` : ""}
+                <br />
+                <span style={{ fontSize: 12, fontWeight: 900 }}>{rotulo(i)}</span>
+              </span>
+              <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {i.quantidade}</span>
+            </div>
+          ))}
+          <Divisor />
+        </>
+      )}
 
       <p style={p({ fontSize: 12 })}>Cálculo feito com preço {tipoPreco === "avista" ? "à vista" : "a prazo"}.</p>
 

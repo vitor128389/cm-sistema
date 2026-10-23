@@ -235,6 +235,8 @@ export interface TrocaItemDevolvido {
   quantidade: number;
   valor_unitario_avista: number;
   valor_unitario_aprazo: number;
+  tipo_entrega?: string | null;
+  origem_deposito?: boolean | null;
 }
 
 export interface TrocaItemNovo {
