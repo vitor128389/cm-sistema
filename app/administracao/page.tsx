@@ -5501,7 +5501,7 @@ function AbaPromocao() {
         setCategoriasSel(cfg.categorias || []);
       }
       // "Estofados" = as categorias que vendem por tecido (sofás, poltronas, cabeceiras, puffs...)
-      setCategoriasTecido((cats || []).filter((c) => c.tipo === "tecido").map((c) => c.nome));
+      setCategoriasTecido((cats || []).filter((c) => c.tipo === "tecido" || c.nome === "Cama e Colchões").map((c) => c.nome));
       setCarregando(false);
     })();
   }, []);
