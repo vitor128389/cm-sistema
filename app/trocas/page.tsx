@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -10,12 +10,14 @@ import { registrarAuditoria } from "@/lib/auditoria";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import ListaTrocas from "@/components/ListaTrocas";
+import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import type {
   Venda,
   VendaItem,
   ProdutoComVariantes,
   LojaCompleta,
   TrocaItemDevolvido,
+  TrocaGrupo,
   TrocaItemNovo,
   TecidoCor,
 } from "@/types";
@@ -104,6 +106,7 @@ export default function TrocasPage() {
   const [parcelasDiferenca, setParcelasDiferenca] = useState(1);
   const [salvando, setSalvando] = useState(false);
 
+  const [ctxConcluida, setCtxConcluida] = useState<{ restantes: ItemRestante[]; devolvidos: TrocaItemDevolvido[] } | null>(null);
   const [concluida, setConcluida] = useState<{
     numeroTroca: number;
     numeroPedidoOriginal: number;
@@ -119,6 +122,24 @@ export default function TrocasPage() {
   } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
+
+  useEffect(() => {
+    if (!concluida || !lojaAtual) {
+      setCtxConcluida(null);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("trocas_grupo")
+        .select("*, trocas_devolvidos(*), trocas_novos(*)")
+        .eq("numero_troca", concluida.numeroTroca)
+        .eq("loja_id", lojaAtual)
+        .maybeSingle();
+      if (!data) return;
+      const ctx = await carregarContextoTroca(supabase, data as TrocaGrupo);
+      setCtxConcluida({ restantes: ctx.restantes, devolvidos: ctx.troca.trocas_devolvidos || [] });
+    })();
+  }, [concluida, lojaAtual]);
 
   async function buscarPedido() {
     if (!buscaPedido.trim()) return;
@@ -703,8 +724,9 @@ export default function TrocasPage() {
                 numeroTroca: concluida.numeroTroca,
                 numeroPedidoOriginal: concluida.numeroPedidoOriginal,
                 cliente: concluida.cliente,
-                devolvidos: concluida.devolvidos,
+                devolvidos: ctxConcluida?.devolvidos ?? concluida.devolvidos,
                 novos: concluida.novos,
+                itensRestantes: ctxConcluida?.restantes,
                 tipoPreco,
                 diferenca: concluida.diferenca,
                 diferencaCobrada: concluida.diferencaCobrada,
