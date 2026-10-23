@@ -5,7 +5,7 @@ import type { LojaCompleta, TrocaItemDevolvido, TrocaItemNovo } from "@/types";
 const COR_VERDE_ESCURO = "#123C2E";
 const COR_VERDE_FUNDO = "#E8F1EC";
 const COR_LARANJA = "#C2660D";
-const COR_AZUL = "#1D4ED8";
+const COR_AZUL = "#1D4E7A";
 
 function origemInfo(i: { tipo_entrega?: string | null; origem_deposito?: boolean | null }) {
   if (i.tipo_entrega === "encomenda") return { texto: "ENCOMENDA", cor: COR_LARANJA };
@@ -142,6 +142,13 @@ function ViaTroca({
   const enderecoCliente = enderecoClienteTexto(cliente);
   const devolvidosExibir = mesclarConjuntosSofa(devolvidos);
   const novosExibir = mesclarConjuntosSofa(novos);
+  const tagOrigem = (i: { tipo_entrega?: string | null; origem_deposito?: boolean | null }) => {
+    const o = origemInfo(i);
+    const viaLoja = rotulo === "Via da loja";
+    return (
+      <span style={{ color: viaLoja ? o.cor : undefined, fontWeight: viaLoja ? 700 : 400 }}>({o.texto})</span>
+    );
+  };
   const valorItem = (v: { valor_unitario_avista: number; valor_unitario_aprazo: number }, qtd: number) =>
     (tipoPreco === "avista" ? v.valor_unitario_avista : v.valor_unitario_aprazo) * qtd;
 
@@ -202,10 +209,8 @@ function ViaTroca({
           {devolvidosExibir.map((d) => (
             <tr key={d.id}>
               <td>
-                {d.produto_nome}
+                {d.produto_nome} {tagOrigem(d)}
                 {d.variante ? ` — ${d.variante}` : ""}
-                {" — "}
-                <span style={{ color: origemInfo(d).cor, fontWeight: 700 }}>{origemInfo(d).texto}</span>
               </td>
               <td>{d.quantidade}</td>
               <td>{formatarMoeda(valorItem(d, d.quantidade))}</td>
@@ -230,7 +235,7 @@ function ViaTroca({
             return (
               <tr key={n.id}>
                 <td>
-                  {n.produto_nome}
+                  {n.produto_nome} {tagOrigem(n)}
                   {varianteSemBracos ? ` — ${varianteSemBracos}` : ""}
                   {temBracosAlmofada && (
                     <span
@@ -248,8 +253,6 @@ function ViaTroca({
                       BRAÇOS DE ALMOFADA
                     </span>
                   )}
-                  {" — "}
-                  <span style={{ color: origemInfo(n).cor, fontWeight: 700 }}>{origemInfo(n).texto}</span>
                 </td>
                 <td>{n.quantidade}</td>
                 <td>{formatarMoeda(valorItem(n, n.quantidade))}</td>
@@ -300,10 +303,8 @@ function ViaTroca({
               {[...itensRestantes, ...novosExibir].map((i, idx) => (
                 <tr key={`${i.produto_nome}-${idx}`}>
                   <td>
-                    {i.produto_nome}
+                    {i.produto_nome} {tagOrigem(i)}
                     {i.variante ? ` — ${i.variante}` : ""}
-                    {" — "}
-                    <span style={{ color: origemInfo(i).cor, fontWeight: 700 }}>{origemInfo(i).texto}</span>
                   </td>
                   <td>{i.quantidade}</td>
                 </tr>
