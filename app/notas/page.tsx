@@ -10,6 +10,7 @@ import ComprovanteTroca from "@/components/ComprovanteTroca";
 import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
+import { gerarTrocaPdf } from "@/lib/gerarTrocaPdf";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
@@ -107,6 +108,7 @@ export default function NotasPage() {
   const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
   const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
+  const [modoTroca, setModoTroca] = useState<Record<string, boolean>>({});
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
   const [itensRestantes, setItensRestantes] = useState<ItemRestante[] | undefined>(undefined);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
@@ -419,6 +421,48 @@ export default function NotasPage() {
     window.open(linkWhatsApp(telefone, mensagem), "_blank", "noopener");
   }
 
+  function trocaAtiva(v: Venda): TrocaGrupo | null {
+    if (!modoTroca[v.id]) return null;
+    return trocas.find((t) => t.venda_original_id === v.id && !t.cancelada) ?? null;
+  }
+
+  async function enviarPdfTrocaWhatsApp(t: TrocaGrupo, v: Venda) {
+    let loja: LojaCompleta | null = null;
+    if (t.loja_id) {
+      const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
+      loja = data as LojaCompleta | null;
+    }
+    const ctx = await carregarContextoTroca(supabase, t);
+    const blob = await gerarTrocaPdf(ctx.troca, ctx.restantes, loja);
+    const nomeArquivo = `troca-${t.numero_troca}-pedido-${v.numero_pedido}.pdf`;
+    const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
+    if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare({ files: [arquivo] })) {
+      try {
+        await navigator.share({
+          files: [arquivo],
+          title: `Troca #${t.numero_troca}`,
+          text: `Troca #${t.numero_troca} — pedido #${v.numero_pedido} — ${v.clientes?.nome || "cliente"}`,
+        });
+      } catch {
+        // usuário cancelou o compartilhamento
+      }
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nomeArquivo;
+    link.click();
+    URL.revokeObjectURL(url);
+    const telefone = v.clientes?.telefone;
+    if (telefone) {
+      alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
+      window.open(linkWhatsApp(telefone, `Segue a nota da troca #${t.numero_troca} (pedido #${v.numero_pedido}) em PDF.`), "_blank", "noopener");
+    } else {
+      alert("PDF baixado. Esse cliente não tem celular cadastrado pra abrir o WhatsApp direto.");
+    }
+  }
+
   async function enviarPdfWhatsApp(v: Venda) {
     let loja: LojaCompleta | null = null;
     if (v.loja_id) {
@@ -602,18 +646,11 @@ export default function NotasPage() {
                         <span className="ml-2 text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-700 align-middle">
                           🔁 Trocado — Troca #{troca.numero_troca}
                           <button
-                            className="ml-2 underline font-semibold"
-                            onClick={() => imprimirTroca(troca)}
-                            title="Imprimir a nota da troca (A4)"
+                            className="ml-2 px-2 py-0.5 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800"
+                            onClick={() => setModoTroca((m) => ({ ...m, [v.id]: !m[v.id] }))}
+                            title="Alterna os botões de imprimir/enviar entre a nota da troca e a nota antiga"
                           >
-                            🖨 Nota da troca
-                          </button>
-                          <button
-                            className="ml-2 underline font-semibold"
-                            onClick={() => imprimirTroca(troca, "cupom88")}
-                            title="Imprimir a nota da troca em cupom 88mm"
-                          >
-                            🧾 88mm
+                            {modoTroca[v.id] ? "↩ Nota antiga (antes da troca)" : "🔁 Nota da troca"}
                           </button>
                         </span>
                       );
@@ -688,22 +725,22 @@ export default function NotasPage() {
                       </button>
                     </>
                   )}
-                  <button className="btn-secundario text-xs px-2 py-1" onClick={() => imprimir(v)}>
+                  <button className="btn-secundario text-xs px-2 py-1" onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t); else imprimir(v); }}>
                     🖨
                   </button>
                   <button
                     className="btn-secundario text-xs px-2 py-1"
-                    onClick={() => imprimir(v, "cupom88")}
+                    onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t, "cupom88"); else imprimir(v, "cupom88"); }}
                     title="Imprimir cupom para impressora térmica 88mm"
                   >
                     🧾 88mm
                   </button>
                   <button
                     className="text-xs px-2 py-1 rounded bg-green-700 text-white font-medium hover:bg-green-800"
-                    onClick={() => enviarPdfWhatsApp(v)}
+                    onClick={() => { const t = trocaAtiva(v); if (t) enviarPdfTrocaWhatsApp(t, v); else enviarPdfWhatsApp(v); }}
                     title="Gerar PDF da nota e enviar por WhatsApp"
                   >
-                    📄 PDF WhatsApp
+                    📄 PDF WhatsApp{modoTroca[v.id] ? " (troca)" : ""}
                   </button>
                   {!v.cancelada && lojasFiscais.has(v.loja_id) && (() => {
                     const nf = notasFiscais[v.id];
