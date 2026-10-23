@@ -4,6 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useLoja } from "@/contexts/LojaContext";
 
+interface Lembrete {
+  id: string;
+  titulo: string;
+  data_hora: string;
+  concluido: boolean;
+}
+
+function formatarQuando(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+// valor padrão do campo de data/hora: daqui a 1 hora, no fuso do navegador
+function padraoDataHora(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface Aniversariante {
   id: string;
   nome: string;
@@ -40,6 +59,12 @@ export default function NotificacoesSino() {
   const [aberto, setAberto] = useState(false);
   const [visto, setVisto] = useState(true);
   const caixa = useRef<HTMLDivElement>(null);
+  const [lembretes, setLembretes] = useState<Lembrete[]>([]);
+  const [agora, setAgora] = useState(() => Date.now());
+  const [novoTitulo, setNovoTitulo] = useState("");
+  const [novoQuando, setNovoQuando] = useState(padraoDataHora);
+  const [criando, setCriando] = useState(false);
+  const [erroLembrete, setErroLembrete] = useState("");
   const chaveVisto = `aniversarios-vistos-${hojeBahia()}`;
 
   useEffect(() => {
@@ -57,6 +82,52 @@ export default function NotificacoesSino() {
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carregando, souAdmin, minhaLojaId]);
+
+  async function carregarLembretes() {
+    const { data } = await supabase
+      .from("lembretes")
+      .select("id, titulo, data_hora, concluido")
+      .eq("concluido", false)
+      .order("data_hora", { ascending: true });
+    setLembretes((data || []) as Lembrete[]);
+    setAgora(Date.now());
+  }
+
+  useEffect(() => {
+    if (carregando) return;
+    carregarLembretes();
+    // confere a cada 30s se algum lembrete chegou na hora
+    const intervalo = setInterval(carregarLembretes, 30 * 1000);
+    return () => clearInterval(intervalo);
+  }, [carregando]);
+
+  async function criarLembrete() {
+    setErroLembrete("");
+    if (!novoTitulo.trim()) return setErroLembrete("Escreva o lembrete.");
+    const quando = new Date(novoQuando);
+    if (isNaN(quando.getTime())) return setErroLembrete("Escolha o dia e a hora.");
+    setCriando(true);
+    const { error } = await supabase.from("lembretes").insert({ titulo: novoTitulo.trim(), data_hora: quando.toISOString() });
+    setCriando(false);
+    if (error) return setErroLembrete("Não consegui salvar: " + error.message);
+    setNovoTitulo("");
+    setNovoQuando(padraoDataHora());
+    carregarLembretes();
+  }
+
+  async function concluirLembrete(id: string) {
+    await supabase.from("lembretes").update({ concluido: true, concluido_em: new Date().toISOString() }).eq("id", id);
+    carregarLembretes();
+  }
+
+  async function excluirLembrete(id: string) {
+    await supabase.from("lembretes").delete().eq("id", id);
+    carregarLembretes();
+  }
+
+  const vencidos = lembretes.filter((l) => new Date(l.data_hora).getTime() <= agora);
+  const futuros = lembretes.filter((l) => new Date(l.data_hora).getTime() > agora);
+  const totalBadge = vencidos.length + (lista.length > 0 && !visto ? lista.length : 0);
 
   useEffect(() => {
     function fora(e: MouseEvent) {
@@ -94,19 +165,38 @@ export default function NotificacoesSino() {
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {lista.length > 0 && !visto && (
+        {totalBadge > 0 && (
           <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white text-[10px] leading-4 text-center font-semibold">
-            {lista.length}
+            {totalBadge}
           </span>
         )}
       </button>
 
       {aberto && (
-        <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] bg-white border border-estofado-100 rounded-lg shadow-lg z-30">
+        <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1.5rem)] bg-white border border-estofado-100 rounded-lg shadow-lg z-30">
           <div className="px-3 py-2 border-b border-estofado-100 text-sm font-semibold text-madeira-800">Notificações</div>
-          {lista.length === 0 ? (
+          {vencidos.length > 0 && (
+            <ul className="divide-y divide-estofado-100 border-b border-estofado-100">
+              {vencidos.map((l) => (
+                <li key={l.id} className="px-3 py-2 text-sm text-madeira-800 bg-amber-50">
+                  <div>
+                    ⏰ <strong>{l.titulo}</strong>
+                    <span className="block text-xs text-madeira-500">Era para {formatarQuando(l.data_hora)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-1 text-xs px-2 py-0.5 rounded bg-green-700 text-white hover:bg-green-800"
+                    onClick={() => concluirLembrete(l.id)}
+                  >
+                    ✓ Feito
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {lista.length === 0 && vencidos.length === 0 ? (
             <div className="px-3 py-4 text-sm text-madeira-500">Nenhuma notificação hoje.</div>
-          ) : (
+          ) : lista.length === 0 ? null : (
             <ul className="max-h-80 overflow-y-auto divide-y divide-estofado-100">
               {lista.map((a) => {
                 const wa = linkWhats(a);
@@ -127,6 +217,40 @@ export default function NotificacoesSino() {
               })}
             </ul>
           )}
+          <div className="px-3 py-3 border-t border-estofado-100 bg-estofado-50/40">
+            <div className="text-xs font-semibold text-madeira-700 mb-1">Novo lembrete</div>
+            <input
+              className="input-base mb-1"
+              placeholder="Ex.: ligar para a cliente do sofá"
+              value={novoTitulo}
+              onChange={(e) => setNovoTitulo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && criarLembrete()}
+            />
+            <input
+              type="datetime-local"
+              className="input-base mb-1"
+              value={novoQuando}
+              onChange={(e) => setNovoQuando(e.target.value)}
+            />
+            {erroLembrete && <div className="text-xs text-red-700 mb-1">{erroLembrete}</div>}
+            <button type="button" className="btn-primario text-xs px-3 py-1" disabled={criando} onClick={criarLembrete}>
+              {criando ? "Salvando..." : "Criar lembrete"}
+            </button>
+            {futuros.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {futuros.map((l) => (
+                  <li key={l.id} className="flex items-center justify-between gap-2 text-xs text-madeira-700">
+                    <span>
+                      🕒 {formatarQuando(l.data_hora)} — {l.titulo}
+                    </span>
+                    <button type="button" className="text-red-700 underline shrink-0" onClick={() => excluirLembrete(l.id)}>
+                      excluir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>
