@@ -64,6 +64,7 @@ export default function NotificacoesSino() {
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novoQuando, setNovoQuando] = useState(padraoDataHora);
   const [criando, setCriando] = useState(false);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [erroLembrete, setErroLembrete] = useState("");
   const chaveVisto = `aniversarios-vistos-${hojeBahia()}`;
 
@@ -146,11 +147,32 @@ export default function NotificacoesSino() {
     }
   }
 
-  function linkWhats(a: Aniversariante) {
+  function mensagemParabens(a: Aniversariante): string {
+    const primeiro = a.nome.trim().split(" ")[0];
+    const nome = primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
+    return (
+      `Olá, ${nome}! 🎉🎂\n\n` +
+      `A equipe da Caruaru Móveis passa aqui para te desejar um feliz aniversário! ` +
+      `Que o seu dia seja cheio de alegria, saúde e muitas conquistas. 🥳💛\n\n` +
+      `Obrigado por fazer parte da nossa história! 🏡✨`
+    );
+  }
+
+  // O WhatsApp Desktop do Windows corrompe emoji que vai no link (aparece "�"),
+  // então copiamos a mensagem pronta e abrimos a conversa — é só colar (Ctrl+V).
+  async function mandarParabens(a: Aniversariante) {
     const n = (a.telefone || "").replace(/\D/g, "");
-    if (n.length < 10) return null;
-    const texto = encodeURIComponent(`Olá, ${a.nome.split(" ")[0]}! A equipe da Caruaru Móveis deseja a você um feliz aniversário! 🎉`);
-    return `https://wa.me/55${n}?text=${texto}`;
+    if (n.length < 10) return;
+    try {
+      await navigator.clipboard.writeText(mensagemParabens(a));
+      setCopiadoId(a.id);
+      setTimeout(() => setCopiadoId(null), 6000);
+    } catch {
+      /* sem permissão da área de transferência: abre o chat com o texto sem emoji */
+      window.open(`https://wa.me/55${n}?text=${encodeURIComponent(mensagemParabens(a))}`, "_blank", "noopener");
+      return;
+    }
+    window.open(`https://wa.me/55${n}`, "_blank", "noopener");
   }
 
   return (
@@ -199,7 +221,7 @@ export default function NotificacoesSino() {
           ) : lista.length === 0 ? null : (
             <ul className="max-h-80 overflow-y-auto divide-y divide-estofado-100">
               {lista.map((a) => {
-                const wa = linkWhats(a);
+                const temTel = (a.telefone || "").replace(/\D/g, "").length >= 10;
                 return (
                   <li key={a.id} className="px-3 py-2 text-sm text-madeira-800">
                     <div>
@@ -207,10 +229,21 @@ export default function NotificacoesSino() {
                       {a.loja_nome ? <> na loja <strong>{a.loja_nome.replace(/^Caruaru Móveis\s+/i, "")}</strong></> : null}
                       {a.idade > 0 && a.idade < 120 ? <> — faz {a.idade} anos</> : null}.
                     </div>
-                    {wa && (
-                      <a href={wa} target="_blank" rel="noreferrer" className="inline-block mt-1 text-xs text-green-700 underline">
-                        Mandar parabéns no WhatsApp
-                      </a>
+                    {temTel && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => mandarParabens(a)}
+                          className="inline-block mt-1 text-xs text-green-700 underline"
+                        >
+                          Mandar parabéns no WhatsApp
+                        </button>
+                        {copiadoId === a.id && (
+                          <span className="block text-xs text-madeira-500 mt-0.5">
+                            Mensagem copiada! No WhatsApp, é só colar (Ctrl+V) e enviar.
+                          </span>
+                        )}
+                      </>
                     )}
                   </li>
                 );
