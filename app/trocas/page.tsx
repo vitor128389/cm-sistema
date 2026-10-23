@@ -771,6 +771,17 @@ export default function TrocasPage() {
                           {item.variante ? ` — ${item.variante}` : ""}
                           {item.trocado && <span className="text-xs text-red-700 ml-2">(já trocado)</span>}
                         </p>
+                        <span
+                          className={`text-[11px] font-semibold rounded px-1.5 py-0.5 ${
+                            item.origem_deposito ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {item.tipo_entrega === "encomenda"
+                            ? "ENCOMENDA"
+                            : item.origem_deposito
+                            ? "PRONTA ENTREGA · DEPÓSITO"
+                            : "PRONTA ENTREGA · LOJA"}
+                        </span>
                       </div>
                       <span className="text-sm font-display">
                         {tipoPreco === "avista"
