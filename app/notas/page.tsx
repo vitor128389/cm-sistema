@@ -71,6 +71,66 @@ function pedidoEntregue(v: Venda): boolean {
 // distribui o total realmente pago (com desconto/acréscimo da forma de
 // pagamento) proporcionalmente entre os itens, em vez de mostrar o preço
 // "a prazo" de cada item isolado (que não bate com o total pago)
+// Na lista, sofá "2 e 3 lugares" vendido como conjunto vira UM item só (igual
+// na nota impressa) e peça única aparece como "Sofá X 2 lugares — cor".
+type ItemLista = Venda["venda_itens"] extends (infer U)[] | undefined ? U : never;
+function itensParaLista(itens: ItemLista[]): { item: ItemLista; ids: string[]; total: number }[] {
+  const resultado: { item: ItemLista; ids: string[]; total: number }[] = [];
+  const usados = new Set<number>();
+  itens.forEach((item, i) => {
+    if (usados.has(i)) return;
+    const variante = item.variante || "";
+    const sufixoNome = /\s*2\s*E\s*3\s*LUGARES\s*/i;
+    if (variante.endsWith("— 2 Lugares") || variante.endsWith("— 3 Lugares")) {
+      const peca = variante.endsWith("— 2 Lugares") ? "2" : "3";
+      const prefixo = variante.slice(0, -"2 Lugares".length);
+      const outra = peca === "2" ? "3" : "2";
+      const idxPar = itens.findIndex(
+        (o, j) =>
+          j !== i &&
+          !usados.has(j) &&
+          o.nome_produto === item.nome_produto &&
+          (o.variante || "") === `${prefixo}${outra} Lugares` &&
+          o.tipo_entrega === item.tipo_entrega &&
+          o.retirada === item.retirada
+      );
+      if (idxPar !== -1 && peca === "3") {
+        // a peça de 3 é tratada junto com a de 2 (quando a de 2 chegar)
+        const idx2 = itens.findIndex((o, j) => j > i && !usados.has(j) && o.id === itens[idxPar].id);
+        if (idx2 !== -1) return;
+      }
+      if (idxPar !== -1 && peca === "2") {
+        const par = itens[idxPar];
+        usados.add(i);
+        usados.add(idxPar);
+        const jaTemNoNome = sufixoNome.test(item.nome_produto);
+        resultado.push({
+          item: {
+            ...item,
+            variante: jaTemNoNome ? prefixo.replace(/\s*—\s*$/, "").trim() || null : `${prefixo}2 e 3 Lugares`,
+          },
+          ids: [item.id, par.id],
+          total: item.total + par.total,
+        });
+        return;
+      }
+      if (idxPar === -1) {
+        // peça única: "Sofá Nobre 2 lugares — cor"
+        const nome = item.nome_produto.replace(sufixoNome, " ").replace(/\s+/g, " ").trim();
+        const cor = prefixo.replace(/\s*—\s*$/, "").trim();
+        resultado.push({
+          item: { ...item, nome_produto: `${nome} ${peca} Lugares`, variante: cor || null },
+          ids: [item.id],
+          total: item.total,
+        });
+        return;
+      }
+    }
+    resultado.push({ item, ids: [item.id], total: item.total });
+  });
+  return resultado;
+}
+
 function valorPagoItem(item: { total: number }, itensTodos: { total: number }[], totalPago: number): number {
   const somaListada = itensTodos.reduce((s, i) => s + i.total, 0);
   if (somaListada <= 0) return 0;
@@ -393,20 +453,23 @@ export default function NotasPage() {
     }, 100);
   }
 
-  async function marcarEntregue(itemId: string) {
+  async function marcarEntregue(itemIds: string | string[]) {
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
     await supabase
       .from("venda_itens")
       .update({ status_entrega: "entregue", data_entregue: new Date().toISOString() })
-      .eq("id", itemId);
-    registrarAuditoria({
-      lojaId: lojaAtual,
-      categoria: "Entregas",
-      acao: "alteracao",
-      registroTipo: "venda_item",
-      registroId: itemId,
-      descricao: "Item marcado como entregue",
-      dadosDepois: { status_entrega: "entregue" },
-    });
+      .in("id", ids);
+    ids.forEach((itemId) =>
+      registrarAuditoria({
+        lojaId: lojaAtual,
+        categoria: "Entregas",
+        acao: "alteracao",
+        registroTipo: "venda_item",
+        registroId: itemId,
+        descricao: "Item marcado como entregue",
+        dadosDepois: { status_entrega: "entregue" },
+      })
+    );
     carregar();
   }
 
@@ -793,7 +856,7 @@ export default function NotasPage() {
                 </div>
               </div>
               <ul className="mt-3 text-sm text-madeira-600 space-y-1">
-                {(v.venda_itens || []).map((item) => (
+                {itensParaLista(v.venda_itens || []).map(({ item, ids, total: totalLinha }) => (
                   <li key={item.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <span>
                       {item.quantidade}x {item.nome_produto}
@@ -801,7 +864,7 @@ export default function NotasPage() {
                         <span className="tag-encomenda ml-1">ENCOMENDA</span>
                       )}
                       {item.variante ? ` — ${item.variante}` : ""} —{" "}
-                      {formatarMoeda(valorPagoItem(item, v.venda_itens || [], v.total))}
+                      {formatarMoeda(valorPagoItem({ total: totalLinha }, v.venda_itens || [], v.total))}
                       {item.observacao && (
                         <span className="block text-xs text-madeira-700">
                           Obs: <strong>{item.observacao}</strong>
@@ -839,7 +902,7 @@ export default function NotasPage() {
                             {item.status_entrega !== "entregue" && (
                               <button
                                 className="btn-secundario text-xs px-2 py-1"
-                                onClick={() => marcarEntregue(item.id)}
+                                onClick={() => marcarEntregue(ids)}
                               >
                                 ENTREGUE
                               </button>
