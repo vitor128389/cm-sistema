@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
+import ComprovanteTroca from "@/components/ComprovanteTroca";
+import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
@@ -104,6 +106,7 @@ export default function NotasPage() {
   const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
   const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
+  const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
   const [lojaImprimindo, setLojaImprimindo] = useState<LojaCompleta | null>(null);
   const [formatoImpressao, setFormatoImpressao] = useState<"a4" | "cupom88">("a4");
   const [mensagemSelecionada, setMensagemSelecionada] = useState<Record<string, string>>({});
@@ -350,7 +353,25 @@ export default function NotasPage() {
     (v) => pedidoPendente(v) && diasRestantes(v.prazo_entrega_maximo as string) <= 2
   );
 
+  async function imprimirTroca(t: TrocaGrupo, formato: "a4" | "cupom88" = "a4") {
+    setNotaImprimindo(null);
+    setTrocaImprimindo(t);
+    setFormatoImpressao(formato);
+    if (t.loja_id) {
+      const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
+      setLojaImprimindo(data as LojaCompleta | null);
+    } else {
+      setLojaImprimindo(null);
+    }
+    definirTamanhoPagina(formato);
+    setTimeout(async () => {
+      if (formato === "a4") await ajustarEscalaImpressaoA4();
+      window.print();
+    }, 100);
+  }
+
   async function imprimir(v: Venda, formato: "a4" | "cupom88" = "a4") {
+    setTrocaImprimindo(null);
     setNotaImprimindo(v);
     setFormatoImpressao(formato);
     if (v.loja_id) {
@@ -576,6 +597,20 @@ export default function NotasPage() {
                       return (
                         <span className="ml-2 text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-700 align-middle">
                           🔁 Trocado — Troca #{troca.numero_troca}
+                          <button
+                            className="ml-2 underline font-semibold"
+                            onClick={() => imprimirTroca(troca)}
+                            title="Imprimir a nota da troca (A4)"
+                          >
+                            🖨 Nota da troca
+                          </button>
+                          <button
+                            className="ml-2 underline font-semibold"
+                            onClick={() => imprimirTroca(troca, "cupom88")}
+                            title="Imprimir a nota da troca em cupom 88mm"
+                          >
+                            🧾 88mm
+                          </button>
                         </span>
                       );
                     })()}
@@ -784,6 +819,37 @@ export default function NotasPage() {
       </div>
 
       <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
+        {trocaImprimindo && (() => {
+          const T = formatoImpressao === "cupom88" ? ComprovanteTrocaCupom88mm : ComprovanteTroca;
+          return (
+            <T
+              numeroTroca={trocaImprimindo.numero_troca}
+              numeroPedidoOriginal={trocaImprimindo.vendas?.numero_pedido || 0}
+              cliente={{
+                nome: trocaImprimindo.vendas?.clientes?.nome || "Cliente",
+                cpf: trocaImprimindo.vendas?.clientes?.cpf ?? null,
+                telefone: trocaImprimindo.vendas?.clientes?.telefone ?? null,
+                endereco: trocaImprimindo.vendas?.clientes?.endereco ?? null,
+                numero: trocaImprimindo.vendas?.clientes?.numero ?? null,
+                complemento: trocaImprimindo.vendas?.clientes?.complemento ?? null,
+                cidade: trocaImprimindo.vendas?.clientes?.cidade ?? null,
+                povoado: trocaImprimindo.vendas?.clientes?.povoado ?? null,
+                bairro: trocaImprimindo.vendas?.clientes?.bairro ?? null,
+              }}
+              devolvidos={trocaImprimindo.trocas_devolvidos || []}
+              novos={trocaImprimindo.trocas_novos || []}
+              tipoPreco={trocaImprimindo.tipo_preco}
+              diferenca={trocaImprimindo.diferenca}
+              diferencaCobrada={trocaImprimindo.valor_cobrado_diferenca ?? trocaImprimindo.diferenca}
+              parcelasDiferenca={trocaImprimindo.parcelas_diferenca ?? 1}
+              formaPagamentoDiferenca={trocaImprimindo.forma_pagamento_diferenca}
+              loja={lojaImprimindo}
+              rotaNome={trocaImprimindo.rota_nome ?? null}
+              rotaCor={trocaImprimindo.rota_cor ?? null}
+              criadoEm={trocaImprimindo.criado_em}
+            />
+          );
+        })()}
         {notaImprimindo && formatoImpressao === "cupom88" && (
           <ComprovanteCupom88mm
             numeroPedido={notaImprimindo.numero_pedido}
