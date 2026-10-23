@@ -44,6 +44,7 @@ export interface ItemMesclavel {
   valor_unitario_avista: number;
   valor_unitario_aprazo: number;
   tipo_entrega?: string | null;
+  origem_deposito?: boolean | null;
 }
 
 export function mesclarConjuntosSofa<T extends ItemMesclavel>(itens: T[]): T[] {
@@ -237,7 +238,7 @@ function ViaTroca({
                   )}
                   {" — "}
                   <span style={{ color: n.tipo_entrega === "encomenda" ? COR_LARANJA : COR_VERDE_ESCURO, fontWeight: 700 }}>
-                    {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "PRONTA ENTREGA"}
+                    {n.tipo_entrega === "encomenda" ? "ENCOMENDA" : n.origem_deposito ? "PRONTA ENTREGA · DEPÓSITO" : "PRONTA ENTREGA"}
                   </span>
                 </td>
                 <td>{n.quantidade}</td>

@@ -248,6 +248,7 @@ export interface TrocaItemNovo {
   valor_unitario_avista: number;
   valor_unitario_aprazo: number;
   tipo_entrega: "pronta" | "encomenda";
+  origem_deposito?: boolean | null;
   status_entrega?: string | null;
   data_entregue?: string | null;
 }

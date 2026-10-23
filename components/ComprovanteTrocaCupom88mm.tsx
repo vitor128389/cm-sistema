@@ -113,7 +113,7 @@ export default function ComprovanteTrocaCupom88mm({
             {n.variante ? ` — ${n.variante}` : ""}
             <br />
             <span style={{ fontSize: 12, fontWeight: 900 }}>
-              {n.tipo_entrega === "encomenda" ? "[ENCOMENDA]" : "[PRONTA ENTREGA]"}
+              {n.tipo_entrega === "encomenda" ? "[ENCOMENDA]" : n.origem_deposito ? "[PRONTA ENTREGA · DEPÓSITO]" : "[PRONTA ENTREGA]"}
             </span>
           </span>
           <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {n.quantidade}</span>
