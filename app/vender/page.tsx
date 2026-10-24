@@ -2634,11 +2634,16 @@ function VenderPageConteudo() {
                         value={p.parcelas}
                         onChange={(e) => atualizarPagamento(idx, { parcelas: Number(e.target.value) })}
                       >
-                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                          <option key={n} value={n}>
-                            {n}x{n === 1 ? " (à vista)" : ""}
-                          </option>
-                        ))}
+                        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+                          // mostra quanto fica cada parcela (acréscimo de 10% já incluso a partir de 2x)
+                          const totalN = valorSugerido(baseImplicita(p), p.forma, n);
+                          return (
+                            <option key={n} value={n}>
+                              {n}x de {formatarMoeda(Math.round((totalN / n) * 100) / 100)}
+                              {n === 1 ? " (à vista)" : ` (total ${formatarMoeda(totalN)})`}
+                            </option>
+                          );
+                        })}
                       </select>
                     </label>
                   )}
