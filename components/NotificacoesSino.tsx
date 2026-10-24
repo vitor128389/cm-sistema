@@ -121,6 +121,14 @@ export default function NotificacoesSino() {
     carregarLembretes();
   }
 
+  async function adiarLembrete(id: string, minutos: number) {
+    await supabase
+      .from("lembretes")
+      .update({ data_hora: new Date(Date.now() + minutos * 60 * 1000).toISOString() })
+      .eq("id", id);
+    carregarLembretes();
+  }
+
   async function excluirLembrete(id: string) {
     await supabase.from("lembretes").delete().eq("id", id);
     carregarLembretes();
@@ -129,6 +137,45 @@ export default function NotificacoesSino() {
   const vencidos = lembretes.filter((l) => new Date(l.data_hora).getTime() <= agora);
   const futuros = lembretes.filter((l) => new Date(l.data_hora).getTime() > agora);
   const totalBadge = vencidos.length + (lista.length > 0 && !visto ? lista.length : 0);
+
+  // Avisa de verdade: quando chega a hora, abre um aviso no meio da tela
+  // (som + título da aba piscando) e só some com "Feito" ou "Adiar".
+  const idsAvisados = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const novos = vencidos.filter((l) => !idsAvisados.current.has(l.id));
+    if (novos.length === 0) return;
+    novos.forEach((l) => idsAvisados.current.add(l.id));
+    try {
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      [0, 0.35, 0.7].forEach((t) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 880;
+        gain.gain.value = 0.15;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.2);
+      });
+    } catch {
+      /* navegador bloqueou o som: o aviso na tela continua */
+    }
+  }, [vencidos]);
+
+  useEffect(() => {
+    if (vencidos.length === 0) return;
+    const original = document.title;
+    let ligado = false;
+    const t = setInterval(() => {
+      ligado = !ligado;
+      document.title = ligado ? `⏰ Lembrete (${vencidos.length})` : original;
+    }, 1000);
+    return () => {
+      clearInterval(t);
+      document.title = original;
+    };
+  }, [vencidos.length]);
 
   useEffect(() => {
     function fora(e: MouseEvent) {
@@ -177,6 +224,44 @@ export default function NotificacoesSino() {
 
   return (
     <div className="relative" ref={caixa}>
+      {vencidos.length > 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border-4 border-amber-400 p-5">
+            <div className="text-lg font-bold text-madeira-900 mb-3">⏰ Lembrete{vencidos.length > 1 ? "s" : ""}</div>
+            <ul className="space-y-3 max-h-[60vh] overflow-y-auto">
+              {vencidos.map((l) => (
+                <li key={l.id} className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                  <div className="text-base font-semibold text-madeira-900">{l.titulo}</div>
+                  <div className="text-xs text-madeira-500 mb-2">Marcado para {formatarQuando(l.data_hora)}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="text-sm px-3 py-1.5 rounded bg-green-700 text-white font-medium hover:bg-green-800"
+                      onClick={() => concluirLembrete(l.id)}
+                    >
+                      ✓ Feito
+                    </button>
+                    <button
+                      type="button"
+                      className="text-sm px-3 py-1.5 rounded border border-madeira-300 text-madeira-700 hover:bg-madeira-50"
+                      onClick={() => adiarLembrete(l.id, 10)}
+                    >
+                      Lembrar em 10 min
+                    </button>
+                    <button
+                      type="button"
+                      className="text-sm px-3 py-1.5 rounded border border-madeira-300 text-madeira-700 hover:bg-madeira-50"
+                      onClick={() => adiarLembrete(l.id, 60)}
+                    >
+                      Em 1 hora
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
       <button
         type="button"
         title="Notificações"
