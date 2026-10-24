@@ -172,8 +172,10 @@ export default function NotasPage() {
     vendaId: string;
     numeroPedido: number;
     clienteId: string;
-    nome: string;
-    campos: Record<"endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
+    campos: Record<"nome" | "telefone" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
+    prazo: string;
+    itens: { id: string; nome_produto: string; variante: string; observacao: string }[];
+    original: string;
   } | null>(null);
   const [salvandoEnd, setSalvandoEnd] = useState(false);
   const [erroEnd, setErroEnd] = useState("");
@@ -497,12 +499,14 @@ export default function NotasPage() {
     if (!souAdmin || !v.cliente_id || !v.clientes) return;
     const c = v.clientes;
     setErroEnd("");
-    setEditEnd({
+    const estado = {
       vendaId: v.id,
       numeroPedido: v.numero_pedido,
       clienteId: v.cliente_id,
-      nome: c.nome,
       campos: {
+        nome: c.nome || "",
+        telefone: c.telefone || "",
+        cpf: c.cpf || "",
         endereco: c.endereco || "",
         numero: c.numero || "",
         complemento: c.complemento || "",
@@ -510,35 +514,70 @@ export default function NotasPage() {
         cidade: c.cidade || "",
         povoado: c.povoado || "",
       },
-    });
+      prazo: v.prazo_entrega_maximo || "",
+      itens: (v.venda_itens || []).map((i) => ({
+        id: i.id,
+        nome_produto: i.nome_produto || "",
+        variante: i.variante || "",
+        observacao: i.observacao || "",
+      })),
+    };
+    setEditEnd({ ...estado, original: JSON.stringify(estado) });
   }
 
   async function salvarEdicaoEndereco() {
     if (!souAdmin || !editEnd) return;
+    if (!editEnd.campos.nome.trim()) return setErroEnd("O nome do cliente não pode ficar vazio.");
     setSalvandoEnd(true);
     setErroEnd("");
-    const novo = Object.fromEntries(
-      Object.entries(editEnd.campos).map(([k, val]) => [k, val.trim() || null])
-    );
-    const { data: antes } = await supabase
-      .from("clientes")
-      .select("endereco, numero, complemento, bairro, cidade, povoado")
-      .eq("id", editEnd.clienteId)
-      .maybeSingle();
-    const { error } = await supabase.from("clientes").update(novo).eq("id", editEnd.clienteId);
+    const orig = JSON.parse(editEnd.original) as typeof editEnd;
+    const vazioNull = (t: string) => t.trim() || null;
+    try {
+      const camposCliente = Object.fromEntries(
+        Object.entries(editEnd.campos).map(([k, val]) => [k, k === "nome" ? val.trim() : vazioNull(val)])
+      );
+      if (JSON.stringify(editEnd.campos) !== JSON.stringify(orig.campos)) {
+        const { error } = await supabase.from("clientes").update(camposCliente).eq("id", editEnd.clienteId);
+        if (error) throw error;
+      }
+      if (editEnd.prazo !== orig.prazo) {
+        const { error } = await supabase
+          .from("vendas")
+          .update({ prazo_entrega_maximo: editEnd.prazo || null })
+          .eq("id", editEnd.vendaId);
+        if (error) throw error;
+      }
+      for (const it of editEnd.itens) {
+        const o = orig.itens.find((x) => x.id === it.id);
+        if (o && JSON.stringify(o) !== JSON.stringify(it)) {
+          if (!it.nome_produto.trim()) throw new Error("O nome do produto não pode ficar vazio.");
+          const { error } = await supabase
+            .from("venda_itens")
+            .update({
+              nome_produto: it.nome_produto.trim(),
+              variante: vazioNull(it.variante),
+              observacao: vazioNull(it.observacao),
+            })
+            .eq("id", it.id);
+          if (error) throw error;
+        }
+      }
+    } catch (e) {
+      setSalvandoEnd(false);
+      return setErroEnd("Não consegui salvar: " + (e instanceof Error ? e.message : (e as { message?: string }).message || "erro"));
+    }
     setSalvandoEnd(false);
-    if (error) return setErroEnd("Não consegui salvar: " + error.message);
     registrarAuditoria({
       lojaId: lojaAtual,
-      categoria: "Clientes",
+      categoria: "Vendas",
       acao: "alteracao",
-      registroTipo: "cliente",
-      registroId: editEnd.clienteId,
-      registroNome: editEnd.nome,
+      registroTipo: "venda",
+      registroId: editEnd.vendaId,
+      registroNome: editEnd.campos.nome,
       numeroPedido: editEnd.numeroPedido,
-      descricao: `Endereço editado pela nota #${editEnd.numeroPedido}`,
-      dadosAntes: antes as Record<string, unknown> | null,
-      dadosDepois: novo,
+      descricao: `Dados da nota #${editEnd.numeroPedido} editados pelo admin`,
+      dadosAntes: { campos: orig.campos, prazo: orig.prazo, itens: orig.itens },
+      dadosDepois: { campos: editEnd.campos, prazo: editEnd.prazo, itens: editEnd.itens },
     });
     setEditEnd(null);
     carregar();
@@ -852,9 +891,9 @@ export default function NotasPage() {
                     <button
                       className="btn-secundario text-xs px-2 py-1"
                       onClick={() => abrirEdicaoEndereco(v)}
-                      title="Editar o endereço desta nota (só admin)"
+                      title="Editar os dados desta nota (só admin)"
                     >
-                      ✏️ Endereço
+                      ✏️ Editar nota
                     </button>
                   )}
                   <button className="btn-secundario text-xs px-2 py-1" onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t); else imprimir(v); }}>
@@ -992,15 +1031,20 @@ export default function NotasPage() {
       </div>
 
       {editEnd && souAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl p-5">
-            <div className="text-lg font-bold text-madeira-900">Editar endereço — pedido #{editEnd.numeroPedido}</div>
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl p-5 my-4">
+            <div className="text-lg font-bold text-madeira-900">Editar nota — pedido #{editEnd.numeroPedido}</div>
             <div className="text-xs text-madeira-500 mb-3">
-              Cliente: {editEnd.nome}. A mudança vale para o cadastro do cliente (todas as notas dele).
+              Dados do cliente valem para o cadastro dele (todas as notas). Valores, pagamento e estoque não mudam por aqui.
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+            <div className="text-xs font-semibold text-madeira-700 mb-1">Cliente</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               {(
                 [
+                  ["nome", "Nome"],
+                  ["telefone", "Telefone / WhatsApp"],
+                  ["cpf", "CPF"],
                   ["endereco", "Rua / endereço"],
                   ["numero", "Número"],
                   ["complemento", "Complemento"],
@@ -1009,7 +1053,7 @@ export default function NotasPage() {
                   ["povoado", "Povoado"],
                 ] as const
               ).map(([campo, rotulo]) => (
-                <label key={campo} className={campo === "endereco" ? "sm:col-span-2" : ""}>
+                <label key={campo} className={campo === "nome" || campo === "endereco" ? "sm:col-span-2" : ""}>
                   <span className="text-xs text-madeira-600 block mb-0.5">{rotulo}</span>
                   <input
                     className="input-base"
@@ -1021,13 +1065,72 @@ export default function NotasPage() {
                 </label>
               ))}
             </div>
+
+            <div className="text-xs font-semibold text-madeira-700 mb-1">Pedido</div>
+            <label className="block mb-3 max-w-xs">
+              <span className="text-xs text-madeira-600 block mb-0.5">Prazo máximo de entrega</span>
+              <input
+                type="date"
+                className="input-base"
+                value={editEnd.prazo}
+                onChange={(e) => setEditEnd({ ...editEnd, prazo: e.target.value })}
+              />
+            </label>
+
+            <div className="text-xs font-semibold text-madeira-700 mb-1">Produtos</div>
+            <div className="space-y-2 mb-2">
+              {editEnd.itens.map((it, idx) => (
+                <div key={it.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-estofado-100 p-2">
+                  <label className="sm:col-span-2">
+                    <span className="text-xs text-madeira-600 block mb-0.5">Produto</span>
+                    <input
+                      className="input-base"
+                      value={it.nome_produto}
+                      onChange={(e) =>
+                        setEditEnd({
+                          ...editEnd,
+                          itens: editEnd.itens.map((x, i) => (i === idx ? { ...x, nome_produto: e.target.value } : x)),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="text-xs text-madeira-600 block mb-0.5">Tecido / cor / variação</span>
+                    <input
+                      className="input-base"
+                      value={it.variante}
+                      onChange={(e) =>
+                        setEditEnd({
+                          ...editEnd,
+                          itens: editEnd.itens.map((x, i) => (i === idx ? { ...x, variante: e.target.value } : x)),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="text-xs text-madeira-600 block mb-0.5">Observação</span>
+                    <input
+                      className="input-base"
+                      value={it.observacao}
+                      onChange={(e) =>
+                        setEditEnd({
+                          ...editEnd,
+                          itens: editEnd.itens.map((x, i) => (i === idx ? { ...x, observacao: e.target.value } : x)),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
+
             {erroEnd && <div className="text-sm text-red-700 mt-2">{erroEnd}</div>}
             <div className="flex gap-2 mt-4 justify-end">
               <button className="btn-secundario text-sm px-3 py-1.5" onClick={() => setEditEnd(null)}>
                 Cancelar
               </button>
               <button className="btn-primario text-sm px-3 py-1.5" disabled={salvandoEnd} onClick={salvarEdicaoEndereco}>
-                {salvandoEnd ? "Salvando..." : "Salvar endereço"}
+                {salvandoEnd ? "Salvando..." : "Salvar alterações"}
               </button>
             </div>
           </div>
