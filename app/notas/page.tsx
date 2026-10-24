@@ -148,7 +148,7 @@ interface NotaFiscal {
 }
 
 export default function NotasPage() {
-  const { lojaAtual } = useLoja();
+  const { lojaAtual, souAdmin } = useLoja();
   const [vendas, setVendas] = useState<Venda[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregar, setErroCarregar] = useState("");
@@ -168,6 +168,15 @@ export default function NotasPage() {
   const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
   const [emitindo, setEmitindo] = useState<string | null>(null);
   const [notaImprimindo, setNotaImprimindo] = useState<Venda | null>(null);
+  const [editEnd, setEditEnd] = useState<{
+    vendaId: string;
+    numeroPedido: number;
+    clienteId: string;
+    nome: string;
+    campos: Record<"endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
+  } | null>(null);
+  const [salvandoEnd, setSalvandoEnd] = useState(false);
+  const [erroEnd, setErroEnd] = useState("");
   const [modoTroca, setModoTroca] = useState<Record<string, boolean>>({});
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
   const [itensRestantes, setItensRestantes] = useState<ItemRestante[] | undefined>(undefined);
@@ -484,6 +493,57 @@ export default function NotasPage() {
     window.open(linkWhatsApp(telefone, mensagem), "_blank", "noopener");
   }
 
+  function abrirEdicaoEndereco(v: Venda) {
+    if (!souAdmin || !v.cliente_id || !v.clientes) return;
+    const c = v.clientes;
+    setErroEnd("");
+    setEditEnd({
+      vendaId: v.id,
+      numeroPedido: v.numero_pedido,
+      clienteId: v.cliente_id,
+      nome: c.nome,
+      campos: {
+        endereco: c.endereco || "",
+        numero: c.numero || "",
+        complemento: c.complemento || "",
+        bairro: c.bairro || "",
+        cidade: c.cidade || "",
+        povoado: c.povoado || "",
+      },
+    });
+  }
+
+  async function salvarEdicaoEndereco() {
+    if (!souAdmin || !editEnd) return;
+    setSalvandoEnd(true);
+    setErroEnd("");
+    const novo = Object.fromEntries(
+      Object.entries(editEnd.campos).map(([k, val]) => [k, val.trim() || null])
+    );
+    const { data: antes } = await supabase
+      .from("clientes")
+      .select("endereco, numero, complemento, bairro, cidade, povoado")
+      .eq("id", editEnd.clienteId)
+      .maybeSingle();
+    const { error } = await supabase.from("clientes").update(novo).eq("id", editEnd.clienteId);
+    setSalvandoEnd(false);
+    if (error) return setErroEnd("Não consegui salvar: " + error.message);
+    registrarAuditoria({
+      lojaId: lojaAtual,
+      categoria: "Clientes",
+      acao: "alteracao",
+      registroTipo: "cliente",
+      registroId: editEnd.clienteId,
+      registroNome: editEnd.nome,
+      numeroPedido: editEnd.numeroPedido,
+      descricao: `Endereço editado pela nota #${editEnd.numeroPedido}`,
+      dadosAntes: antes as Record<string, unknown> | null,
+      dadosDepois: novo,
+    });
+    setEditEnd(null);
+    carregar();
+  }
+
   function trocaAtiva(v: Venda): TrocaGrupo | null {
     if (!modoTroca[v.id]) return null;
     return trocas.find((t) => t.venda_original_id === v.id && !t.cancelada) ?? null;
@@ -788,6 +848,15 @@ export default function NotasPage() {
                       </button>
                     </>
                   )}
+                  {souAdmin && v.cliente_id && v.clientes && (
+                    <button
+                      className="btn-secundario text-xs px-2 py-1"
+                      onClick={() => abrirEdicaoEndereco(v)}
+                      title="Editar o endereço desta nota (só admin)"
+                    >
+                      ✏️ Endereço
+                    </button>
+                  )}
                   <button className="btn-secundario text-xs px-2 py-1" onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t); else imprimir(v); }}>
                     🖨
                   </button>
@@ -921,6 +990,49 @@ export default function NotasPage() {
 
 
       </div>
+
+      {editEnd && souAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl p-5">
+            <div className="text-lg font-bold text-madeira-900">Editar endereço — pedido #{editEnd.numeroPedido}</div>
+            <div className="text-xs text-madeira-500 mb-3">
+              Cliente: {editEnd.nome}. A mudança vale para o cadastro do cliente (todas as notas dele).
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {(
+                [
+                  ["endereco", "Rua / endereço"],
+                  ["numero", "Número"],
+                  ["complemento", "Complemento"],
+                  ["bairro", "Bairro"],
+                  ["cidade", "Cidade"],
+                  ["povoado", "Povoado"],
+                ] as const
+              ).map(([campo, rotulo]) => (
+                <label key={campo} className={campo === "endereco" ? "sm:col-span-2" : ""}>
+                  <span className="text-xs text-madeira-600 block mb-0.5">{rotulo}</span>
+                  <input
+                    className="input-base"
+                    value={editEnd.campos[campo]}
+                    onChange={(e) =>
+                      setEditEnd({ ...editEnd, campos: { ...editEnd.campos, [campo]: e.target.value } })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            {erroEnd && <div className="text-sm text-red-700 mt-2">{erroEnd}</div>}
+            <div className="flex gap-2 mt-4 justify-end">
+              <button className="btn-secundario text-sm px-3 py-1.5" onClick={() => setEditEnd(null)}>
+                Cancelar
+              </button>
+              <button className="btn-primario text-sm px-3 py-1.5" disabled={salvandoEnd} onClick={salvarEdicaoEndereco}>
+                {salvandoEnd ? "Salvando..." : "Salvar endereço"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div id="area-impressao" className={formatoImpressao === "cupom88" ? "cupom-88mm" : ""}>
         {trocaImprimindo && (() => {
