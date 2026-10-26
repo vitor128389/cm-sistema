@@ -10,6 +10,7 @@ import { registrarAuditoria } from "@/lib/auditoria";
 import ComprovanteTroca from "@/components/ComprovanteTroca";
 import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import ListaTrocas from "@/components/ListaTrocas";
+import { enviarPdfTroca } from "@/lib/enviarTrocaPdf";
 import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import type {
   Venda,
@@ -737,6 +738,24 @@ export default function TrocasPage() {
               title="Imprimir cupom para impressora térmica 88mm"
             >
               🧾 Cupom 88mm
+            </button>
+            <button
+              className="text-sm px-3 py-2 rounded bg-green-700 text-white font-medium hover:bg-green-800"
+              onClick={async () => {
+                const { data } = await supabase
+                  .from("trocas_grupo")
+                  .select(
+                    "*, vendas(numero_pedido, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado, bairro)), trocas_devolvidos(*), trocas_novos(*)"
+                  )
+                  .eq("numero_troca", concluida.numeroTroca)
+                  .eq("loja_id", lojaAtual)
+                  .maybeSingle();
+                if (!data) return alert("Não encontrei essa troca pra gerar o PDF.");
+                await enviarPdfTroca(data as unknown as TrocaGrupo);
+              }}
+              title="Gerar PDF da nota da troca e enviar por WhatsApp"
+            >
+              📄 PDF WhatsApp
             </button>
             <button className="btn-primario" onClick={novaTroca}>
               Fazer outra troca

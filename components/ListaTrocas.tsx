@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { enviarPdfTroca } from "@/lib/enviarTrocaPdf";
 import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import { formatarMoeda } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -148,6 +149,13 @@ export default function ListaTrocas() {
                       title="Imprimir cupom para impressora térmica 88mm"
                     >
                       🧾 88mm
+                    </button>
+                    <button
+                      className="text-xs px-2 py-1 rounded bg-green-700 text-white font-medium hover:bg-green-800"
+                      onClick={() => enviarPdfTroca(t)}
+                      title="Gerar PDF da nota da troca e enviar por WhatsApp"
+                    >
+                      📄 PDF WhatsApp
                     </button>
                   </div>
                 </div>
