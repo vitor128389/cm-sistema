@@ -6,17 +6,23 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda, formatarData } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarRelatorioEncomendasPdf } from "@/lib/gerarRelatorioEncomendasPdf";
-import type { Venda } from "@/types";
+import { montarNotaDaTroca } from "@/lib/notaDaTroca";
+import type { TrocaGrupo, Venda } from "@/types";
 
 function apenasNumeros(v: string) {
   return v.replace(/\D/g, "");
 }
 
-function mensagemEncomenda(v: Venda): string {
+function mensagemEncomenda(v: Venda, numeroOriginal?: number): string {
   const itens = (v.venda_itens || []).filter((i) => i.tipo_entrega === "encomenda");
   const linhasItens = linhasEncomendaMensagem(itens);
   const nome = (v.clientes?.nome || "Cliente").toUpperCase();
-  const linhas = [...linhasItens, `NOME: ${nome} #${v.numero_pedido}`];
+  const linhas = [
+    ...linhasItens,
+    numeroOriginal
+      ? `NOME: ${nome} #${numeroOriginal} (TROCA ${v.numero_pedido})`
+      : `NOME: ${nome} #${v.numero_pedido}`,
+  ];
   if (v.clientes?.cidade) linhas.push(`CIDADE: ${v.clientes.cidade.toUpperCase()}`);
   if (v.clientes?.povoado) linhas.push(`POVOADO: ${v.clientes.povoado.toUpperCase()}`);
   linhas.push(`PRAZO MAXIMO: ${dataBr(v.prazo_entrega_maximo)}`);
@@ -54,6 +60,8 @@ export default function EncomendasPage() {
   const [busca, setBusca] = useState("");
   const [lojasRelatorio, setLojasRelatorio] = useState<string[]>([]);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [trocas, setTrocas] = useState<TrocaGrupo[]>([]);
+  const [verOriginal, setVerOriginal] = useState<Record<string, boolean>>({});
   const [tiposPdf, setTiposPdf] = useState<TipoPdf[]>([]);
 
   function alternarTipoPdf(t: TipoPdf) {
@@ -101,6 +109,17 @@ export default function EncomendasPage() {
   }
 
   useEffect(() => {
+    async function carregarTrocas() {
+      let q = supabase
+        .from("trocas_grupo")
+        .select("*, trocas_devolvidos(*), trocas_novos(*)")
+        .eq("cancelada", false)
+        .order("criado_em", { ascending: false });
+      if (lojaAtual) q = q.eq("loja_id", lojaAtual);
+      const { data } = await q;
+      setTrocas((data || []) as unknown as TrocaGrupo[]);
+    }
+    carregarTrocas();
     carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
@@ -152,17 +171,36 @@ export default function EncomendasPage() {
     try {
       const { data, error } = await supabase
         .from("vendas")
-        .select("criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega)")
+        .select("id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
         .eq("cancelada", false)
         .in("loja_id", idsLojas);
       if (error) throw error;
+      // trocas: o item devolvido sai do relatório e os produtos novos da troca entram
+      const { data: trocasData } = await supabase
+        .from("trocas_grupo")
+        .select("venda_original_id, trocas_novos(produto_nome, variante, quantidade, tipo_entrega)")
+        .eq("cancelada", false)
+        .in("loja_id", idsLojas);
+      const novosPorVenda = new Map<string, { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string }[]>();
+      for (const t of (trocasData || []) as unknown as {
+        venda_original_id: string;
+        trocas_novos: { produto_nome: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
+      }[]) {
+        const lista = novosPorVenda.get(t.venda_original_id) || [];
+        for (const n of t.trocas_novos || []) lista.push({ nome_produto: n.produto_nome, variante: n.variante, quantidade: n.quantidade, tipo_entrega: n.tipo_entrega });
+        novosPorVenda.set(t.venda_original_id, lista);
+      }
 
       const todasVendas = (data || []) as unknown as Venda[];
       const vendasNoPeriodo = todasVendas.filter((v) => dentroDoPeriodo(v.criado_em));
 
       const consolidado = new Map<string, number>();
       for (const v of vendasNoPeriodo) {
-        for (const item of v.venda_itens || []) {
+        const itensAtuais = [
+          ...(v.venda_itens || []).filter((i) => !(i as { trocado?: boolean }).trocado),
+          ...(novosPorVenda.get(v.id) || []),
+        ] as { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
+        for (const item of itensAtuais) {
           if (item.tipo_entrega !== "encomenda") continue;
           if (tiposPdf.length > 0 && !tiposPdf.includes(tipoDoProduto(item.nome_produto))) continue;
           // sofás "2 e 3 lugares" salvam a peça (2/3 Lugares) dentro da
@@ -225,9 +263,10 @@ export default function EncomendasPage() {
       return false;
     }
     if (filtroStatus === "todas") return true;
-    return (v.venda_itens || []).some(
-      (i) => i.tipo_entrega === "encomenda" && i.status_entrega === filtroStatus
-    );
+    // pedido com troca (mostrando a nota nova): vale o que o cliente ficou
+    const troca = trocas.find((t) => t.venda_original_id === v.id);
+    const itens = troca && !verOriginal[v.id] ? montarNotaDaTroca(v, troca).venda_itens || [] : v.venda_itens || [];
+    return itens.some((i) => i.tipo_entrega === "encomenda" && i.status_entrega === filtroStatus);
   });
 
   return (
@@ -336,12 +375,27 @@ export default function EncomendasPage() {
         <div className="card p-8 text-center text-madeira-500 text-sm">Nenhuma encomenda encontrada.</div>
       ) : (
         <div className="space-y-3">
-          {vendasFiltradas.map((v) => (
+          {vendasFiltradas.map((vOriginal) => {
+            const troca = trocas.find((t) => t.venda_original_id === vOriginal.id);
+            // pedido com troca: mostra a nota NOVA (o que o cliente ficou) e deixa ver o original
+            const mostrandoTroca = !!troca && !verOriginal[vOriginal.id];
+            const v = mostrandoTroca && troca ? montarNotaDaTroca(vOriginal, troca) : vOriginal;
+            return (
             <div key={v.id} className="card p-5">
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <p className="font-display text-lg text-madeira-900">
-                    Pedido #{v.numero_pedido} — {v.clientes?.nome || "Cliente"}
+                    {mostrandoTroca ? `Troca #${v.numero_pedido} (pedido #${vOriginal.numero_pedido})` : `Pedido #${v.numero_pedido}`} —{" "}
+                    {v.clientes?.nome || "Cliente"}
+                    {troca && (
+                      <button
+                        className="ml-2 align-middle text-xs px-2 py-0.5 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800"
+                        onClick={() => setVerOriginal((m) => ({ ...m, [vOriginal.id]: mostrandoTroca }))}
+                        title="Alterna entre a nota nova da troca e o pedido original"
+                      >
+                        {mostrandoTroca ? "↩ Ver pedido original" : "🔁 Ver nota da troca"}
+                      </button>
+                    )}
                   </p>
                   <p className="text-xs text-madeira-500">
                     {formatarData(v.criado_em)}
@@ -353,7 +407,7 @@ export default function EncomendasPage() {
                   {(v.venda_itens || []).some((i) => i.tipo_entrega === "encomenda") && (
                     <button
                       className="btn-secundario text-xs mt-1"
-                      onClick={() => abrirWhatsAppComTexto(mensagemEncomenda(v))}
+                      onClick={() => abrirWhatsAppComTexto(mensagemEncomenda(v, mostrandoTroca ? vOriginal.numero_pedido : undefined))}
                       title="Abre o WhatsApp com a mensagem pronta — é só escolher o grupo e enviar"
                     >
                       📲 Enviar p/ grupo
@@ -403,7 +457,8 @@ export default function EncomendasPage() {
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
