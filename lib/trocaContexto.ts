@@ -6,6 +6,8 @@ export interface ItemRestante {
   produto_nome: string;
   variante: string | null;
   quantidade: number;
+  valor_unitario_avista: number;
+  valor_unitario_aprazo: number;
   tipo_entrega?: string | null;
   origem_deposito?: boolean | null;
 }
@@ -18,13 +20,14 @@ export async function carregarContextoTroca(
 ): Promise<{ troca: TrocaGrupo; restantes: ItemRestante[] }> {
   const { data } = await supabase
     .from("venda_itens")
-    .select("id, nome_produto, variante, quantidade, tipo_entrega, origem_deposito, trocado")
+    .select("id, nome_produto, variante, quantidade, valor_unitario, tipo_entrega, origem_deposito, trocado")
     .eq("venda_id", t.venda_original_id);
   const itens = (data || []) as {
     id: string;
     nome_produto: string;
     variante: string | null;
     quantidade: number;
+    valor_unitario: number;
     tipo_entrega: string | null;
     origem_deposito: boolean | null;
     trocado: boolean | null;
@@ -44,6 +47,9 @@ export async function carregarContextoTroca(
       produto_nome: i.nome_produto,
       variante: i.variante,
       quantidade: i.quantidade,
+      // valor_unitario já é o a prazo; o à vista é esse valor ÷ 1,1 (igual ao resto do sistema)
+      valor_unitario_aprazo: Number(i.valor_unitario),
+      valor_unitario_avista: Math.round((Number(i.valor_unitario) / 1.1) * 100) / 100,
       tipo_entrega: i.tipo_entrega,
       origem_deposito: i.origem_deposito,
     }));

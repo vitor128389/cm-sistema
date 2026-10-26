@@ -151,6 +151,8 @@ function ViaTroca({
   };
   const valorItem = (v: { valor_unitario_avista: number; valor_unitario_aprazo: number }, qtd: number) =>
     (tipoPreco === "avista" ? v.valor_unitario_avista : v.valor_unitario_aprazo) * qtd;
+  const finaisExibir = itensRestantes ? mesclarConjuntosSofa([...itensRestantes, ...novosExibir]) : [];
+  const totalFinal = finaisExibir.reduce((t, i) => t + valorItem(i, i.quantidade), 0);
 
   return (
     <div className="imp-via">
@@ -297,20 +299,25 @@ function ViaTroca({
               <tr>
                 <th>Produto</th>
                 <th>Qtd.</th>
+                <th>Valor</th>
               </tr>
             </thead>
             <tbody>
-              {[...itensRestantes, ...novosExibir].map((i, idx) => (
+              {finaisExibir.map((i, idx) => (
                 <tr key={`${i.produto_nome}-${idx}`}>
                   <td>
                     {i.produto_nome} {tagOrigem(i)}
                     {i.variante ? ` — ${i.variante}` : ""}
                   </td>
                   <td>{i.quantidade}</td>
+                  <td>{formatarMoeda(valorItem(i, i.quantidade))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p style={{ margin: "4px 0", textAlign: "right" }}>
+            <strong>Valor total dos produtos que ficaram: {formatarMoeda(totalFinal)}</strong>
+          </p>
         </>
       )}
 

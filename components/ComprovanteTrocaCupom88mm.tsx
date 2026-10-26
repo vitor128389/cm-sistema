@@ -46,6 +46,9 @@ export default function ComprovanteTrocaCupom88mm({
   const valorItem = (v: { valor_unitario_avista: number; valor_unitario_aprazo: number }, qtd: number) =>
     (tipoPreco === "avista" ? v.valor_unitario_avista : v.valor_unitario_aprazo) * qtd;
 
+  const finaisExibir = itensRestantes ? mesclarConjuntosSofa([...itensRestantes, ...novosExibir]) : [];
+  const totalFinal = finaisExibir.reduce((t, i) => t + valorItem(i, i.quantidade), 0);
+
   const enderecoLoja = [
     [loja?.rua, loja?.numero].filter(Boolean).join(", "),
     loja?.bairro,
@@ -136,7 +139,7 @@ export default function ComprovanteTrocaCupom88mm({
       {itensRestantes && (
         <>
           {tituloLista("SITUAÇÃO FINAL DO PEDIDO")}
-          {[...itensRestantes, ...novosExibir].map((i, idx) => (
+          {finaisExibir.map((i, idx) => (
             <div key={`${i.produto_nome}-${idx}`} style={{ display: "flex", alignItems: "flex-start", fontSize: 14, margin: "4px 0" }}>
               <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
                 {i.produto_nome}
@@ -145,8 +148,12 @@ export default function ComprovanteTrocaCupom88mm({
                 <span style={{ fontSize: 12, fontWeight: 900 }}>{rotulo(i)}</span>
               </span>
               <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {i.quantidade}</span>
+              <span style={{ width: "22mm", textAlign: "right", whiteSpace: "nowrap" }}>
+                {formatarMoeda(valorItem(i, i.quantidade))}
+              </span>
             </div>
           ))}
+          <Linha esquerda="TOTAL QUE FICOU" direita={formatarMoeda(totalFinal)} tamanho={16} />
           <Divisor />
         </>
       )}

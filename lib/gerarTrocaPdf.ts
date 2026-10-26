@@ -90,15 +90,26 @@ export async function gerarTrocaPdf(
     origem: origem(n),
     valor: valorDe(n) * n.quantidade,
   }));
-  const finais: LinhaPdf[] = [
-    ...restantes.map((r) => ({
-      quantidade: r.quantidade,
-      nome: r.produto_nome,
-      variante: r.variante,
-      origem: origem(r),
+  const finais: LinhaPdf[] = mesclarConjuntosSofa([
+    ...restantes.map((r) => ({ ...r, tipo_entrega: r.tipo_entrega ?? null })),
+    ...novosMesclados.map((n) => ({
+      id: n.id,
+      produto_nome: n.produto_nome,
+      variante: n.variante,
+      quantidade: n.quantidade,
+      valor_unitario_avista: n.valor_unitario_avista,
+      valor_unitario_aprazo: n.valor_unitario_aprazo,
+      tipo_entrega: n.tipo_entrega,
+      origem_deposito: n.origem_deposito,
     })),
-    ...novos.map((n) => ({ ...n, valor: undefined })),
-  ];
+  ]).map((i) => ({
+    quantidade: i.quantidade,
+    nome: i.produto_nome,
+    variante: i.variante,
+    origem: origem(i),
+    valor: valorDe(i) * i.quantidade,
+  }));
+  const totalFinal = finais.reduce((t, f) => t + (f.valor || 0), 0);
 
   function rodape() {
     const n = doc.getNumberOfPages();
@@ -274,7 +285,17 @@ export async function gerarTrocaPdf(
     y += 6;
   }
 
-  secao("SITUAÇÃO FINAL DO PEDIDO", finais, false);
+  secao("SITUAÇÃO FINAL DO PEDIDO", finais, true);
+  garantirEspaco(14);
+  preencher(VERDE);
+  doc.roundedRect(margem, y, largura, 11, 2, 2, "F");
+  fonte(true, 9);
+  cor([226, 200, 130]);
+  doc.text("TOTAL QUE FICOU", margem + 5, y + 7, { charSpace: 1.2 });
+  fonte(true, 14);
+  cor([255, 255, 255]);
+  doc.text(formatarMoeda(totalFinal), W - margem - 5, y + 7.3, { align: "right" });
+  y += 14;
 
   rodape();
   return doc.output("blob");
