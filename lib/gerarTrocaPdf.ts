@@ -190,7 +190,7 @@ export async function gerarTrocaPdf(
     fonte(false, 9);
     cor(CINZA);
     partes.forEach((l, i) => doc.text(l, margem + 5, y + 16 + i * 4.2));
-    y += altCard + 6;
+    y += altCard + 3;
   }
 
   const colQtd = margem + 3;
@@ -213,7 +213,7 @@ export async function gerarTrocaPdf(
       const nomeLinhas = doc.splitTextToSize(`${l.nome} (${l.origem.texto})`, larguraProd) as string[];
       fonte(false, 8.5);
       const varLinhas = l.variante ? (doc.splitTextToSize(l.variante, larguraProd) as string[]) : [];
-      const altura = 3 + nomeLinhas.length * 4.8 + varLinhas.length * 3.8 + 3;
+      const altura = 2.5 + nomeLinhas.length * 4.4 + varLinhas.length * 3.4 + 2;
       garantirEspaco(altura);
       if (idx % 2 === 0) {
         preencher(FUNDO_SUAVE);
@@ -236,13 +236,13 @@ export async function gerarTrocaPdf(
           cor(TEXTO);
           doc.text(t, colProd, yy);
         }
-        yy += 4.8;
+        yy += 4.4;
       });
       fonte(false, 8.5);
       cor(CINZA);
       varLinhas.forEach((t) => {
         doc.text(t, colProd, yy + 0.3);
-        yy += 3.8;
+        yy += 3.4;
       });
       if (mostrarValor && l.valor !== undefined) {
         fonte(true, 10);
@@ -251,7 +251,7 @@ export async function gerarTrocaPdf(
       }
       y += altura;
     });
-    y += 3;
+    y += 2;
   }
 
   secao("PRODUTOS DEVOLVIDOS", devolvidos, true);
@@ -275,7 +275,7 @@ export async function gerarTrocaPdf(
     cor([255, 255, 255]);
     const valor = diferenca > 0 ? troca.valor_cobrado_diferenca ?? diferenca : Math.abs(diferenca);
     doc.text(formatarMoeda(valor), W - margem - 5, y + 7.3, { align: "right" });
-    y += 14;
+    y += 13.5;
   }
   if (diferenca !== 0 && troca.forma_pagamento_diferenca) {
     fonte(false, 9.5);
@@ -286,16 +286,16 @@ export async function gerarTrocaPdf(
   }
 
   secao("SITUAÇÃO FINAL DO PEDIDO", finais, true);
-  garantirEspaco(14);
+  garantirEspaco(10);
   preencher(VERDE);
-  doc.roundedRect(margem, y, largura, 11, 2, 2, "F");
-  fonte(true, 9);
+  doc.roundedRect(margem, y, largura, 9, 2, 2, "F");
+  fonte(true, 8.5);
   cor([226, 200, 130]);
-  doc.text("TOTAL QUE FICOU", margem + 5, y + 7, { charSpace: 1.2 });
-  fonte(true, 14);
+  doc.text("TOTAL QUE FICOU", margem + 5, y + 6, { charSpace: 1.2 });
+  fonte(true, 12);
   cor([255, 255, 255]);
-  doc.text(formatarMoeda(totalFinal), W - margem - 5, y + 7.3, { align: "right" });
-  y += 14;
+  doc.text(formatarMoeda(totalFinal), W - margem - 5, y + 6.2, { align: "right" });
+  y += 10;
 
   rodape();
   return doc.output("blob");
