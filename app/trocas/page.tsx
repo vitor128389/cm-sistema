@@ -31,6 +31,16 @@ const PRODUTOS_COM_BRACOS_ALMOFADA = [
   "SOFÁ TURQUIA 2 E 3 LUGARES",
 ];
 
+const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
+const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
+
+function precisaModeloLinha(linha: LinhaNova): boolean {
+  return (
+    !!linha.produto &&
+    (linha.produto.categoria === "Cabeceiras e Baús" || PRODUTOS_COM_MODELO.includes(linha.produto.nome))
+  );
+}
+
 interface LinhaNova {
   chave: number;
   produto: ProdutoComVariantes | null;
@@ -41,6 +51,7 @@ interface LinhaNova {
   corSel: string;
   corManual: string;
   bracosAlmofada: boolean;
+  modelo: string;
   quantidade: number;
   valorAVistaUnit: number;
   valorAPrazoUnit: number;
@@ -183,6 +194,7 @@ export default function TrocasPage() {
         corSel: "",
         corManual: "",
         bracosAlmofada: false,
+        modelo: "",
         quantidade: 1,
         valorAVistaUnit: 0,
         valorAPrazoUnit: 0,
@@ -238,6 +250,7 @@ export default function TrocasPage() {
       corSel: "",
       corManual: "",
       bracosAlmofada: false,
+      modelo: "",
       valorAVistaUnit: avista,
       valorAPrazoUnit: Math.round(avista * 1.1 * 100) / 100,
     });
@@ -397,6 +410,14 @@ export default function TrocasPage() {
   // descritiva somada quando existir, e sem o sufixo técnico de braços
   // (mostra "— Com Braços" só quando for o caso, não "— Sem Braços")
   function varianteNomeExibidoLinha(linha: LinhaNova): string | null {
+    const base = varianteNomeExibidoBase(linha);
+    if (precisaModeloLinha(linha) && linha.modelo) {
+      return base ? `${base} — Modelo ${linha.modelo}` : `Modelo ${linha.modelo}`;
+    }
+    return base;
+  }
+
+  function varianteNomeExibidoBase(linha: LinhaNova): string | null {
     if (!linha.produto) return null;
     if (linha.produto.tipo_precificacao === "tecido_peca") {
       return `${linha.tecidoSel}${corExtraLinha(linha)} — ${linha.pecaSel} Lugares${bracosExibicaoLinha(linha)}`;
@@ -451,6 +472,10 @@ export default function TrocasPage() {
     if (!vendaEncontrada || !lojaAtual) return;
     if (itensDevolvidos.length === 0) {
       alert("Marque pelo menos um produto devolvido.");
+      return;
+    }
+    if (linhasNovasProntas.some((l) => precisaModeloLinha(l) && !l.modelo)) {
+      alert("Escolha o modelo (Capitonê, Quadrado, Vertical ou V) dos produtos novos que pedem modelo.");
       return;
     }
     if (linhasNovasProntas.length === 0) {
@@ -956,6 +981,23 @@ export default function TrocasPage() {
                                 />
                               </div>
                             </>
+                          )}
+                          {precisaModeloLinha(linha) && (
+                            <label className="block mb-2">
+                              <span className="text-xs text-madeira-600 mb-1 block">Modelo</span>
+                              <select
+                                className="input-base"
+                                value={linha.modelo}
+                                onChange={(e) => atualizarLinha(linha.chave, { modelo: e.target.value })}
+                              >
+                                <option value="">Selecione...</option>
+                                {MODELOS.map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           )}
                           {mostrarBracosLinha(linha) && (
                             <label className="flex items-center gap-2 mb-2 text-sm text-madeira-700 cursor-pointer">
