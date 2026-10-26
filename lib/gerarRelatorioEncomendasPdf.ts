@@ -38,7 +38,7 @@ export async function gerarRelatorioEncomendasPdf(
     y += 6;
   }
 
-  linha("Relatório de Encomendas", { negrito: true, tamanho: 16, espaco: 3 });
+  linha(tiposTexto ? `Encomendas — ${tiposTexto}` : "Relatório de Encomendas", { negrito: true, tamanho: 16, espaco: 3 });
   linha(`Loja(s): ${lojasNomes.join(", ")}`, { tamanho: 10 });
   linha(`Período: ${periodoTexto}`, { tamanho: 10, espaco: tiposTexto ? 2 : 4 });
   if (tiposTexto) linha(`Tipos: ${tiposTexto}`, { tamanho: 10, espaco: 4 });

@@ -184,9 +184,20 @@ export default function EncomendasPage() {
         periodoParaTexto(),
         tiposPdf.length > 0 ? tiposPdf.join(", ") : undefined
       );
-      const nomeArquivo = `encomendas-${nomesLojas.join("-").replace(/\s+/g, "-").toLowerCase()}-${new Date()
-        .toISOString()
-        .slice(0, 10)}.pdf`;
+      const slug = (t: string) =>
+        t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const fmt = (d: Date) => d.toLocaleDateString("pt-BR").replace(/\//g, "-");
+      let dataArquivo = "todos-os-periodos";
+      const hojeD = new Date();
+      if (periodo === "hoje") dataArquivo = fmt(hojeD);
+      else if (periodo === "ontem") dataArquivo = fmt(new Date(hojeD.getTime() - 24 * 60 * 60 * 1000));
+      else if (periodo === "personalizado") {
+        const a = de ? fmt(new Date(de + "T00:00:00")) : "inicio";
+        const b = ate ? fmt(new Date(ate + "T00:00:00")) : "hoje";
+        dataArquivo = a === b ? a : `${a}-ate-${b}`;
+      }
+      const tiposArquivo = tiposPdf.length > 0 ? tiposPdf.map(slug).join("-e-") : "todas";
+      const nomeArquivo = `encomendas-${tiposArquivo}-${nomesLojas.map(slug).join("-")}-${dataArquivo}.pdf`;
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
