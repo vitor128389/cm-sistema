@@ -14,6 +14,7 @@ interface ClienteResumo {
 
 interface Props {
   numeroPedido: number;
+  rotuloNumero?: string; // ex.: "TROCA"
   cliente: ClienteResumo | null;
   itens: VendaItem[];
   total: number;
@@ -104,6 +105,7 @@ function Linha({
 
 export default function ComprovanteCupom88mm({
   numeroPedido,
+  rotuloNumero,
   cliente,
   itens,
   total,
@@ -158,7 +160,7 @@ export default function ComprovanteCupom88mm({
       {loja?.telefone && <p style={p({ textAlign: "center", fontSize: 13 })}>Tel: {loja.telefone}</p>}
       <Divisor />
       <p style={p({ textAlign: "center", fontSize: 14, fontWeight: 900 })}>COMPROVANTE DE VENDA</p>
-      <Linha esquerda={`PEDIDO Nº ${numeroPedido}`} direita={dataHora} tamanho={13} />
+      <Linha esquerda={`${rotuloNumero || "PEDIDO"} Nº ${numeroPedido}`} direita={dataHora} tamanho={13} />
       <Divisor />
 
       {cliente ? (

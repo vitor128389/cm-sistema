@@ -80,7 +80,7 @@ async function carregarLogo(): Promise<{ data: string; w: number; h: number } | 
   }
 }
 
-export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | null): Promise<Blob> {
+export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | null, rotuloNumero = "PEDIDO"): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
   const logo = await carregarLogo();
   const doc = new jsPDF({ unit: "mm", format: "a5" });
@@ -145,7 +145,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   }
   fonte(false, 7.5);
   cor([226, 200, 130]);
-  doc.text("PEDIDO", larguraPagina - margem, 11, { align: "right", charSpace: 1.2 });
+  doc.text(rotuloNumero, larguraPagina - margem, 11, { align: "right", charSpace: 1.2 });
   fonte(true, 21);
   cor([255, 255, 255]);
   doc.text(`#${venda.numero_pedido}`, larguraPagina - margem, 20, { align: "right" });

@@ -10,7 +10,7 @@ import ComprovanteTroca from "@/components/ComprovanteTroca";
 import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
-import { gerarTrocaPdf } from "@/lib/gerarTrocaPdf";
+import { montarNotaDaTroca } from "@/lib/notaDaTroca";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
@@ -179,6 +179,7 @@ export default function NotasPage() {
   } | null>(null);
   const [salvandoEnd, setSalvandoEnd] = useState(false);
   const [erroEnd, setErroEnd] = useState("");
+  const [rotuloNota, setRotuloNota] = useState<string | undefined>(undefined);
   const [modoTroca, setModoTroca] = useState<Record<string, boolean>>({});
   const [trocaImprimindo, setTrocaImprimindo] = useState<TrocaGrupo | null>(null);
   const [itensRestantes, setItensRestantes] = useState<ItemRestante[] | undefined>(undefined);
@@ -447,7 +448,14 @@ export default function NotasPage() {
     }, 100);
   }
 
-  async function imprimir(v: Venda, formato: "a4" | "cupom88" = "a4") {
+  // Nota da troca = nota normal só com o que o cliente ficou (itens que
+  // continuam + produtos novos), com o número da troca no topo.
+  async function imprimirNotaTroca(v: Venda, t: TrocaGrupo, formato: "a4" | "cupom88" = "a4") {
+    await imprimir(montarNotaDaTroca(v, t), formato, "TROCA");
+  }
+
+  async function imprimir(v: Venda, formato: "a4" | "cupom88" = "a4", rotulo?: string) {
+    setRotuloNota(rotulo);
     setTrocaImprimindo(null);
     setNotaImprimindo(v);
     setFormatoImpressao(formato);
@@ -589,51 +597,18 @@ export default function NotasPage() {
   }
 
   async function enviarPdfTrocaWhatsApp(t: TrocaGrupo, v: Venda) {
-    let loja: LojaCompleta | null = null;
-    if (t.loja_id) {
-      const { data } = await supabase.from("lojas").select("*").eq("id", t.loja_id).maybeSingle();
-      loja = data as LojaCompleta | null;
-    }
-    const ctx = await carregarContextoTroca(supabase, t);
-    const blob = await gerarTrocaPdf(ctx.troca, ctx.restantes, loja);
-    const nomeArquivo = `troca-${t.numero_troca}-pedido-${v.numero_pedido}.pdf`;
-    const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
-    if (typeof navigator !== "undefined" && "canShare" in navigator && navigator.canShare({ files: [arquivo] })) {
-      try {
-        await navigator.share({
-          files: [arquivo],
-          title: `Troca #${t.numero_troca}`,
-          text: `Troca #${t.numero_troca} — pedido #${v.numero_pedido} — ${v.clientes?.nome || "cliente"}`,
-        });
-      } catch {
-        // usuário cancelou o compartilhamento
-      }
-      return;
-    }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = nomeArquivo;
-    link.click();
-    URL.revokeObjectURL(url);
-    const telefone = v.clientes?.telefone;
-    if (telefone) {
-      alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
-      window.open(linkWhatsApp(telefone, `Segue a nota da troca #${t.numero_troca} (pedido #${v.numero_pedido}) em PDF.`), "_blank", "noopener");
-    } else {
-      alert("PDF baixado. Esse cliente não tem celular cadastrado pra abrir o WhatsApp direto.");
-    }
+    await enviarPdfWhatsApp(montarNotaDaTroca(v, t), "TROCA");
   }
 
-  async function enviarPdfWhatsApp(v: Venda) {
+  async function enviarPdfWhatsApp(v: Venda, rotulo?: string) {
     let loja: LojaCompleta | null = null;
     if (v.loja_id) {
       const { data } = await supabase.from("lojas").select("*").eq("id", v.loja_id).maybeSingle();
       loja = data as LojaCompleta | null;
     }
 
-    const blob = await gerarNotaSimplesPdf(v, loja);
-    const nomeArquivo = `pedido-${v.numero_pedido}.pdf`;
+    const blob = await gerarNotaSimplesPdf(v, loja, rotulo || "PEDIDO");
+    const nomeArquivo = rotulo ? `troca-${v.numero_pedido}.pdf` : `pedido-${v.numero_pedido}.pdf`;
     const arquivo = new File([blob], nomeArquivo, { type: "application/pdf" });
 
     // No celular, abre o menu de compartilhar do sistema já com o PDF
@@ -642,8 +617,8 @@ export default function NotasPage() {
       try {
         await navigator.share({
           files: [arquivo],
-          title: `Pedido #${v.numero_pedido}`,
-          text: `Pedido #${v.numero_pedido} — ${v.clientes?.nome || "cliente"}`,
+          title: `${rotulo ? "Troca" : "Pedido"} #${v.numero_pedido}`,
+          text: `${rotulo ? "Troca" : "Pedido"} #${v.numero_pedido} — ${v.clientes?.nome || "cliente"}`,
         });
         return;
       } catch {
@@ -664,7 +639,7 @@ export default function NotasPage() {
     const telefone = v.clientes?.telefone;
     if (telefone) {
       alert("PDF baixado. O WhatsApp vai abrir — é só anexar o arquivo baixado na conversa.");
-      window.open(linkWhatsApp(telefone, `Segue o pedido #${v.numero_pedido} em PDF.`), "_blank", "noopener");
+      window.open(linkWhatsApp(telefone, `Segue ${rotulo ? "a nota da troca" : "o pedido"} #${v.numero_pedido} em PDF.`), "_blank", "noopener");
     } else {
       alert("PDF baixado. Esse cliente não tem celular cadastrado pra abrir o WhatsApp direto.");
     }
@@ -896,12 +871,12 @@ export default function NotasPage() {
                       ✏️ Editar nota
                     </button>
                   )}
-                  <button className="btn-secundario text-xs px-2 py-1" onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t); else imprimir(v); }}>
+                  <button className="btn-secundario text-xs px-2 py-1" onClick={() => { const t = trocaAtiva(v); if (t) imprimirNotaTroca(v, t); else imprimir(v); }}>
                     🖨
                   </button>
                   <button
                     className="btn-secundario text-xs px-2 py-1"
-                    onClick={() => { const t = trocaAtiva(v); if (t) imprimirTroca(t, "cupom88"); else imprimir(v, "cupom88"); }}
+                    onClick={() => { const t = trocaAtiva(v); if (t) imprimirNotaTroca(v, t, "cupom88"); else imprimir(v, "cupom88"); }}
                     title="Imprimir cupom para impressora térmica 88mm"
                   >
                     🧾 88mm
@@ -1173,6 +1148,7 @@ export default function NotasPage() {
         {notaImprimindo && formatoImpressao === "cupom88" && (
           <ComprovanteCupom88mm
             numeroPedido={notaImprimindo.numero_pedido}
+            rotuloNumero={rotuloNota}
             cliente={
               notaImprimindo.clientes
                 ? {
@@ -1208,6 +1184,7 @@ export default function NotasPage() {
         {notaImprimindo && formatoImpressao === "a4" && (
           <ComprovanteImpressao
             numeroPedido={notaImprimindo.numero_pedido}
+            rotuloNumero={rotuloNota}
             criadoEm={notaImprimindo.criado_em}
             rotaNome={notaImprimindo.rota_nome ?? null}
             rotaCor={notaImprimindo.rota_cor ?? null}

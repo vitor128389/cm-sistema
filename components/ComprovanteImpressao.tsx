@@ -32,6 +32,7 @@ interface ClienteResumo {
 
 interface Props {
   numeroPedido: number;
+  rotuloNumero?: string; // ex.: "TROCA" — mostra "TROCA #15" no lugar de "#15"
   rotaNome?: string | null;
   rotaCor?: string | null;
   descontoGeral?: number;
@@ -232,6 +233,7 @@ function linhaItem(
 
 function ViaComprovante({
   numeroPedido,
+  rotuloNumero,
   rotaNome,
   rotaCor,
   descontoGeral,
@@ -299,7 +301,7 @@ function ViaComprovante({
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-          <span className="imp-numero-pedido">#{numeroPedido}</span>
+          <span className="imp-numero-pedido">{rotuloNumero ? `${rotuloNumero} ` : ""}#{numeroPedido}</span>
           {rotaNome && ehViaLoja && (
             <span
               style={{
