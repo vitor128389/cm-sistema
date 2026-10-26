@@ -23,6 +23,25 @@ function mensagemEncomenda(v: Venda): string {
   return linhas.join("\n");
 }
 
+// Tipos de produto pra filtrar o PDF (classificação pelo nome do produto).
+const TIPOS_PDF = ["Sofás", "Poltronas", "Namoradeiras", "Cabeceiras", "Baús", "Camas", "Recamiers", "Puffs", "Cadeiras", "Outros"] as const;
+type TipoPdf = (typeof TIPOS_PDF)[number];
+
+function tipoDoProduto(nome: string): TipoPdf {
+  const n = (nome || "").toLowerCase();
+  if (/mesa de cabeceira/.test(n)) return "Outros";
+  if (/ba[úu]/.test(n)) return "Baús";
+  if (/recamier/.test(n)) return "Recamiers";
+  if (/cabeceira|painel/.test(n)) return "Cabeceiras";
+  if (/namoradeira/.test(n)) return "Namoradeiras";
+  if (/poltrona/.test(n)) return "Poltronas";
+  if (/^sof[áa]|\bsof[áa]\b/.test(n)) return "Sofás";
+  if (/puff/.test(n)) return "Puffs";
+  if (/cadeira/.test(n)) return "Cadeiras";
+  if (/^cama\b|colch/.test(n)) return "Camas";
+  return "Outros";
+}
+
 export default function EncomendasPage() {
   const { lojaAtual, lojas } = useLoja();
   const [vendas, setVendas] = useState<Venda[]>([]);
@@ -35,6 +54,11 @@ export default function EncomendasPage() {
   const [busca, setBusca] = useState("");
   const [lojasRelatorio, setLojasRelatorio] = useState<string[]>([]);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [tiposPdf, setTiposPdf] = useState<TipoPdf[]>([]);
+
+  function alternarTipoPdf(t: TipoPdf) {
+    setTiposPdf((atual) => (atual.includes(t) ? atual.filter((x) => x !== t) : [...atual, t]));
+  }
 
   function alternarLojaRelatorio(id: string) {
     setLojasRelatorio((atual) => {
@@ -140,6 +164,7 @@ export default function EncomendasPage() {
       for (const v of vendasNoPeriodo) {
         for (const item of v.venda_itens || []) {
           if (item.tipo_entrega !== "encomenda") continue;
+          if (tiposPdf.length > 0 && !tiposPdf.includes(tipoDoProduto(item.nome_produto))) continue;
           // sofás "2 e 3 lugares" salvam a peça (2/3 Lugares) dentro da
           // variante — junta as duas peças do mesmo tecido/cor numa linha
           // só, sem repetir o produto duas vezes no relatório
@@ -153,7 +178,12 @@ export default function EncomendasPage() {
         .sort((a, b) => a.nome.localeCompare(b.nome));
 
       const nomesLojas = idsLojas.map((id) => lojas.find((l) => l.id === id)?.nome || "Loja");
-      const blob = await gerarRelatorioEncomendasPdf(itensOrdenados, nomesLojas, periodoParaTexto());
+      const blob = await gerarRelatorioEncomendasPdf(
+        itensOrdenados,
+        nomesLojas,
+        periodoParaTexto(),
+        tiposPdf.length > 0 ? tiposPdf.join(", ") : undefined
+      );
       const nomeArquivo = `encomendas-${nomesLojas.join("-").replace(/\s+/g, "-").toLowerCase()}-${new Date()
         .toISOString()
         .slice(0, 10)}.pdf`;
@@ -271,6 +301,17 @@ export default function EncomendasPage() {
                   {l.nome}
                 </label>
               ))}
+          </div>
+          <p className="text-xs text-madeira-500 mb-1">
+            O que entra no PDF (marque só os tipos que quer; sem marcar nada, sai tudo):
+          </p>
+          <div className="flex flex-wrap gap-3 mb-3">
+            {TIPOS_PDF.map((t) => (
+              <label key={t} className="flex items-center gap-1.5 text-sm text-madeira-700 cursor-pointer">
+                <input type="checkbox" checked={tiposPdf.includes(t)} onChange={() => alternarTipoPdf(t)} />
+                {t}
+              </label>
+            ))}
           </div>
           <button className="btn-primario" onClick={gerarPdf} disabled={gerandoPdf}>
             {gerandoPdf ? "Gerando..." : "Baixar PDF"}

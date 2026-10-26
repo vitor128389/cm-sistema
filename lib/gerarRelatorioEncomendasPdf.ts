@@ -14,7 +14,8 @@ export interface ItemConsolidadoEncomenda {
 export async function gerarRelatorioEncomendasPdf(
   itens: ItemConsolidadoEncomenda[],
   lojasNomes: string[],
-  periodoTexto: string
+  periodoTexto: string,
+  tiposTexto?: string
 ): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -39,7 +40,8 @@ export async function gerarRelatorioEncomendasPdf(
 
   linha("Relatório de Encomendas", { negrito: true, tamanho: 16, espaco: 3 });
   linha(`Loja(s): ${lojasNomes.join(", ")}`, { tamanho: 10 });
-  linha(`Período: ${periodoTexto}`, { tamanho: 10, espaco: 4 });
+  linha(`Período: ${periodoTexto}`, { tamanho: 10, espaco: tiposTexto ? 2 : 4 });
+  if (tiposTexto) linha(`Tipos: ${tiposTexto}`, { tamanho: 10, espaco: 4 });
   separador();
 
   if (itens.length === 0) {
