@@ -174,7 +174,14 @@ export default function NotasPage() {
     clienteId: string;
     campos: Record<"nome" | "telefone" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
     prazo: string;
-    itens: { id: string; nome_produto: string; variante: string; observacao: string }[];
+    itens: {
+      id: string;
+      nome_produto: string;
+      variante: string;
+      observacao: string;
+      // sofá 2 e 3 lugares = 2 linhas no banco (peça de 2 + peça de 3), mas aqui é UM produto só
+      partes?: { id: string; peca: string; sufixo: string; obs: string }[];
+    }[];
     original: string;
   } | null>(null);
   const [salvandoEnd, setSalvandoEnd] = useState(false);
@@ -523,12 +530,49 @@ export default function NotasPage() {
         povoado: c.povoado || "",
       },
       prazo: v.prazo_entrega_maximo || "",
-      itens: (v.venda_itens || []).map((i) => ({
-        id: i.id,
-        nome_produto: i.nome_produto || "",
-        variante: i.variante || "",
-        observacao: i.observacao || "",
-      })),
+      itens: (() => {
+        const lista = v.venda_itens || [];
+        const usados = new Set<string>();
+        const resultado: NonNullable<typeof editEnd>["itens"] = [];
+        const padrao = /^(.*) — (2|3) Lugares(.*)$/;
+        for (const i of lista) {
+          if (usados.has(i.id)) continue;
+          const m = i.variante ? padrao.exec(i.variante) : null;
+          if (m) {
+            const par = lista.find((o) => {
+              if (o.id === i.id || usados.has(o.id) || !o.variante) return false;
+              const mo = padrao.exec(o.variante);
+              return !!mo && mo[2] !== m[2] && mo[1] === m[1] && o.nome_produto === i.nome_produto;
+            });
+            if (par) {
+              const mp = padrao.exec(par.variante as string) as RegExpExecArray;
+              usados.add(i.id);
+              usados.add(par.id);
+              const duas = m[2] === "2" ? { i, m } : { i: par, m: mp };
+              const tres = m[2] === "2" ? { i: par, m: mp } : { i, m };
+              resultado.push({
+                id: duas.i.id,
+                nome_produto: i.nome_produto || "",
+                variante: m[1],
+                observacao: duas.i.observacao || tres.i.observacao || "",
+                partes: [
+                  { id: duas.i.id, peca: "2", sufixo: duas.m[3], obs: duas.i.observacao || "" },
+                  { id: tres.i.id, peca: "3", sufixo: tres.m[3], obs: tres.i.observacao || "" },
+                ],
+              });
+              continue;
+            }
+          }
+          usados.add(i.id);
+          resultado.push({
+            id: i.id,
+            nome_produto: i.nome_produto || "",
+            variante: i.variante || "",
+            observacao: i.observacao || "",
+          });
+        }
+        return resultado;
+      })(),
     };
     setEditEnd({ ...estado, original: JSON.stringify(estado) });
   }
@@ -557,18 +601,31 @@ export default function NotasPage() {
       }
       for (const it of editEnd.itens) {
         const o = orig.itens.find((x) => x.id === it.id);
-        if (o && JSON.stringify(o) !== JSON.stringify(it)) {
-          if (!it.nome_produto.trim()) throw new Error("O nome do produto não pode ficar vazio.");
-          const { error } = await supabase
-            .from("venda_itens")
-            .update({
-              nome_produto: it.nome_produto.trim(),
-              variante: vazioNull(it.variante),
-              observacao: vazioNull(it.observacao),
-            })
-            .eq("id", it.id);
-          if (error) throw error;
+        if (!o || JSON.stringify(o) === JSON.stringify(it)) continue;
+        if (!it.nome_produto.trim()) throw new Error("O nome do produto não pode ficar vazio.");
+        if (it.partes) {
+          // conjunto 2 e 3 lugares: aplica nas duas peças, mantendo "— 2 Lugares" / "— 3 Lugares"
+          const comObs = it.partes.filter((pt) => pt.obs.trim());
+          const alvos = new Set((comObs.length > 0 ? comObs : [it.partes[0]]).map((pt) => pt.id));
+          for (const pt of it.partes) {
+            const base = it.variante.trim();
+            const variante = base ? `${base} — ${pt.peca} Lugares${pt.sufixo}` : `${pt.peca} Lugares${pt.sufixo}`;
+            const mudanca: Record<string, string | null> = { nome_produto: it.nome_produto.trim(), variante };
+            if (alvos.has(pt.id)) mudanca.observacao = vazioNull(it.observacao);
+            const { error } = await supabase.from("venda_itens").update(mudanca).eq("id", pt.id);
+            if (error) throw error;
+          }
+          continue;
         }
+        const { error } = await supabase
+          .from("venda_itens")
+          .update({
+            nome_produto: it.nome_produto.trim(),
+            variante: vazioNull(it.variante),
+            observacao: vazioNull(it.observacao),
+          })
+          .eq("id", it.id);
+        if (error) throw error;
       }
     } catch (e) {
       setSalvandoEnd(false);
@@ -1070,7 +1127,9 @@ export default function NotasPage() {
                     />
                   </label>
                   <label>
-                    <span className="text-xs text-madeira-600 block mb-0.5">Tecido / cor / variação</span>
+                    <span className="text-xs text-madeira-600 block mb-0.5">
+                      Tecido / cor / variação{it.partes ? " (conjunto 2 e 3 lugares — vale para as duas peças)" : ""}
+                    </span>
                     <input
                       className="input-base"
                       value={it.variante}
