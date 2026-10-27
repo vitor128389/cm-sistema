@@ -182,15 +182,44 @@ export interface EnderecoCep {
   codigoMunicipio: string;
 }
 
-// Busca endereço e código do município (IBGE) pelo CEP (ViaCEP).
+const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+// Código IBGE do município pelo nome + UF (serve quando o CEP é "único" da cidade
+// ou o ViaCEP não responde).
+export async function buscarCodigoMunicipio(nome: string, uf: string): Promise<{ municipio: string; codigoMunicipio: string } | null> {
+  const u = uf.trim().toUpperCase();
+  if (!nome.trim() || u.length !== 2) return null;
+  try {
+    const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${u}/municipios`);
+    const lista = (await r.json()) as { id: number; nome: string }[];
+    const alvo = semAcento(nome);
+    const m = lista.find((x) => semAcento(x.nome) === alvo);
+    return m ? { municipio: m.nome, codigoMunicipio: String(m.id) } : null;
+  } catch {
+    return null;
+  }
+}
+
+// Busca endereço e código do município (IBGE) pelo CEP (ViaCEP, com BrasilAPI de reserva).
 export async function buscarCep(cep: string): Promise<EnderecoCep | null> {
   const c = cep.replace(/\D/g, "");
   if (c.length !== 8) return null;
   try {
     const r = await fetch(`https://viacep.com.br/ws/${c}/json/`);
     const j = await r.json();
-    if (!j || j.erro) return null;
-    return { logradouro: j.logradouro || "", bairro: j.bairro || "", municipio: j.localidade || "", uf: j.uf || "", codigoMunicipio: j.ibge || "" };
+    if (j && !j.erro && j.localidade) {
+      let ibge = String(j.ibge || "");
+      if (ibge.length !== 7) ibge = (await buscarCodigoMunicipio(j.localidade, j.uf || ""))?.codigoMunicipio || "";
+      return { logradouro: j.logradouro || "", bairro: j.bairro || "", municipio: j.localidade || "", uf: j.uf || "", codigoMunicipio: ibge };
+    }
+  } catch {}
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${c}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j?.city) return null;
+    const mun = await buscarCodigoMunicipio(j.city, j.state || "");
+    return { logradouro: j.street || "", bairro: j.neighborhood || "", municipio: j.city, uf: j.state || "", codigoMunicipio: mun?.codigoMunicipio || "" };
   } catch {
     return null;
   }

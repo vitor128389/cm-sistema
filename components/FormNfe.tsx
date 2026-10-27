@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { buscarCep } from "@/lib/fiscalCliente";
+import { buscarCep, buscarCodigoMunicipio } from "@/lib/fiscalCliente";
 
 export interface EnderecoForm {
   cep: string;
@@ -47,8 +47,15 @@ function BlocoEndereco({ titulo, v, onChange }: { titulo: string; v: EnderecoFor
     setBuscando(true);
     const r = await buscarCep(v.cep);
     setBuscando(false);
-    if (!r) {
-      setMsg("CEP não encontrado. Confira o número.");
+    if (!r || !r.codigoMunicipio) {
+      // CEP não achou (ou veio sem código): confirma a cidade pelo nome + UF digitados
+      const mun = await buscarCodigoMunicipio(r?.municipio || v.municipio, r?.uf || v.uf);
+      if (mun) {
+        set({ logradouro: r?.logradouro || v.logradouro, bairro: r?.bairro || v.bairro, municipio: mun.municipio, uf: (r?.uf || v.uf).toUpperCase(), codigoMunicipio: mun.codigoMunicipio });
+        setMsg(`${mun.municipio} - ${(r?.uf || v.uf).toUpperCase()} (código ${mun.codigoMunicipio})`);
+        return;
+      }
+      setMsg(r ? "Não consegui confirmar a cidade. Confira Cidade e UF." : "CEP não encontrado. Preencha Cidade e UF e clique em Buscar de novo.");
       return;
     }
     set({ logradouro: r.logradouro || v.logradouro, bairro: r.bairro || v.bairro, municipio: r.municipio, uf: r.uf, codigoMunicipio: r.codigoMunicipio });
