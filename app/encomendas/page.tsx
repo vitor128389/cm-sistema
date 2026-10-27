@@ -200,16 +200,35 @@ export default function EncomendasPage() {
           ...(v.venda_itens || []).filter((i) => !(i as { trocado?: boolean }).trocado),
           ...(novosPorVenda.get(v.id) || []),
         ] as { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
+        // sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas (peça de 2 + peça de 3):
+        // dentro do mesmo pedido, cada par 2+3 conta como 1 conjunto; o que sobrar
+        // sem par é peça avulsa ("SOFÁ NOBRE 2 LUGARES" ou "... 3 LUGARES").
+        const pecas = new Map<string, { nome: string; base: string | null; q2: number; q3: number }>();
+        const somar = (chave: string, qtd: number) => consolidado.set(chave, (consolidado.get(chave) || 0) + qtd);
         for (const item of itensAtuais) {
           if (item.tipo_entrega !== "encomenda") continue;
           if (tiposPdf.length > 0 && !tiposPdf.includes(tipoDoProduto(item.nome_produto))) continue;
-          // sofás "2 e 3 lugares" salvam a peça (2/3 Lugares) dentro da
-          // variante — junta as duas peças do mesmo tecido/cor numa linha
-          // só, sem repetir o produto duas vezes no relatório
-          const variantesSemPeca = item.variante?.replace(/ — (2|3) Lugares$/, "") || null;
-          const chave = variantesSemPeca ? `${item.nome_produto} — ${variantesSemPeca}` : item.nome_produto;
-          consolidado.set(chave, (consolidado.get(chave) || 0) + item.quantidade);
+          const m = item.variante ? /^(.*) — (2|3) Lugares(.*)$/.exec(item.variante) : null;
+          if (m) {
+            const base = `${m[1]}${m[3]}`;
+            const k = `${item.nome_produto}|${base}`;
+            const reg = pecas.get(k) || { nome: item.nome_produto, base, q2: 0, q3: 0 };
+            if (m[2] === "2") reg.q2 += item.quantidade;
+            else reg.q3 += item.quantidade;
+            pecas.set(k, reg);
+            continue;
+          }
+          somar(item.variante ? `${item.nome_produto} — ${item.variante}` : item.nome_produto, item.quantidade);
         }
+        pecas.forEach(({ nome, base, q2, q3 }) => {
+          const conjuntos = Math.min(q2, q3);
+          const nomeSem = nome.replace(/\s*2\s*E\s*3\s*LUGARES\s*/i, " ").replace(/\s+/g, " ").trim();
+          const jaTem = /2\s*E\s*3\s*LUGARES/i.test(nome);
+          const comCor = (n: string) => (base ? `${n} — ${base}` : n);
+          if (conjuntos > 0) somar(comCor(jaTem ? nome : `${nome} 2 E 3 LUGARES`), conjuntos);
+          if (q2 - conjuntos > 0) somar(comCor(`${nomeSem} 2 LUGARES`), q2 - conjuntos);
+          if (q3 - conjuntos > 0) somar(comCor(`${nomeSem} 3 LUGARES`), q3 - conjuntos);
+        });
       }
       const itensOrdenados = Array.from(consolidado.entries())
         .map(([nome, quantidade]) => ({ nome, quantidade }))
