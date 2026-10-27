@@ -169,12 +169,22 @@ export default function EncomendasPage() {
     }
     setGerandoPdf(true);
     try {
-      const { data, error } = await supabase
-        .from("vendas")
-        .select("id, loja_id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
-        .eq("cancelada", false)
-        .in("loja_id", idsLojas);
-      if (error) throw error;
+      // o Supabase devolve no máximo 1000 linhas por consulta — busca em páginas
+      // pra não cortar as vendas mais novas/de outras lojas
+      const data: unknown[] = [];
+      for (let ini = 0; ; ini += 1000) {
+        const { data: pagina, error } = await supabase
+          .from("vendas")
+          .select("id, loja_id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
+          .eq("cancelada", false)
+          .in("loja_id", idsLojas)
+          .order("criado_em", { ascending: false })
+          .order("id")
+          .range(ini, ini + 999);
+        if (error) throw error;
+        data.push(...(pagina || []));
+        if (!pagina || pagina.length < 1000) break;
+      }
       // trocas: o item devolvido sai do relatório e os produtos novos da troca entram
       const { data: trocasData } = await supabase
         .from("trocas_grupo")
