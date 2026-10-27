@@ -171,7 +171,7 @@ export default function EncomendasPage() {
     try {
       const { data, error } = await supabase
         .from("vendas")
-        .select("id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
+        .select("id, loja_id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
         .eq("cancelada", false)
         .in("loja_id", idsLojas);
       if (error) throw error;
@@ -194,8 +194,11 @@ export default function EncomendasPage() {
       const todasVendas = (data || []) as unknown as Venda[];
       const vendasNoPeriodo = todasVendas.filter((v) => dentroDoPeriodo(v.criado_em));
 
-      const consolidado = new Map<string, number>();
+      // uma lista consolidada POR LOJA (a nota sai separada: Lagarto, depois Glória...)
+      const porLoja = new Map<string, Map<string, number>>();
       for (const v of vendasNoPeriodo) {
+        const consolidado = porLoja.get((v as { loja_id: string }).loja_id) || new Map<string, number>();
+        porLoja.set((v as { loja_id: string }).loja_id, consolidado);
         const itensAtuais = [
           ...(v.venda_itens || []).filter((i) => !(i as { trocado?: boolean }).trocado),
           ...(novosPorVenda.get(v.id) || []),
@@ -230,13 +233,15 @@ export default function EncomendasPage() {
           if (q3 - conjuntos > 0) somar(comCor(`${nomeSem} 3 LUGARES`), q3 - conjuntos);
         });
       }
-      const itensOrdenados = Array.from(consolidado.entries())
-        .map(([nome, quantidade]) => ({ nome, quantidade }))
-        .sort((a, b) => a.nome.localeCompare(b.nome));
-
       const nomesLojas = idsLojas.map((id) => lojas.find((l) => l.id === id)?.nome || "Loja");
+      const grupos = idsLojas.map((id, idx) => ({
+        loja: nomesLojas[idx],
+        itens: Array.from((porLoja.get(id) || new Map<string, number>()).entries())
+          .map(([nome, quantidade]) => ({ nome, quantidade }))
+          .sort((a, b) => a.nome.localeCompare(b.nome)),
+      }));
       const blob = await gerarRelatorioEncomendasPdf(
-        itensOrdenados,
+        grupos,
         nomesLojas,
         periodoParaTexto(),
         tiposPdf.length > 0 ? tiposPdf.join(", ") : undefined

@@ -11,8 +11,13 @@ export interface ItemConsolidadoEncomenda {
   quantidade: number;
 }
 
+export interface GrupoLojaEncomenda {
+  loja: string;
+  itens: ItemConsolidadoEncomenda[];
+}
+
 export async function gerarRelatorioEncomendasPdf(
-  itens: ItemConsolidadoEncomenda[],
+  grupos: GrupoLojaEncomenda[],
   lojasNomes: string[],
   periodoTexto: string,
   tiposTexto?: string
@@ -44,19 +49,37 @@ export async function gerarRelatorioEncomendasPdf(
   if (tiposTexto) linha(`Tipos: ${tiposTexto}`, { tamanho: 10, espaco: 4 });
   separador();
 
-  if (itens.length === 0) {
+  const novaPaginaSeFaltar = (altura: number) => {
+    if (y + altura > doc.internal.pageSize.getHeight() - margem) {
+      doc.addPage();
+      y = margem;
+    }
+  };
+
+  const totalGeral = grupos.reduce((s, g) => s + g.itens.reduce((t, i) => t + i.quantidade, 0), 0);
+  if (totalGeral === 0) {
     linha("Nenhuma encomenda encontrada nesse período.", { tamanho: 11 });
   } else {
-    for (const item of itens) {
-      if (y > doc.internal.pageSize.getHeight() - margem) {
-        doc.addPage();
-        y = margem;
+    // uma seção por loja, tudo na mesma nota
+    for (const g of grupos) {
+      novaPaginaSeFaltar(20);
+      linha(g.loja.toUpperCase(), { negrito: true, tamanho: 13, espaco: 3 });
+      if (g.itens.length === 0) {
+        linha("Nenhuma encomenda nessa loja no período.", { tamanho: 10, espaco: 3 });
+      } else {
+        for (const item of g.itens) {
+          novaPaginaSeFaltar(8);
+          linha(`${item.nome} — ${item.quantidade}`, { tamanho: 11, espaco: 2.5 });
+        }
+        const subtotal = g.itens.reduce((t, i) => t + i.quantidade, 0);
+        linha(`Total ${g.loja}: ${subtotal}`, { negrito: true, tamanho: 10.5, espaco: 2 });
       }
-      linha(`${item.nome} — ${item.quantidade}`, { tamanho: 11, espaco: 2.5 });
+      separador();
     }
-    separador();
-    const totalGeral = itens.reduce((s, i) => s + i.quantidade, 0);
-    linha(`Total de itens encomendados: ${totalGeral}`, { negrito: true, tamanho: 11 });
+    if (grupos.length > 1) {
+      novaPaginaSeFaltar(10);
+      linha(`Total geral de itens encomendados: ${totalGeral}`, { negrito: true, tamanho: 11 });
+    }
   }
 
   return doc.output("blob");
