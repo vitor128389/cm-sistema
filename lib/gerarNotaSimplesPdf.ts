@@ -159,6 +159,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   if (cliente) {
     const linhasCli: string[] = [];
     if (cliente.telefone) linhasCli.push(`Cel: ${cliente.telefone}`);
+    if (cliente.telefone2) linhasCli.push(`${cliente.telefone2_nome ? `Cel (${cliente.telefone2_nome})` : "Cel 2"}: ${cliente.telefone2}`);
     const rua = [
       cliente.endereco ? `${cliente.endereco}${cliente.numero ? `, ${cliente.numero}` : ""}` : "",
       cliente.bairro || "",

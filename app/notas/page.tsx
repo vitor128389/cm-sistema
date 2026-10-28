@@ -172,7 +172,7 @@ export default function NotasPage() {
     vendaId: string;
     numeroPedido: number;
     clienteId: string;
-    campos: Record<"nome" | "telefone" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
+    campos: Record<"nome" | "telefone" | "telefone2_nome" | "telefone2" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
     prazo: string;
     itens: {
       id: string;
@@ -198,7 +198,7 @@ export default function NotasPage() {
   async function carregarTrocas() {
     let query = supabase
       .from("trocas_grupo")
-      .select("*, vendas(numero_pedido, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado, bairro)), trocas_devolvidos(*), trocas_novos(*)")
+      .select("*, vendas(numero_pedido, clientes(nome, cpf, telefone, telefone2, telefone2_nome, endereco, numero, complemento, cidade, povoado, bairro)), trocas_devolvidos(*), trocas_novos(*)")
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     const { data, error } = await query;
@@ -216,7 +216,7 @@ export default function NotasPage() {
 
     let query = supabase
       .from("vendas")
-      .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado, bairro), venda_itens(*), venda_pagamentos(*)")
+      .select("*, clientes(nome, cpf, telefone, telefone2, telefone2_nome, endereco, numero, complemento, cidade, povoado, bairro), venda_itens(*), venda_pagamentos(*)")
       .order("criado_em", { ascending: false });
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     let { data, error } = await query;
@@ -228,7 +228,7 @@ export default function NotasPage() {
       // não exista nesse banco (migração v8 não aplicada)
       let queryReserva = supabase
         .from("vendas")
-        .select("*, clientes(nome, cpf, telefone, endereco, numero, complemento, cidade, povoado, bairro), venda_itens(*)")
+        .select("*, clientes(nome, cpf, telefone, telefone2, telefone2_nome, endereco, numero, complemento, cidade, povoado, bairro), venda_itens(*)")
         .order("criado_em", { ascending: false });
       if (lojaAtual) queryReserva = queryReserva.eq("loja_id", lojaAtual);
       const retry = await queryReserva;
@@ -521,6 +521,8 @@ export default function NotasPage() {
       campos: {
         nome: c.nome || "",
         telefone: c.telefone || "",
+        telefone2_nome: c.telefone2_nome || "",
+        telefone2: c.telefone2 || "",
         cpf: c.cpf || "",
         endereco: c.endereco || "",
         numero: c.numero || "",
@@ -866,6 +868,12 @@ export default function NotasPage() {
                       {v.clientes.povoado ? ` — ${v.clientes.povoado}` : ""}
                     </p>
                   )}
+                  {v.clientes?.telefone2 && (
+                    <p className="text-xs text-madeira-400">
+                      📞 {v.clientes.telefone2_nome ? `${v.clientes.telefone2_nome}: ` : "2º contato: "}
+                      {v.clientes.telefone2}
+                    </p>
+                  )}
                   {v.cancelada && (
                     <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded mt-1 bg-red-100 text-red-700">
                       CANCELADA{v.motivo_cancelamento ? ` — ${v.motivo_cancelamento}` : ""}
@@ -1076,6 +1084,8 @@ export default function NotasPage() {
                 [
                   ["nome", "Nome"],
                   ["telefone", "Telefone / WhatsApp"],
+                  ["telefone2_nome", "Nome do 2º contato (ex: esposa, vizinho)"],
+                  ["telefone2", "2º número de contato"],
                   ["cpf", "CPF"],
                   ["endereco", "Rua / endereço"],
                   ["numero", "Número"],
@@ -1182,6 +1192,8 @@ export default function NotasPage() {
                 nome: trocaImprimindo.vendas?.clientes?.nome || "Cliente",
                 cpf: trocaImprimindo.vendas?.clientes?.cpf ?? null,
                 telefone: trocaImprimindo.vendas?.clientes?.telefone ?? null,
+                telefone2: trocaImprimindo.vendas?.clientes?.telefone2 ?? null,
+                telefone2_nome: trocaImprimindo.vendas?.clientes?.telefone2_nome ?? null,
                 endereco: trocaImprimindo.vendas?.clientes?.endereco ?? null,
                 numero: trocaImprimindo.vendas?.clientes?.numero ?? null,
                 complemento: trocaImprimindo.vendas?.clientes?.complemento ?? null,
@@ -1213,6 +1225,8 @@ export default function NotasPage() {
                 ? {
                     nome: notaImprimindo.clientes.nome,
                     telefone: notaImprimindo.clientes.telefone,
+                    telefone2: notaImprimindo.clientes.telefone2,
+                    telefone2_nome: notaImprimindo.clientes.telefone2_nome,
                     endereco: notaImprimindo.clientes.endereco,
                     numero: notaImprimindo.clientes.numero,
                     complemento: notaImprimindo.clientes.complemento,
@@ -1255,6 +1269,8 @@ export default function NotasPage() {
               nome: notaImprimindo.clientes?.nome || "Cliente",
               cpf: notaImprimindo.clientes?.cpf,
               telefone: notaImprimindo.clientes?.telefone,
+              telefone2: notaImprimindo.clientes?.telefone2,
+              telefone2_nome: notaImprimindo.clientes?.telefone2_nome,
               endereco: notaImprimindo.clientes?.endereco,
               numero: notaImprimindo.clientes?.numero,
               complemento: notaImprimindo.clientes?.complemento,

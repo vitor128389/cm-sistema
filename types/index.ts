@@ -282,6 +282,8 @@ export interface TrocaGrupo {
       nome: string;
       cpf?: string | null;
       telefone?: string | null;
+      telefone2?: string | null;
+      telefone2_nome?: string | null;
       endereco?: string | null;
       numero?: string | null;
       complemento?: string | null;
@@ -346,6 +348,8 @@ export interface Venda {
     nome: string;
     cpf?: string | null;
     telefone?: string | null;
+    telefone2?: string | null;
+    telefone2_nome?: string | null;
     endereco?: string | null;
     numero?: string | null;
     complemento?: string | null;

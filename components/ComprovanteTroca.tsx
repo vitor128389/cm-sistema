@@ -17,6 +17,8 @@ interface ClienteResumo {
   nome: string;
   cpf?: string | null;
   telefone?: string | null;
+  telefone2?: string | null;
+  telefone2_nome?: string | null;
   endereco?: string | null;
   numero?: string | null;
   complemento?: string | null;
@@ -196,6 +198,7 @@ function ViaTroca({
       </p>
       <p style={{ margin: "0 0 2px" }}>Cliente: {cliente.nome}</p>
       {cliente.telefone && <p style={{ margin: "0 0 2px" }}>Cel: {cliente.telefone}</p>}
+      {cliente.telefone2 && <p style={{ margin: "0 0 2px" }}>{cliente.telefone2_nome ? `Cel (${cliente.telefone2_nome})` : "Cel 2"}: {cliente.telefone2}</p>}
       {enderecoCliente && <p style={{ margin: "0 0 6px" }}>End: {enderecoCliente}</p>}
 
       <p style={{ fontWeight: 700, fontSize: "0.72rem", margin: "6px 0 2px" }}>PRODUTOS DEVOLVIDOS</p>

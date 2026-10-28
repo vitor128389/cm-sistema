@@ -88,6 +88,7 @@ export default function ComprovanteTrocaCupom88mm({
 
       <p style={p({ fontSize: 15, fontWeight: 900 })}>{cliente.nome}</p>
       {cliente.telefone && <p style={p({ fontSize: 13 })}>Cel: {cliente.telefone}</p>}
+      {cliente.telefone2 && <p style={p({ fontSize: 13 })}>{cliente.telefone2_nome ? `Cel (${cliente.telefone2_nome})` : "Cel 2"}: {cliente.telefone2}</p>}
       {cliente.endereco && (
         <p style={p({ fontSize: 13 })}>
           {cliente.endereco}

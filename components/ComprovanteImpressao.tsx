@@ -22,6 +22,8 @@ interface ClienteResumo {
   nome: string;
   cpf?: string | null;
   telefone?: string | null;
+  telefone2?: string | null;
+  telefone2_nome?: string | null;
   endereco?: string | null;
   numero?: string | null;
   complemento?: string | null;
@@ -329,6 +331,7 @@ function ViaComprovante({
       <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>{cliente.nome}</p>
       {cpfFormatado && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>CPF: {cpfFormatado}</p>}
       {cliente.telefone && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Cel: {cliente.telefone}</p>}
+      {cliente.telefone2 && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>{cliente.telefone2_nome ? `Cel (${cliente.telefone2_nome})` : "Cel 2"}: {cliente.telefone2}</p>}
       {cliente.bairro && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>Bairro: {cliente.bairro}</p>}
       {enderecoCliente && <p style={{ margin: "0.5px 0", color: COR_TEXTO }}>End: {enderecoCliente}</p>}
       {cliente.cidade && (
