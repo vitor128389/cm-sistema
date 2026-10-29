@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
@@ -242,6 +243,13 @@ function VenderPageConteudo() {
     if (rotaSelecionadaId && origemRotaSugerida !== "cidade" && origemRotaSugerida !== "povoado") return;
     const termo = povoado.trim();
     const timer = setTimeout(async () => {
+      const fixa = await rotaDoPovoado(lojaAtual, termo);
+      if (fixa && rotasDisponiveis.some((r) => r.id === fixa)) {
+        setRotaSelecionadaId(fixa);
+        setRotaSugeridaAplicada(true);
+        setOrigemRotaSugerida("povoado");
+        return;
+      }
       const { data } = await supabase
         .from("vendas")
         .select("rota_id, clientes!inner(povoado)")
@@ -1494,6 +1502,11 @@ function VenderPageConteudo() {
         clienteId = null;
       } else {
         clienteId = await salvarOuAtualizarCliente();
+      }
+
+      // guarda a rota escolhida para esse povoado: da próxima vez já vem sozinha
+      if (povoado.trim() && rotaSelecionadaId && lojaAtual) {
+        gravarRotaDoPovoado(lojaAtual, povoado, rotaSelecionadaId).catch(() => {});
       }
 
       const formaResumo = pagamentos.length > 1 ? "Dividido" : (pagamentos[0].forma as FormaPagamento);

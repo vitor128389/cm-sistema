@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
 import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
 import { formatarMoeda } from "@/lib/format";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
@@ -603,6 +604,10 @@ export default function NotasPage() {
           .eq("id", editEnd.vendaId);
         if (error) throw error;
       }
+      if (editEnd.campos.povoado.trim() && editEnd.rotaId && (editEnd.rotaId !== orig.rotaId || editEnd.campos.povoado !== orig.campos.povoado)) {
+        // aprende: esse povoado passa a cair sempre nessa rota
+        await gravarRotaDoPovoado(lojaAtual || "", editEnd.campos.povoado, editEnd.rotaId);
+      }
       if (editEnd.rotaId !== orig.rotaId) {
         const rt = rotasParaFiltro.find((x) => x.id === editEnd.rotaId);
         const { error } = await supabase
@@ -1115,9 +1120,18 @@ export default function NotasPage() {
                   <input
                     className="input-base"
                     value={editEnd.campos[campo]}
-                    onChange={(e) =>
-                      setEditEnd({ ...editEnd, campos: { ...editEnd.campos, [campo]: e.target.value } })
-                    }
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      setEditEnd({ ...editEnd, campos: { ...editEnd.campos, [campo]: valor } });
+                      if (campo === "povoado" && valor.trim().length >= 3) {
+                        // povoado já conhecido: troca a rota sozinha
+                        rotaDoPovoado(lojaAtual || "", valor).then((rid) => {
+                          if (rid && rotasParaFiltro.some((rt) => rt.id === rid)) {
+                            setEditEnd((prev) => (prev ? { ...prev, rotaId: rid } : prev));
+                          }
+                        });
+                      }
+                    }}
                   />
                 </label>
               ))}
