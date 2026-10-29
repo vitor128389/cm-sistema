@@ -14,6 +14,7 @@ import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import { montarNotaDaTroca } from "@/lib/notaDaTroca";
 import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
+import { imprimirDanfe, preaquecerDanfe } from "@/lib/fiscalCliente";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
 
 function apenasNumeros(v: string) {
@@ -1063,6 +1064,26 @@ export default function NotasPage() {
                           {nf.status === "autorizada" ? "autorizada" : nf.status === "cancelada" ? "cancelada" : "processando"}
                           {nf.ambiente === "homologacao" ? " (TESTE)" : ""}
                         </span>
+                        {nf.url_danfe && nf.status === "autorizada" && (
+                          <button
+                            className="text-xs px-2 py-1 rounded bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
+                            disabled={ocupado}
+                            onMouseEnter={() => preaquecerDanfe(nf.id)}
+                            onTouchStart={() => preaquecerDanfe(nf.id)}
+                            onClick={async () => {
+                              setEmitindo(v.id);
+                              try {
+                                await imprimirDanfe(nf.id);
+                              } catch (e) {
+                                alert("Não consegui abrir a NFC-e para imprimir: " + (e instanceof Error ? e.message : "erro"));
+                              }
+                              setEmitindo(null);
+                            }}
+                            title="Imprimir o cupom da NFC-e"
+                          >
+                            {ocupado ? "Preparando..." : "🖨 Imprimir NFC-e"}
+                          </button>
+                        )}
                         {nf.url_danfe && nf.status === "autorizada" && (
                           <a className="underline text-blue-700" href={nf.url_danfe} target="_blank" rel="noreferrer">
                             DANFE
