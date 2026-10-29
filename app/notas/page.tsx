@@ -185,6 +185,7 @@ export default function NotasPage() {
       nome_produto: string;
       variante: string;
       observacao: string;
+      remover?: boolean; // marcado para apagar da nota ao salvar
       // sofá 2 e 3 lugares = 2 linhas no banco (peça de 2 + peça de 3), mas aqui é UM produto só
       partes?: { id: string; peca: string; sufixo: string; obs: string }[];
     }[];
@@ -609,6 +610,10 @@ export default function NotasPage() {
     setErroEnd("");
     const orig = JSON.parse(editEnd.original) as typeof editEnd;
     const vazioNull = (t: string) => t.trim() || null;
+    if (editEnd.itens.length > 0 && editEnd.itens.every((x) => x.remover)) {
+      setSalvandoEnd(false);
+      return setErroEnd("A nota precisa ficar com pelo menos um produto.");
+    }
     try {
       const camposCliente = Object.fromEntries(
         Object.entries(editEnd.campos).map(([k, val]) => [k, k === "nome" ? val.trim() : vazioNull(val)])
@@ -644,6 +649,15 @@ export default function NotasPage() {
       for (const it of editEnd.itens) {
         const o = orig.itens.find((x) => x.id === it.id);
         if (!o || JSON.stringify(o) === JSON.stringify(it)) continue;
+        if (it.remover) {
+          // tira o produto da nota (as duas peças, se for conjunto 2 e 3)
+          for (const id of it.partes ? it.partes.map((pt) => pt.id) : [it.id]) {
+            const tabela = editEnd.novosIds?.includes(id) ? "trocas_novos" : "venda_itens";
+            const { error } = await supabase.from(tabela).delete().eq("id", id);
+            if (error) throw error;
+          }
+          continue;
+        }
         if (!it.nome_produto.trim()) throw new Error("O nome do produto não pode ficar vazio.");
         if (it.partes) {
           // conjunto 2 e 3 lugares: aplica nas duas peças, mantendo "— 2 Lugares" / "— 3 Lugares"
@@ -1213,7 +1227,29 @@ export default function NotasPage() {
             <div className="text-xs font-semibold text-madeira-700 mb-1">Produtos</div>
             <div className="space-y-2 mb-2">
               {editEnd.itens.map((it, idx) => (
-                <div key={it.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-estofado-100 p-2">
+                <div
+                  key={it.id}
+                  className={`grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border p-2 ${it.remover ? "border-red-300 bg-red-50 opacity-70" : "border-estofado-100"}`}
+                >
+                  <div className="sm:col-span-2 flex items-center justify-between">
+                    {it.remover ? (
+                      <span className="text-xs font-semibold text-red-700">Será removido da nota ao salvar</span>
+                    ) : (
+                      <span />
+                    )}
+                    <button
+                      type="button"
+                      className="text-xs text-red-700 underline"
+                      onClick={() =>
+                        setEditEnd({
+                          ...editEnd,
+                          itens: editEnd.itens.map((x, i) => (i === idx ? { ...x, remover: !x.remover } : x)),
+                        })
+                      }
+                    >
+                      {it.remover ? "↩ Desfazer" : "🗑 Remover produto"}
+                    </button>
+                  </div>
                   <label className="sm:col-span-2">
                     <span className="text-xs text-madeira-600 block mb-0.5">Produto</span>
                     <input
@@ -1259,6 +1295,11 @@ export default function NotasPage() {
               ))}
             </div>
 
+            {editEnd.itens.some((x) => x.remover) && (
+              <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
+                Atenção: remover um produto só tira ele da nota. O valor total, o pagamento e o estoque não mudam.
+              </div>
+            )}
             {erroEnd && <div className="text-sm text-red-700 mt-2">{erroEnd}</div>}
             <div className="flex gap-2 mt-4 justify-end">
               <button className="btn-secundario text-sm px-3 py-1.5" onClick={() => setEditEnd(null)}>
