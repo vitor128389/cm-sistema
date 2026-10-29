@@ -176,6 +176,10 @@ export default function NotasPage() {
     campos: Record<"nome" | "telefone" | "telefone2_nome" | "telefone2" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
     prazo: string;
     rotaId: string;
+    // ids que são produtos novos de uma troca (ficam em trocas_novos, não em venda_itens)
+    novosIds?: string[];
+    // quando está editando a nota da troca: número da troca
+    numeroTroca?: number;
     itens: {
       id: string;
       nome_produto: string;
@@ -527,9 +531,14 @@ export default function NotasPage() {
     if (!souAdmin || !v.cliente_id || !v.clientes) return;
     const c = v.clientes;
     setErroEnd("");
+    // se a nota está no modo "nota da troca", edita o que aparece nela: o que ficou + os produtos novos
+    const troca = trocaAtiva(v);
+    const itensEdicao = troca ? montarNotaDaTroca(v, troca).venda_itens || [] : v.venda_itens || [];
     const estado = {
       vendaId: v.id,
-      numeroPedido: v.numero_pedido,
+      numeroPedido: troca ? troca.numero_troca : v.numero_pedido,
+      numeroTroca: troca ? troca.numero_troca : undefined,
+      novosIds: troca ? (troca.trocas_novos || []).map((n) => n.id) : undefined,
       clienteId: v.cliente_id,
       campos: {
         nome: c.nome || "",
@@ -547,7 +556,7 @@ export default function NotasPage() {
       prazo: v.prazo_entrega_maximo || "",
       rotaId: v.rota_id || "",
       itens: (() => {
-        const lista = v.venda_itens || [];
+        const lista = itensEdicao;
         const usados = new Set<string>();
         const resultado: NonNullable<typeof editEnd>["itens"] = [];
         const padrao = /^(.*) — (2|3) Lugares(.*)$/;
@@ -643,11 +652,28 @@ export default function NotasPage() {
           for (const pt of it.partes) {
             const base = it.variante.trim();
             const variante = base ? `${base} — ${pt.peca} Lugares${pt.sufixo}` : `${pt.peca} Lugares${pt.sufixo}`;
+            if (editEnd.novosIds?.includes(pt.id)) {
+              // produto novo da troca (sem campo de observação)
+              const { error } = await supabase
+                .from("trocas_novos")
+                .update({ produto_nome: it.nome_produto.trim(), variante })
+                .eq("id", pt.id);
+              if (error) throw error;
+              continue;
+            }
             const mudanca: Record<string, string | null> = { nome_produto: it.nome_produto.trim(), variante };
             if (alvos.has(pt.id)) mudanca.observacao = vazioNull(it.observacao);
             const { error } = await supabase.from("venda_itens").update(mudanca).eq("id", pt.id);
             if (error) throw error;
           }
+          continue;
+        }
+        if (editEnd.novosIds?.includes(it.id)) {
+          const { error } = await supabase
+            .from("trocas_novos")
+            .update({ produto_nome: it.nome_produto.trim(), variante: vazioNull(it.variante) })
+            .eq("id", it.id);
+          if (error) throw error;
           continue;
         }
         const { error } = await supabase
@@ -1113,7 +1139,7 @@ export default function NotasPage() {
       {editEnd && souAdmin && (
         <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 p-4 overflow-y-auto">
           <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl p-5 my-4">
-            <div className="text-lg font-bold text-madeira-900">Editar nota — pedido #{editEnd.numeroPedido}</div>
+            <div className="text-lg font-bold text-madeira-900">Editar nota — {editEnd.numeroTroca ? `troca #${editEnd.numeroTroca}` : `pedido #${editEnd.numeroPedido}`}</div>
             <div className="text-xs text-madeira-500 mb-3">
               Dados do cliente valem para o cadastro dele (todas as notas). Valores, pagamento e estoque não mudam por aqui.
             </div>
