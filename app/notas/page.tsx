@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
 import { carregarContextoTroca, type ItemRestante } from "@/lib/trocaContexto";
@@ -198,6 +198,7 @@ export default function NotasPage() {
   const [trocas, setTrocas] = useState<TrocaGrupo[]>([]);
 
   async function carregarTrocas() {
+    if (!lojaAtual) return;
     let query = supabase
       .from("trocas_grupo")
       .select("*, vendas(numero_pedido, clientes(nome, cpf, telefone, telefone2, telefone2_nome, endereco, numero, complemento, cidade, povoado, bairro)), trocas_devolvidos(*), trocas_novos(*)")
@@ -212,9 +213,17 @@ export default function NotasPage() {
     setTrocas((data || []) as unknown as TrocaGrupo[]);
   }
 
+  const reqCarregar = useRef(0);
+
   async function carregar() {
+    const meuReq = ++reqCarregar.current;
     setCarregando(true);
     setErroCarregar("");
+    // sem loja definida ainda (a página acabou de abrir): não busca, para não trazer pedidos de todas as lojas
+    if (!lojaAtual) {
+      setVendas([]);
+      return;
+    }
 
     let query = supabase
       .from("vendas")
@@ -251,7 +260,9 @@ export default function NotasPage() {
       }
     }
 
-    setVendas((data || []) as unknown as Venda[]);
+    // resposta atrasada de uma busca antiga (outra loja) não pode sobrescrever a atual
+    if (meuReq !== reqCarregar.current) return;
+    setVendas(((data || []) as unknown as Venda[]).filter((x) => x.loja_id === lojaAtual));
     setCarregando(false);
   }
 
@@ -973,6 +984,15 @@ export default function NotasPage() {
                   >
                     📄 PDF WhatsApp{modoTroca[v.id] ? " (troca)" : ""}
                   </button>
+                  {!v.cancelada && lojasFiscais.has(v.loja_id) && (
+                    <a
+                      className="text-xs px-2 py-1 rounded bg-indigo-700 text-white font-medium hover:bg-indigo-800"
+                      href={`/fiscal?pedido=${v.numero_pedido}&nfe=1`}
+                      title="Emitir NF-e (nota completa, com os dados do cliente)"
+                    >
+                      📄 Emitir NF-e
+                    </a>
+                  )}
                   {!v.cancelada && lojasFiscais.has(v.loja_id) && (() => {
                     const nf = notasFiscais[v.id];
                     const ocupado = emitindo === v.id;

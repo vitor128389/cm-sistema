@@ -97,6 +97,15 @@ export default function FiscalPage() {
       .maybeSingle()
       .then(({ data }) => setLoja((data as LojaFiscal) || null));
     carregarHistorico();
+    // veio do botão "Emitir NF-e" da lista de notas: já busca o pedido e abre o formulário
+    const params = new URLSearchParams(window.location.search);
+    const num = params.get("pedido");
+    if (num) {
+      setPedido(num);
+      buscar(num).then(() => {
+        if (params.get("nfe") === "1") setNfeAberta(true);
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaAtual]);
 
