@@ -395,7 +395,8 @@ export default function TrocasPage() {
   // verdade), o tecido ali é só pra filtrar a lista de cores, não muda
   // preço nem estoque.
   function mostrarCorCabeceira(linha: LinhaNova): boolean {
-    return linha.produto?.categoria === "Cabeceiras e Baús";
+    // igual à tela de Vender: produto por tecido (ex: Sofá Paris 3 Lugares) também escolhe a cor
+    return linha.produto?.categoria === "Cabeceiras e Baús" || linha.produto?.tipo_precificacao === "tecido";
   }
 
   function varianteNomeLinha(linha: LinhaNova): string | null {
@@ -426,8 +427,9 @@ export default function TrocasPage() {
     if (mostrarCorCabeceira(linha)) {
       const corExtra = corExtraLinha(linha);
       const base = linha.produto.tipo_precificacao === "tecido" ? linha.tecidoSel : linha.espessuraSel;
-      if (corExtra) return base ? `${base}${corExtra}` : corExtra.replace(/^ — /, "");
-      return base;
+      const bracos = bracosExibicaoLinha(linha);
+      if (corExtra) return base ? `${base}${corExtra}${bracos}` : `${corExtra.replace(/^ — /, "")}${bracos}`;
+      return base ? `${base}${bracos}` : base;
     }
     if (linha.produto.tipo_precificacao === "tecido") {
       return `${linha.tecidoSel}${bracosExibicaoLinha(linha)}`;
