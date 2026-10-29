@@ -162,7 +162,7 @@ export default function NotasPage() {
   const [somenteEntregues, setSomenteEntregues] = useState(false);
   const [filtroDesconto, setFiltroDesconto] = useState<"todas" | "com" | "sem">("todas");
   const [filtroRota, setFiltroRota] = useState<string>("todas");
-  const [rotasParaFiltro, setRotasParaFiltro] = useState<{ id: string; nome: string; cor: string }[]>([]);
+  const [rotasParaFiltro, setRotasParaFiltro] = useState<{ id: string; nome: string; cor: string; cidade: string | null }[]>([]);
   const [todasLojas, setTodasLojas] = useState<{ id: string; nome: string }[]>([]);
   const [lojasFiscais, setLojasFiscais] = useState<Map<string, string>>(new Map());
   const [notasFiscais, setNotasFiscais] = useState<Record<string, NotaFiscal>>({});
@@ -174,6 +174,7 @@ export default function NotasPage() {
     clienteId: string;
     campos: Record<"nome" | "telefone" | "telefone2_nome" | "telefone2" | "cpf" | "endereco" | "numero" | "complemento" | "bairro" | "cidade" | "povoado", string>;
     prazo: string;
+    rotaId: string;
     itens: {
       id: string;
       nome_produto: string;
@@ -262,7 +263,7 @@ export default function NotasPage() {
   }, [lojaAtual]);
 
   async function carregarRotasParaFiltro() {
-    let query = supabase.from("rotas_entrega").select("id, nome, cor").order("nome");
+    let query = supabase.from("rotas_entrega").select("id, nome, cor, cidade").order("nome");
     if (lojaAtual) query = query.eq("loja_id", lojaAtual);
     const { data } = await query;
     setRotasParaFiltro(data || []);
@@ -532,6 +533,7 @@ export default function NotasPage() {
         povoado: c.povoado || "",
       },
       prazo: v.prazo_entrega_maximo || "",
+      rotaId: v.rota_id || "",
       itens: (() => {
         const lista = v.venda_itens || [];
         const usados = new Set<string>();
@@ -601,6 +603,19 @@ export default function NotasPage() {
           .eq("id", editEnd.vendaId);
         if (error) throw error;
       }
+      if (editEnd.rotaId !== orig.rotaId) {
+        const rt = rotasParaFiltro.find((x) => x.id === editEnd.rotaId);
+        const { error } = await supabase
+          .from("vendas")
+          .update({
+            rota_id: rt?.id ?? null,
+            rota_nome: rt?.nome ?? null,
+            rota_cidade: rt?.cidade ?? null,
+            rota_cor: rt?.cor ?? null,
+          })
+          .eq("id", editEnd.vendaId);
+        if (error) throw error;
+      }
       for (const it of editEnd.itens) {
         const o = orig.itens.find((x) => x.id === it.id);
         if (!o || JSON.stringify(o) === JSON.stringify(it)) continue;
@@ -643,8 +658,8 @@ export default function NotasPage() {
       registroNome: editEnd.campos.nome,
       numeroPedido: editEnd.numeroPedido,
       descricao: `Dados da nota #${editEnd.numeroPedido} editados pelo admin`,
-      dadosAntes: { campos: orig.campos, prazo: orig.prazo, itens: orig.itens },
-      dadosDepois: { campos: editEnd.campos, prazo: editEnd.prazo, itens: editEnd.itens },
+      dadosAntes: { campos: orig.campos, prazo: orig.prazo, rotaId: orig.rotaId, itens: orig.itens },
+      dadosDepois: { campos: editEnd.campos, prazo: editEnd.prazo, rotaId: editEnd.rotaId, itens: editEnd.itens },
     });
     setEditEnd(null);
     carregar();
@@ -1109,6 +1124,22 @@ export default function NotasPage() {
             </div>
 
             <div className="text-xs font-semibold text-madeira-700 mb-1">Pedido</div>
+            <label className="block mb-2 max-w-xs">
+              <span className="text-xs text-madeira-600 block mb-0.5">Rota de entrega</span>
+              <select
+                className="input-base"
+                value={editEnd.rotaId}
+                onChange={(e) => setEditEnd({ ...editEnd, rotaId: e.target.value })}
+              >
+                <option value="">Sem rota</option>
+                {rotasParaFiltro.map((rt) => (
+                  <option key={rt.id} value={rt.id}>
+                    {rt.nome}
+                    {rt.cidade ? ` — ${rt.cidade}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block mb-3 max-w-xs">
               <span className="text-xs text-madeira-600 block mb-0.5">Prazo máximo de entrega</span>
               <input
