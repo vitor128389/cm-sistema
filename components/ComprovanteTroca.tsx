@@ -242,6 +242,9 @@ function ViaTroca({
                 <td>
                   {n.produto_nome} {tagOrigem(n)}
                   {varianteSemBracos ? ` — ${varianteSemBracos}` : ""}
+                  {n.observacao ? (
+                    <span style={{ display: "block", fontWeight: 700 }}>OBS: {n.observacao}</span>
+                  ) : null}
                   {temBracosAlmofada && (
                     <span
                       style={{

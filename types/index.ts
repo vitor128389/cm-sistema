@@ -253,6 +253,7 @@ export interface TrocaItemNovo {
   origem_deposito?: boolean | null;
   status_entrega?: string | null;
   data_entregue?: string | null;
+  observacao?: string | null;
 }
 
 export interface TrocaGrupo {

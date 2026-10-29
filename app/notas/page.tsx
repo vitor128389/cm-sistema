@@ -671,7 +671,11 @@ export default function NotasPage() {
               // produto novo da troca (sem campo de observação)
               const { error } = await supabase
                 .from("trocas_novos")
-                .update({ produto_nome: it.nome_produto.trim(), variante })
+                .update(
+                  alvos.has(pt.id)
+                    ? { produto_nome: it.nome_produto.trim(), variante, observacao: vazioNull(it.observacao) }
+                    : { produto_nome: it.nome_produto.trim(), variante }
+                )
                 .eq("id", pt.id);
               if (error) throw error;
               continue;
@@ -686,7 +690,7 @@ export default function NotasPage() {
         if (editEnd.novosIds?.includes(it.id)) {
           const { error } = await supabase
             .from("trocas_novos")
-            .update({ produto_nome: it.nome_produto.trim(), variante: vazioNull(it.variante) })
+            .update({ produto_nome: it.nome_produto.trim(), variante: vazioNull(it.variante), observacao: vazioNull(it.observacao) })
             .eq("id", it.id);
           if (error) throw error;
           continue;

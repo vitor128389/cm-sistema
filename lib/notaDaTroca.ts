@@ -23,7 +23,7 @@ export function montarNotaDaTroca(venda: Venda, troca: TrocaGrupo): Venda {
     quantidade_retirada: 0,
     quantidade_entrega: n.quantidade,
     trocado: false,
-    observacao: null,
+    observacao: n.observacao ?? null,
     origem_deposito: !!n.origem_deposito,
     origem_loja_id: null,
   })) as VendaItem[];

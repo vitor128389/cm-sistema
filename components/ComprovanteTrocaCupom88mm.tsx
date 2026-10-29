@@ -128,6 +128,12 @@ export default function ComprovanteTrocaCupom88mm({
             <span style={{ fontSize: 12, fontWeight: 900 }}>
               {rotulo(n)}
             </span>
+            {n.observacao ? (
+              <>
+                <br />
+                <span style={{ fontSize: 12, fontWeight: 900 }}>OBS: {n.observacao}</span>
+              </>
+            ) : null}
           </span>
           <span style={{ width: "10mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {n.quantidade}</span>
           <span style={{ width: "22mm", textAlign: "right", whiteSpace: "nowrap" }}>
