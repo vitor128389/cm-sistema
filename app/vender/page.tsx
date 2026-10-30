@@ -49,7 +49,7 @@ function ordemTecido(nome: string): number {
   const ordem: Record<string, number> = { Suede: 0, Linho: 1, Veludo: 2 };
   return ordem[nome] ?? 99;
 }
-const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
+const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V", "3D"];
 const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 
 function VenderPageConteudo() {

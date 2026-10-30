@@ -32,7 +32,7 @@ const PRODUTOS_COM_BRACOS_ALMOFADA = [
   "SOFÁ TURQUIA 2 E 3 LUGARES",
 ];
 
-const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V"];
+const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V", "3D"];
 const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 
 function precisaModeloLinha(linha: LinhaNova): boolean {
@@ -478,7 +478,7 @@ export default function TrocasPage() {
       return;
     }
     if (linhasNovasProntas.some((l) => precisaModeloLinha(l) && !l.modelo)) {
-      alert("Escolha o modelo (Capitonê, Quadrado, Vertical ou V) dos produtos novos que pedem modelo.");
+      alert("Escolha o modelo (Capitonê, Quadrado, Vertical, V ou 3D) dos produtos novos que pedem modelo.");
       return;
     }
     if (linhasNovasProntas.length === 0) {
