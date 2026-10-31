@@ -36,11 +36,30 @@ export default function CamposFiscaisProduto({ produtoId }: { produtoId: string 
       setMsg("O NCM tem 8 dígitos.");
       return;
     }
-    const { error } = await supabase
+    setMsg("Salvando...");
+    const { data: salvos, error } = await supabase
       .from("produtos")
       .update({ ncm: n || null, ncm_validado: !!n && validado, cfop, csosn, unidade })
-      .eq("id", produtoId);
-    setMsg(error ? "Erro: " + error.message : "Dados fiscais salvos ✓");
+      .eq("id", produtoId)
+      .select("id");
+    if (error) {
+      setMsg("Erro: " + error.message);
+      return;
+    }
+    if (!salvos || salvos.length === 0) {
+      // o banco aceitou o comando mas não alterou nenhuma linha (sem permissão ou produto não existe mais)
+      setMsg("NÃO salvou: o banco não permitiu alterar esse produto. Avise o suporte.");
+      return;
+    }
+    // confere lendo de volta o que ficou gravado
+    const { data: conf } = await supabase.from("produtos").select("ncm, ncm_validado").eq("id", produtoId).maybeSingle();
+    if ((conf?.ncm || "") !== n) {
+      setMsg(`NÃO salvou: depois de gravar, o NCM no banco está "${conf?.ncm || "vazio"}". Avise o suporte.`);
+      return;
+    }
+    setNcm(conf?.ncm || "");
+    setValidado(!!conf?.ncm_validado);
+    setMsg("Dados fiscais salvos ✓ (conferido no banco)");
   }
 
   return (
