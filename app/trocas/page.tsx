@@ -110,6 +110,8 @@ export default function TrocasPage() {
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
 
   const [devolvidosSelecionados, setDevolvidosSelecionados] = useState<Record<string, boolean>>({});
+  // quantidade devolvida de cada item (ex: comprou 2 camas e devolve só 1); sem valor = devolve tudo
+  const [devolvidosQtd, setDevolvidosQtd] = useState<Record<string, number>>({});
   const [novasLinhas, setNovasLinhas] = useState<LinhaNova[]>([]);
   const [tecidosCores, setTecidosCores] = useState<TecidoCor[]>([]);
   const [proxChave, setProxChave] = useState(1);
@@ -179,6 +181,10 @@ export default function TrocasPage() {
   }
 
   function alternarDevolvido(itemId: string) {
+    setDevolvidosQtd((atual) => {
+      const { [itemId]: _descartado, ...resto } = atual;
+      return resto;
+    });
     setDevolvidosSelecionados((atual) => ({ ...atual, [itemId]: !atual[itemId] }));
   }
 
@@ -443,7 +449,9 @@ export default function TrocasPage() {
     return linha.produto.produto_variantes.find((v) => v.nome_variante === nome)?.id || null;
   }
 
-  const itensDevolvidos = (vendaEncontrada?.venda_itens || []).filter((i) => devolvidosSelecionados[i.id]);
+  const itensDevolvidos = (vendaEncontrada?.venda_itens || [])
+    .filter((i) => devolvidosSelecionados[i.id])
+    .map((i) => ({ ...i, quantidade: Math.min(Math.max(devolvidosQtd[i.id] ?? i.quantidade, 1), i.quantidade) }));
   const linhasNovasProntas = novasLinhas.filter((l) => l.produto);
 
   const valorDevolvidoTotal = Math.round(
@@ -531,9 +539,57 @@ export default function TrocasPage() {
         .single();
       if (erroGrupo) throw erroGrupo;
 
+      // Devolução de só PARTE da quantidade (ex: comprou 2, devolve 1): separa a linha do pedido em duas —
+      // a que fica (quantidade restante) e a que foi trocada (quantidade devolvida).
+      const idsTrocados: Record<string, string> = {};
+      for (const item of itensDevolvidos) {
+        const orig = (vendaEncontrada.venda_itens || []).find((x) => x.id === item.id);
+        const N = orig?.quantidade ?? item.quantidade;
+        const k = item.quantidade;
+        if (!orig || k >= N) {
+          idsTrocados[item.id] = item.id;
+          continue;
+        }
+        const arred = (n: number) => Math.round(n * 100) / 100;
+        const totalFica = arred((Number(orig.total) * (N - k)) / N);
+        const descTotal = Number(orig.desconto || 0);
+        const descFica = arred((descTotal * (N - k)) / N);
+        const entrega = Number(orig.quantidade_entrega ?? 0);
+        const retirada = Number(orig.quantidade_retirada ?? 0);
+        const entregaTroca = Math.min(entrega, k);
+        const retiradaTroca = k - entregaTroca;
+        const { id: _idOriginal, ...copia } = orig as unknown as Record<string, unknown> & { id: string };
+        const { data: novaLinha, error: erroSplit } = await supabase
+          .from("venda_itens")
+          .insert({
+            ...copia,
+            quantidade: k,
+            total: arred(Number(orig.total) - totalFica),
+            desconto: arred(descTotal - descFica),
+            quantidade_entrega: entregaTroca,
+            quantidade_retirada: Math.max(0, Math.min(retirada, retiradaTroca)),
+            trocado: true,
+          })
+          .select("id")
+          .single();
+        if (erroSplit) throw erroSplit;
+        const { error: erroResta } = await supabase
+          .from("venda_itens")
+          .update({
+            quantidade: N - k,
+            total: totalFica,
+            desconto: descFica,
+            quantidade_entrega: Math.max(0, entrega - entregaTroca),
+            quantidade_retirada: Math.max(0, retirada - Math.max(0, Math.min(retirada, retiradaTroca))),
+          })
+          .eq("id", orig.id);
+        if (erroResta) throw erroResta;
+        idsTrocados[item.id] = novaLinha.id as string;
+      }
+
       const devolvidosParaInserir = itensDevolvidos.map((item) => ({
         troca_id: grupo.id,
-        venda_item_original_id: item.id,
+        venda_item_original_id: idsTrocados[item.id] ?? item.id,
         produto_id: item.produto_id,
         variante_id: null,
         produto_nome: item.nome_produto,
@@ -571,7 +627,7 @@ export default function TrocasPage() {
       await supabase
         .from("venda_itens")
         .update({ trocado: true })
-        .in("id", itensDevolvidos.map((i) => i.id));
+        .in("id", itensDevolvidos.map((i) => idsTrocados[i.id] ?? i.id));
 
       // devolve ao estoque os produtos devolvidos (se eram pronta entrega)
       for (const item of itensDevolvidos) {
@@ -851,11 +907,37 @@ export default function TrocasPage() {
                             : "PRONTA ENTREGA · LOJA"}
                         </span>
                       </div>
-                      <span className="text-sm font-display">
-                        {tipoPreco === "avista"
-                          ? formatarMoeda(valorAVistaOriginal(item) * item.quantidade)
-                          : formatarMoeda(item.total)}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        {devolvidosSelecionados[item.id] && item.quantidade > 1 && (
+                          <span
+                            className="flex items-center gap-1 text-xs text-madeira-700"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            Devolver
+                            <select
+                              className="border border-madeira-200 rounded px-1 py-0.5 text-sm"
+                              value={devolvidosQtd[item.id] ?? item.quantidade}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setDevolvidosQtd((a) => ({ ...a, [item.id]: Number(e.target.value) }))}
+                            >
+                              {Array.from({ length: item.quantidade }, (_, n) => n + 1).map((n) => (
+                                <option key={n} value={n}>
+                                  {n} de {item.quantidade}
+                                </option>
+                              ))}
+                            </select>
+                          </span>
+                        )}
+                        <span className="text-sm font-display">
+                          {tipoPreco === "avista"
+                            ? formatarMoeda(valorAVistaOriginal(item) * (devolvidosSelecionados[item.id] ? devolvidosQtd[item.id] ?? item.quantidade : item.quantidade))
+                            : formatarMoeda(
+                                devolvidosSelecionados[item.id]
+                                  ? (item.total * (devolvidosQtd[item.id] ?? item.quantidade)) / item.quantidade
+                                  : item.total
+                              )}
+                        </span>
+                      </div>
                     </label>
                   ))}
                 </div>
