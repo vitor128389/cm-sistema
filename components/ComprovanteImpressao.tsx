@@ -498,8 +498,11 @@ function ViaComprovante({
             <strong>Pagamento dividido:</strong>
           </p>
           {pagamentos.map((p, idx) => (
-            <p key={idx} style={{ margin: "0.5px 0", color: COR_TEXTO }}>
-              {p.forma}
+            <p
+              key={idx}
+              style={{ margin: "0.5px 0", color: COR_TEXTO, fontWeight: (p.forma as string) === "Na entrega" ? 700 : undefined }}
+            >
+              {(p.forma as string) === "Na entrega" ? "A RECEBER NA ENTREGA" : p.forma}
               {(p.forma === "Crédito" || p.forma === "Link") && p.parcelas > 1 ? ` ${p.parcelas}x` : ""}: {formatarMoeda(p.valorAPagar)}
             </p>
           ))}

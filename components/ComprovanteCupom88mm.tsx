@@ -240,7 +240,7 @@ export default function ComprovanteCupom88mm({
         pagamentos.map((pg, i) => (
           <Linha
             key={i}
-            esquerda={`${pg.forma.toUpperCase()}${pg.parcelas > 1 ? ` ${pg.parcelas}X` : ""}`}
+            esquerda={`${(pg.forma as string) === "Na entrega" ? "A RECEBER NA ENTREGA" : pg.forma.toUpperCase()}${pg.parcelas > 1 ? ` ${pg.parcelas}X` : ""}`}
             direita={formatarMoeda(pg.valorAPagar)}
             tamanho={14}
           />

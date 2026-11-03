@@ -344,8 +344,11 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   if (venda.forma_pagamento === "Dividido" && pagamentos.length > 0) {
     pagamentos.forEach((pg) => {
       const parc = pg.parcelas > 1 ? ` em ${pg.parcelas}x de ${formatarMoeda(pg.valor / pg.parcelas)}` : "";
-      doc.text(`${pg.forma_pagamento}${parc}`, margem + 1, y);
+      const naEntrega = (pg.forma_pagamento as string) === "Na entrega";
+      if (naEntrega) fonte(true, 9.5);
+      doc.text(naEntrega ? "A RECEBER NA ENTREGA" : `${pg.forma_pagamento}${parc}`, margem + 1, y);
       doc.text(formatarMoeda(pg.valor), larguraPagina - margem - 1, y, { align: "right" });
+      if (naEntrega) fonte(false, 9.5);
       y += 5;
     });
   } else {
