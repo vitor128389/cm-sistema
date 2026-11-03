@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
 import { useProdutosAoVivo } from "@/lib/produtosAoVivo";
+import { PAGAMENTO_NA_ENTREGA } from "@/lib/recursos";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
@@ -2652,7 +2653,7 @@ function VenderPageConteudo() {
               <div className="flex justify-between items-center mb-4">
                 <p className="font-display text-lg">Forma de pagamento</p>
                 <div className="flex items-center gap-3">
-                  {pagamentos.length === 1 && (
+                  {PAGAMENTO_NA_ENTREGA && pagamentos.length === 1 && (
                     <button className="text-xs text-madeira-700 font-semibold" onClick={iniciarPagamentoNaEntrega}>
                       💰 Parte agora + resto na entrega
                     </button>
@@ -2693,7 +2694,7 @@ function VenderPageConteudo() {
                     <option value="Débito">Débito</option>
                     <option value="Crédito">Crédito</option>
                     <option value="Link">Link de pagamento</option>
-                    {pagamentos.length > 1 && (p.forma === "Na entrega" || !pagamentos.some((o) => o.forma === "Na entrega")) && (
+                    {PAGAMENTO_NA_ENTREGA && pagamentos.length > 1 && (p.forma === "Na entrega" || !pagamentos.some((o) => o.forma === "Na entrega")) && (
                       <option value="Na entrega">Na entrega (paga quando receber o produto)</option>
                     )}
                   </select>
