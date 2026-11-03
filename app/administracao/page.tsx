@@ -693,6 +693,8 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
   // campos do formulário. Isso evita categorias "herdando" tecido por engano.
   function tipoDaCategoria(nomeCategoria: string): "tecido" | "espessura" | "simples" {
     const chave = nomeCategoria.trim().toLowerCase();
+    // Cama e Colchões sempre trabalha com espessura (5cm / 7cm / 14cm)
+    if (chave === "cama e colchões" || chave === "cama e colchoes") return "espessura";
     return categoriasConfig[chave] || "simples";
   }
 
@@ -1381,9 +1383,9 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                 form.espessuraLinhas.length > 0
                   ? form.espessuraLinhas
                   : [
-                      { label: "", preco: "", custo: "0", estoque: "0" },
-                      { label: "", preco: "", custo: "0", estoque: "0" },
-                      { label: "", preco: "", custo: "0", estoque: "0" },
+                      { label: "5cm", preco: "", custo: "0", estoque: "0" },
+                      { label: "7cm", preco: "", custo: "0", estoque: "0" },
+                      { label: "14cm", preco: "", custo: "0", estoque: "0" },
                     ];
               const atualizarLinha = (
                 i: number,
