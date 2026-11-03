@@ -164,7 +164,7 @@ function VenderPageConteudo() {
 
   // ---------- Pagamento ----------
   interface PagamentoParte {
-    forma: FormaPagamento | "";
+    forma: FormaPagamento | "Na entrega" | "";
     parcelas: number;
     valor: number; // valor que o cliente REALMENTE vai pagar nessa forma (já com acréscimo se for parcelado)
   }
@@ -1268,12 +1268,12 @@ function VenderPageConteudo() {
      acréscimo de 10% já deve estar embutido nesse valor (calculamos um
      valor sugerido automaticamente quando a forma muda, mas o caixa pode
      ajustar como quiser). */
-  function baseImplicita(p: { forma: FormaPagamento | ""; parcelas: number; valor: number }) {
+  function baseImplicita(p: { forma: FormaPagamento | "Na entrega" | ""; parcelas: number; valor: number }) {
     const ehParcelado = (p.forma === "Crédito" || p.forma === "Link") && p.parcelas > 1;
     return ehParcelado ? Math.round((p.valor / 1.1) * 100) / 100 : p.valor;
   }
 
-  function valorSugerido(base: number, forma: FormaPagamento | "", parcelas: number) {
+  function valorSugerido(base: number, forma: FormaPagamento | "Na entrega" | "", parcelas: number) {
     const ehParcelado = (forma === "Crédito" || forma === "Link") && parcelas > 1;
     return ehParcelado ? Math.round(base * 1.1 * 100) / 100 : Math.round(base * 100) / 100;
   }
@@ -1290,8 +1290,8 @@ function VenderPageConteudo() {
   }
 
   function atualizarPagamento(idx: number, mudanca: Partial<PagamentoParte>) {
-    setPagamentos((atual) =>
-      atual.map((p, i) => {
+    setPagamentos((atual) => {
+      let novo = atual.map((p, i) => {
         if (i !== idx) return p;
         const atualizado = { ...p, ...mudanca };
         // se mudou a forma/parcelas, sugere um valor novo a partir do que já
@@ -1301,8 +1301,29 @@ function VenderPageConteudo() {
           atualizado.valor = valorSugerido(base, atualizado.forma, atualizado.parcelas);
         }
         return atualizado;
-      })
-    );
+      });
+      // "Na entrega" = o que sobra do valor da venda depois do que o cliente paga agora; acompanha sozinho
+      const iEnt = novo.findIndex((p) => p.forma === "Na entrega");
+      if (iEnt !== -1 && (idx !== iEnt || mudanca.forma !== undefined) && (mudanca.valor !== undefined || mudanca.forma !== undefined || mudanca.parcelas !== undefined)) {
+        const outros = novo.reduce((s, p, i) => (i === iEnt ? s : s + (p.valor || 0)), 0);
+        novo = novo.map((p, i) =>
+          i === iEnt ? { ...p, parcelas: 1, valor: Math.max(Math.round((subtotalAVista - outros) * 100) / 100, 0) } : p
+        );
+      }
+      return novo;
+    });
+  }
+
+  // cliente paga só uma parte agora e o resto quando receber o produto
+  function iniciarPagamentoNaEntrega() {
+    setPagamentos([
+      { forma: "", parcelas: 1, valor: 0 },
+      { forma: "Na entrega", parcelas: 1, valor: subtotalAVista },
+    ]);
+    setDescontoVendaGeral("");
+    setMotivoDescontoVendaGeral("");
+    setCustoAdicional("");
+    setDescricaoCustoAdicional("");
   }
 
   // Único jeito de dar desconto agora é por aqui (ou no desconto de cada
@@ -1413,6 +1434,20 @@ function VenderPageConteudo() {
     if (!todasFormasEscolhidas) {
       alert("Escolha a forma de pagamento em todas as linhas antes de finalizar.");
       return;
+    }
+    {
+      const entrega = pagamentos.find((p) => p.forma === "Na entrega");
+      if (entrega) {
+        const pagoAgora = pagamentos.filter((p) => p.forma !== "Na entrega").reduce((s, p) => s + (p.valor || 0), 0);
+        if (pagoAgora <= 0 || entrega.valor <= 0) {
+          alert('Na opção "Na entrega" precisa ter um valor pago agora e um valor restante maior que zero.');
+          return;
+        }
+        if (vendaSemCliente) {
+          alert("Para deixar parte do pagamento para a entrega, a venda precisa ter o cliente cadastrado.");
+          return;
+        }
+      }
     }
     if (total <= 0) {
       alert("O valor total da venda precisa ser maior que zero.");
@@ -1634,7 +1669,8 @@ function VenderPageConteudo() {
           .single();
         if (turno) {
           const totaisAtualizados: Record<string, number> = {
-            total_vendido: (turno.total_vendido || 0) + total,
+            // a parte "Na entrega" ainda não foi recebida: só entra no caixa quando o cliente pagar
+            total_vendido: (turno.total_vendido || 0) + total - pagamentos.filter((p) => p.forma === "Na entrega").reduce((s, p) => s + p.valor, 0),
             total_dinheiro: turno.total_dinheiro || 0,
             total_pix: turno.total_pix || 0,
             total_debito: turno.total_debito || 0,
@@ -1642,6 +1678,7 @@ function VenderPageConteudo() {
             total_link: turno.total_link || 0,
           };
           for (const p of pagamentos) {
+            if (p.forma === "Na entrega") continue;
             const campoForma =
               p.forma === "Dinheiro"
                 ? "total_dinheiro"
@@ -2614,11 +2651,18 @@ function VenderPageConteudo() {
             <div className="card p-5">
               <div className="flex justify-between items-center mb-4">
                 <p className="font-display text-lg">Forma de pagamento</p>
-                {pagamentos.length < 3 && (
-                  <button className="text-xs text-madeira-700 font-semibold" onClick={adicionarFormaPagamento}>
-                    + Dividir pagamento
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {pagamentos.length === 1 && (
+                    <button className="text-xs text-madeira-700 font-semibold" onClick={iniciarPagamentoNaEntrega}>
+                      💰 Parte agora + resto na entrega
+                    </button>
+                  )}
+                  {pagamentos.length < 3 && (
+                    <button className="text-xs text-madeira-700 font-semibold" onClick={adicionarFormaPagamento}>
+                      + Dividir pagamento
+                    </button>
+                  )}
+                </div>
               </div>
 
               <p className="text-xs text-madeira-500 mb-3">
@@ -2649,6 +2693,9 @@ function VenderPageConteudo() {
                     <option value="Débito">Débito</option>
                     <option value="Crédito">Crédito</option>
                     <option value="Link">Link de pagamento</option>
+                    {pagamentos.length > 1 && (p.forma === "Na entrega" || !pagamentos.some((o) => o.forma === "Na entrega")) && (
+                      <option value="Na entrega">Na entrega (paga quando receber o produto)</option>
+                    )}
                   </select>
 
                   {(p.forma === "Crédito" || p.forma === "Link") && (
@@ -2675,7 +2722,9 @@ function VenderPageConteudo() {
 
                   <label className="block">
                     <span className="text-xs text-madeira-600 mb-1 block">
-                      Quanto o cliente vai pagar nessa forma
+                      {p.forma === "Na entrega"
+                        ? "Quanto o cliente vai pagar quando receber o produto (não entra no caixa agora)"
+                        : "Quanto o cliente vai pagar nessa forma"}
                     </span>
                     <input
                       className={`input-base ${pagamentos.length === 1 ? "bg-madeira-50" : ""}`}

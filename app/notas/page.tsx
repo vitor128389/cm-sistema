@@ -193,6 +193,17 @@ export default function NotasPage() {
     original: string;
   } | null>(null);
   const [salvandoEnd, setSalvandoEnd] = useState(false);
+  // receber o restante que ficou para a entrega ("Na entrega")
+  const [receberEntrega, setReceberEntrega] = useState<{
+    vendaId: string;
+    lojaId: string;
+    numeroPedido: number;
+    cliente: string;
+    pagId: string;
+    valor: number;
+    forma: "Dinheiro" | "Pix" | "Débito" | "Crédito";
+  } | null>(null);
+  const [recebendo, setRecebendo] = useState(false);
   const [erroEnd, setErroEnd] = useState("");
   const [rotuloNota, setRotuloNota] = useState<string | undefined>(undefined);
   const [modoTroca, setModoTroca] = useState<Record<string, boolean>>({});
@@ -527,6 +538,62 @@ export default function NotasPage() {
     const chave = mensagemSelecionada[v.id] || "agradecimento";
     const mensagem = MENSAGENS_PRONTAS[chave](v.clientes?.nome || "cliente", v.numero_pedido);
     window.open(linkWhatsApp(telefone, mensagem), "_blank", "noopener");
+  }
+
+  async function confirmarRecebimentoEntrega() {
+    if (!receberEntrega) return;
+    const r = receberEntrega;
+    setRecebendo(true);
+    try {
+      const { data: turno } = await supabase
+        .from("turnos_caixa")
+        .select("id, total_vendido, total_dinheiro, total_pix, total_debito, total_credito")
+        .eq("loja_id", r.lojaId)
+        .eq("status", "aberto")
+        .order("aberto_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!turno) {
+        alert("Não tem caixa aberto nessa loja. Abra o caixa antes de registrar o recebimento.");
+        setRecebendo(false);
+        return;
+      }
+      const { data: atualizado, error } = await supabase
+        .from("venda_pagamentos")
+        .update({ forma_pagamento: r.forma, parcelas: 1 })
+        .eq("id", r.pagId)
+        .eq("forma_pagamento", "Na entrega")
+        .select("id");
+      if (error) throw error;
+      if (!atualizado || atualizado.length === 0) {
+        alert("Esse valor já foi recebido (ou não está mais pendente). Atualize a página.");
+        setRecebendo(false);
+        return;
+      }
+      const campo =
+        r.forma === "Dinheiro" ? "total_dinheiro" : r.forma === "Pix" ? "total_pix" : r.forma === "Débito" ? "total_debito" : "total_credito";
+      const t = turno as unknown as Record<string, number>;
+      const { error: erroCaixa } = await supabase
+        .from("turnos_caixa")
+        .update({ total_vendido: (t.total_vendido || 0) + r.valor, [campo]: (t[campo] || 0) + r.valor })
+        .eq("id", turno.id);
+      if (erroCaixa) throw erroCaixa;
+      registrarAuditoria({
+        lojaId: r.lojaId,
+        categoria: "Vendas",
+        acao: "alteracao",
+        registroTipo: "venda",
+        registroId: r.vendaId,
+        registroNome: r.cliente,
+        numeroPedido: r.numeroPedido,
+        descricao: `Pedido #${r.numeroPedido}: recebido na entrega ${formatarMoeda(r.valor)} (${r.forma})`,
+      });
+      setReceberEntrega(null);
+      carregar();
+    } catch (e) {
+      alert("Não consegui registrar o recebimento: " + (e instanceof Error ? e.message : (e as { message?: string }).message || "erro"));
+    }
+    setRecebendo(false);
   }
 
   function abrirEdicaoEndereco(v: Venda) {
@@ -936,6 +1003,33 @@ export default function NotasPage() {
                           .join(" + ")})`
                       : `${v.forma_pagamento}${(v.forma_pagamento === "Crédito" || v.forma_pagamento === "Link") && v.parcelas > 1 ? ` ${v.parcelas}x` : ""}`}
                   </p>
+                  {(() => {
+                    const pend = (v.venda_pagamentos || []).find((p) => (p.forma_pagamento as string) === "Na entrega");
+                    if (!pend || v.cancelada) return null;
+                    return (
+                      <p className="text-xs mt-1">
+                        <span className="inline-block font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                          💰 A receber na entrega: {formatarMoeda(pend.valor)}
+                        </span>{" "}
+                        <button
+                          className="underline text-amber-900 font-semibold"
+                          onClick={() =>
+                            setReceberEntrega({
+                              vendaId: v.id,
+                              lojaId: v.loja_id,
+                              numeroPedido: v.numero_pedido,
+                              cliente: v.clientes?.nome || "Cliente",
+                              pagId: (pend as unknown as { id: string }).id,
+                              valor: pend.valor,
+                              forma: "Dinheiro",
+                            })
+                          }
+                        >
+                          Receber agora
+                        </button>
+                      </p>
+                    );
+                  })()}
                   {v.clientes?.endereco && (
                     <p className="text-xs text-madeira-400">
                       {v.clientes.endereco}
@@ -1332,6 +1426,41 @@ export default function NotasPage() {
               </button>
               <button className="btn-primario text-sm px-3 py-1.5" disabled={salvandoEnd} onClick={salvarEdicaoEndereco}>
                 {salvandoEnd ? "Salvando..." : "Salvar alterações"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {receberEntrega && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5">
+            <div className="text-lg font-bold text-madeira-900 mb-1">Receber na entrega</div>
+            <p className="text-sm text-madeira-700 mb-3">
+              Pedido #{receberEntrega.numeroPedido} — {receberEntrega.cliente}
+              <br />
+              Valor a receber: <strong>{formatarMoeda(receberEntrega.valor)}</strong>
+            </p>
+            <label className="block mb-3">
+              <span className="text-xs text-madeira-600 block mb-0.5">O cliente pagou em</span>
+              <select
+                className="input-base"
+                value={receberEntrega.forma}
+                onChange={(e) => setReceberEntrega({ ...receberEntrega, forma: e.target.value as typeof receberEntrega.forma })}
+              >
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Pix">Pix</option>
+                <option value="Débito">Débito</option>
+                <option value="Crédito">Crédito (à vista)</option>
+              </select>
+            </label>
+            <p className="text-xs text-madeira-500 mb-3">O valor entra no caixa aberto agora.</p>
+            <div className="flex gap-2 justify-end">
+              <button className="btn-secundario text-sm px-3 py-1.5" onClick={() => setReceberEntrega(null)}>
+                Cancelar
+              </button>
+              <button className="btn-primario text-sm px-3 py-1.5" disabled={recebendo} onClick={confirmarRecebimentoEntrega}>
+                {recebendo ? "Registrando..." : "Confirmar recebimento"}
               </button>
             </div>
           </div>

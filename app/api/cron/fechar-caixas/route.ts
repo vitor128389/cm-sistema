@@ -75,7 +75,11 @@ export async function GET(request: Request) {
     (vendasDeHoje || [])
       .filter((v) => !v.cancelada)
       .forEach((v) => {
-        totaisNovo.total_vendido += parseFloat(String(v.total)) || 0;
+        // a parte "Na entrega" ainda não foi recebida: não entra no total vendido do caixa
+        const pendente = (pagamentosDeHoje || [])
+          .filter((p) => p.venda_id === v.id && p.forma_pagamento === "Na entrega")
+          .reduce((s, p) => s + (parseFloat(String(p.valor)) || 0), 0);
+        totaisNovo.total_vendido += (parseFloat(String(v.total)) || 0) - pendente;
       });
 
     // fecha o turno de ontem com os totais dele MENOS o que foi movido pro novo

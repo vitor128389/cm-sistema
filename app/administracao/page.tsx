@@ -5064,7 +5064,15 @@ function AbaCancelarNota() {
           .maybeSingle();
         if (turno && turno.status === "aberto") {
           const totaisAtualizados: Record<string, number> = {
-            total_vendido: Math.max((turno.total_vendido || 0) - venda.total, 0),
+            // a parte "Na entrega" nunca entrou no caixa: só tira o que de fato foi recebido
+            total_vendido: Math.max(
+              (turno.total_vendido || 0) -
+                (venda.total -
+                  (venda.venda_pagamentos || [])
+                    .filter((pg: { forma_pagamento: string }) => pg.forma_pagamento === "Na entrega")
+                    .reduce((s: number, pg: { valor: number }) => s + pg.valor, 0)),
+              0
+            ),
           };
           for (const pag of venda.venda_pagamentos || []) {
             const campo =
