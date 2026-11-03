@@ -21,3 +21,18 @@ alter table public.venda_pagamentos
 alter table public.vendas
   add constraint vendas_forma_pagamento_check
   check (forma_pagamento in ('Dinheiro','Pix','Débito','Crédito','Link','Dividido'));
+
+-- Chaves liga/desliga de recursos (a Administração > Recursos usa isso).
+create table if not exists public.configuracoes (
+  chave text primary key,
+  valor text not null default '',
+  atualizado_em timestamptz not null default now()
+);
+alter table public.configuracoes enable row level security;
+drop policy if exists configuracoes_ler on public.configuracoes;
+create policy configuracoes_ler on public.configuracoes for select to authenticated using (true);
+drop policy if exists configuracoes_admin on public.configuracoes;
+create policy configuracoes_admin on public.configuracoes for all to authenticated
+  using (exists (select 1 from public.usuarios u where u.id = auth.uid() and u.funcao = 'admin'))
+  with check (exists (select 1 from public.usuarios u where u.id = auth.uid() and u.funcao = 'admin'));
+insert into public.configuracoes (chave, valor) values ('pagamento_na_entrega', 'false') on conflict (chave) do nothing;

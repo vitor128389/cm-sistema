@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
 import { useProdutosAoVivo } from "@/lib/produtosAoVivo";
-import { PAGAMENTO_NA_ENTREGA } from "@/lib/recursos";
+import { RECURSO_PAGAMENTO_NA_ENTREGA, useRecurso } from "@/lib/recursos";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
@@ -172,6 +172,7 @@ function VenderPageConteudo() {
   const [pagamentos, setPagamentos] = useState<PagamentoParte[]>([
     { forma: "", parcelas: 1, valor: 0 },
   ]);
+  const PAGAMENTO_NA_ENTREGA = useRecurso(RECURSO_PAGAMENTO_NA_ENTREGA); // ligado/desligado em Administração > Recursos
   const [turnoAtual, setTurnoAtual] = useState<{ id: string } | null>(null);
   const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
 

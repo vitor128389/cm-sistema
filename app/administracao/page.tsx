@@ -8,6 +8,7 @@ import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
 import { avisarProdutosMudaram } from "@/lib/produtosAoVivo";
+import { RECURSO_PAGAMENTO_NA_ENTREGA, lerRecurso, gravarRecurso } from "@/lib/recursos";
 import { consultarCpf } from "@/lib/consultaCpf";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
@@ -32,6 +33,7 @@ type Aba =
   | "categorias"
   | "rotas"
   | "promocao"
+  | "recursos"
   | "cancelar";
 
 const TELAS = [
@@ -141,6 +143,7 @@ export default function AdministracaoPage() {
             ["categorias", "Categorias"],
             ["rotas", "Rotas de Entrega"],
             ["promocao", "Promoção"],
+            ["recursos", "Recursos"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -168,6 +171,7 @@ export default function AdministracaoPage() {
       {aba === "categorias" && <AbaCategorias />}
       {aba === "rotas" && <AbaRotas />}
       {aba === "promocao" && <AbaPromocao />}
+      {aba === "recursos" && <AbaRecursos />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
@@ -5490,6 +5494,68 @@ function AbaCancelarTroca() {
 
 
 /* ==================== PROMOÇÃO DOS ESTOFADOS ==================== */
+function AbaRecursos() {
+  const [carregando, setCarregando] = useState(true);
+  const [naEntrega, setNaEntrega] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    lerRecurso(RECURSO_PAGAMENTO_NA_ENTREGA).then((v) => {
+      setNaEntrega(v);
+      setCarregando(false);
+    });
+  }, []);
+
+  async function alternar(ligar: boolean) {
+    setErro("");
+    setMsg("");
+    const e = await gravarRecurso(RECURSO_PAGAMENTO_NA_ENTREGA, ligar);
+    if (e) {
+      setErro(
+        "Não consegui salvar: " +
+          e +
+          " — se a tabela de configurações não existe, rode o arquivo supabase-schema-v33.sql no Supabase. Só administrador altera."
+      );
+      return;
+    }
+    setNaEntrega(ligar);
+    registrarAuditoria({
+      categoria: "Configurações",
+      acao: "alteracao",
+      registroTipo: "recurso",
+      registroNome: "Pagamento na entrega",
+      descricao: `Pagamento "Na entrega" ${ligar ? "ATIVADO" : "DESATIVADO"} na tela de vendas`,
+    });
+    setMsg(ligar ? "Ativado! Já aparece na tela de vender (quem está com ela aberta pega sozinho em até 1 minuto)." : "Desativado! Some da tela de vender.");
+    setTimeout(() => setMsg(""), 6000);
+  }
+
+  if (carregando) return <p className="text-madeira-500">Carregando...</p>;
+
+  return (
+    <div className="max-w-xl">
+      <h2 className="font-display text-xl text-madeira-900 mb-1">Recursos</h2>
+      <p className="text-sm text-madeira-600 mb-5">Ligue ou desligue funções da tela de vendas. Vale para todas as lojas. Só administrador altera.</p>
+
+      <label className="flex items-start gap-3 cursor-pointer border border-estofado-100 rounded-lg p-4">
+        <input type="checkbox" className="w-5 h-5 mt-0.5" checked={naEntrega} onChange={(e) => alternar(e.target.checked)} />
+        <span>
+          <span className={`font-medium block ${naEntrega ? "text-green-700" : "text-madeira-700"}`}>
+            Pagamento &quot;Na entrega&quot; {naEntrega ? "— LIGADO" : "— desligado"}
+          </span>
+          <span className="text-xs text-madeira-600 block mt-1">
+            Na tela de pagamento aparece a opção do cliente pagar uma parte agora e o restante quando receber o produto.
+            O restante fica marcado na nota como &quot;A receber na entrega&quot; e entra no caixa quando for recebido.
+          </span>
+        </span>
+      </label>
+      {erro && <p className="text-sm text-red-700 mt-3">{erro}</p>}
+      {msg && <p className="text-sm text-green-700 mt-3">{msg}</p>}
+    </div>
+  );
+}
+
 function AbaPromocao() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
