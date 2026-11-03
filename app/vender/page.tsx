@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { rotaDoPovoado, gravarRotaDoPovoado } from "@/lib/povoadoRota";
+import { useProdutosAoVivo } from "@/lib/produtosAoVivo";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { consultarCpf } from "@/lib/consultaCpf";
 import ComprovanteImpressao from "@/components/ComprovanteImpressao";
@@ -390,7 +391,18 @@ function VenderPageConteudo() {
       tipo_precificacao: (p.tipo_precificacao || "simples").trim() as ProdutoComVariantes["tipo_precificacao"],
     }));
     setProdutos(normalizado);
+    // mantém o produto que está aberto na venda com os dados mais novos (novas cores/espessuras/estoque),
+    // sem mexer em nada do que já foi preenchido
+    setProdutoSelecionado((atual) => {
+      if (!atual) return atual;
+      const novo = normalizado.find((p) => p.id === atual.id);
+      // só troca se de fato mudou (evita refazer cálculos à toa)
+      return novo && JSON.stringify(novo) !== JSON.stringify(atual) ? novo : atual;
+    });
   }
+
+  // produto novo/alterado/estoque mudou em outra aba: atualiza a lista sozinho, sem F5 e sem perder a venda
+  useProdutosAoVivo(() => carregarProdutos());
 
   // Categorias cadastradas mas ainda sem nenhum produto (recém-criadas)
   // também precisam aparecer no filtro, não só quando o primeiro produto

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, salvarEstoqueLoja, ajustarEstoqueLoja } from "@/lib/produtos";
+import { avisarProdutosMudaram } from "@/lib/produtosAoVivo";
 import { consultarCpf } from "@/lib/consultaCpf";
 import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
@@ -617,6 +618,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
   async function carregar() {
     const data = await carregarProdutosComEstoque(supabase, lojaEstoqueEfetiva);
     setProdutos(data);
+    avisarProdutosMudaram(); // outras abas (ex: Vender) atualizam sozinhas
   }
 
   async function carregarDepositoLojaId() {
