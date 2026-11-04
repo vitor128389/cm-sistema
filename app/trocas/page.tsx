@@ -57,6 +57,7 @@ interface LinhaNova {
   valorAVistaUnit: number;
   valorAPrazoUnit: number;
   tipoEntrega: "pronta" | "encomenda";
+  lojaOrigemId: string; // "" = estoque da loja atual; senão o id da loja/depósito de onde sai o produto
 }
 
 function mostrarBracosLinha(linha: LinhaNova): boolean {
@@ -108,6 +109,39 @@ export default function TrocasPage() {
   const [buscando, setBuscando] = useState(false);
   const [vendaEncontrada, setVendaEncontrada] = useState<Venda | null>(null);
   const [produtos, setProdutos] = useState<ProdutoComVariantes[]>([]);
+  // de onde pode sair o produto novo: loja atual, outras lojas ou Depósito
+  const [lojasOrigem, setLojasOrigem] = useState<{ id: string; nome: string; eh_deposito: boolean }[]>([]);
+  const [produtosPorLoja, setProdutosPorLoja] = useState<Record<string, ProdutoComVariantes[]>>({});
+  const [carregandoOrigem, setCarregandoOrigem] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("lojas")
+      .select("id, nome, eh_deposito")
+      .eq("ativo", true)
+      .order("nome")
+      .then(({ data }) => setLojasOrigem((data || []) as { id: string; nome: string; eh_deposito: boolean }[]));
+  }, []);
+
+  function listaDaLinha(l: { lojaOrigemId: string }): ProdutoComVariantes[] {
+    return (l.lojaOrigemId && produtosPorLoja[l.lojaOrigemId]) || produtos;
+  }
+
+  async function trocarOrigemLinha(chave: number, linha: LinhaNova, lojaId: string) {
+    let lista: ProdutoComVariantes[] | undefined = lojaId ? produtosPorLoja[lojaId] : produtos;
+    if (lojaId && !lista) {
+      setCarregandoOrigem(true);
+      lista = await carregarProdutosComEstoque(supabase, lojaId);
+      setProdutosPorLoja((a) => ({ ...a, [lojaId]: lista as ProdutoComVariantes[] }));
+      setCarregandoOrigem(false);
+    }
+    const base = lista || produtos;
+    // mantém o mesmo produto escolhido, mas com o estoque da origem nova
+    atualizarLinha(chave, {
+      lojaOrigemId: lojaId,
+      produto: linha.produto ? base.find((p) => p.id === linha.produto?.id) ?? linha.produto : null,
+    });
+  }
 
   const [devolvidosSelecionados, setDevolvidosSelecionados] = useState<Record<string, boolean>>({});
   // quantidade devolvida de cada item (ex: comprou 2 camas e devolve só 1); sem valor = devolve tudo
@@ -206,6 +240,7 @@ export default function TrocasPage() {
         valorAVistaUnit: 0,
         valorAPrazoUnit: 0,
         tipoEntrega: "pronta",
+        lojaOrigemId: "",
       },
     ]);
     setProxChave((c) => c + 1);
@@ -615,6 +650,13 @@ export default function TrocasPage() {
           valor_unitario_avista: sub.valorAVista,
           valor_unitario_aprazo: sub.valorAPrazo,
           tipo_entrega: sub.tipoEntrega,
+          // de onde saiu o produto (só conta em pronta entrega)
+          origem_deposito:
+            l.tipoEntrega === "pronta" && !!l.lojaOrigemId && !!lojasOrigem.find((x) => x.id === l.lojaOrigemId)?.eh_deposito,
+          origem_loja_id:
+            l.tipoEntrega === "pronta" && !!l.lojaOrigemId && !lojasOrigem.find((x) => x.id === l.lojaOrigemId)?.eh_deposito
+              ? l.lojaOrigemId
+              : null,
         }))
       );
       const { data: novosInseridos, error: erroNovos } = await supabase
@@ -645,7 +687,7 @@ export default function TrocasPage() {
       for (const l of linhasNovasProntas) {
         if (l.tipoEntrega === "pronta") {
           for (const sub of expandirLinhaConjunto(l)) {
-            await ajustarEstoqueLoja(supabase, lojaAtual, sub.produto.id, sub.varianteId, -sub.quantidade);
+            await ajustarEstoqueLoja(supabase, l.lojaOrigemId || lojaAtual, sub.produto.id, sub.varianteId, -sub.quantidade);
           }
         }
       }
@@ -956,11 +998,38 @@ export default function TrocasPage() {
                 )}
 
                 {novasLinhas.map((linha) => {
-                  const produtosFiltrados = produtos.filter(
+                  const produtosFiltrados = listaDaLinha(linha).filter(
                     (p) => !linha.busca || normalizarBusca(p.nome).includes(normalizarBusca(linha.busca))
                   );
                   return (
                     <div key={linha.chave} className="border border-estofado-100 rounded p-3 mb-3">
+                      {lojasOrigem.length > 0 && (
+                        <label className="block mb-2">
+                          <span className="text-xs text-madeira-600 mb-1 block">Estoque de onde vai sair</span>
+                          <select
+                            className="input-base"
+                            value={linha.lojaOrigemId}
+                            disabled={carregandoOrigem}
+                            onChange={(e) => trocarOrigemLinha(linha.chave, linha, e.target.value)}
+                          >
+                            <option value="">Loja atual</option>
+                            {lojasOrigem
+                              .filter((l) => l.id !== lojaAtual && !l.eh_deposito)
+                              .map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  {l.nome}
+                                </option>
+                              ))}
+                            {lojasOrigem
+                              .filter((l) => l.eh_deposito)
+                              .map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  Depósito
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                      )}
                       <div className="flex justify-between items-start mb-2">
                         <label className="block relative flex-1 mr-3">
                           <span className="text-xs text-madeira-600 mb-1 block">Buscar produto</span>
