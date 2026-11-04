@@ -442,9 +442,9 @@ export default function NotasPage() {
 
   const vendasFiltradas = vendas
     .filter((v) => {
-      if (somenteAberto && !pedidoPendente(v)) return false;
+      if (somenteAberto && !pedidoPendente(v) && !novosDaTrocaDe(v).some((n) => n.status_entrega !== "entregue")) return false;
       if (somenteRetirada && !temItemRetirada(v)) return false;
-      if (somenteEntregues && !pedidoEntregue(v)) return false;
+      if (somenteEntregues && (!pedidoEntregue(v) || novosDaTrocaDe(v).some((n) => n.status_entrega !== "entregue"))) return false;
       if (filtroDesconto === "com" && !temDesconto(v)) return false;
       if (filtroDesconto === "sem" && temDesconto(v)) return false;
       if (filtroRota !== "todas" && v.rota_id !== filtroRota) return false;
@@ -508,6 +508,33 @@ export default function NotasPage() {
       if (formato === "a4") await ajustarEscalaImpressaoA4();
       window.print();
     }, 100);
+  }
+
+  // produtos novos de uma troca ativa desse pedido (têm entrega própria)
+  function novosDaTrocaDe(v: Venda) {
+    const t = trocas.find((x) => x.venda_original_id === v.id && !x.cancelada);
+    return t ? t.trocas_novos || [] : [];
+  }
+
+  async function marcarNovoEntregue(novoId: string) {
+    const { error } = await supabase
+      .from("trocas_novos")
+      .update({ status_entrega: "entregue", data_entregue: new Date().toISOString() })
+      .eq("id", novoId);
+    if (error) {
+      alert("Não consegui marcar como entregue: " + error.message);
+      return;
+    }
+    registrarAuditoria({
+      lojaId: lojaAtual,
+      categoria: "Entregas",
+      acao: "alteracao",
+      registroTipo: "troca_novo",
+      registroId: novoId,
+      descricao: "Produto novo da troca marcado como entregue",
+      dadosDepois: { status_entrega: "entregue" },
+    });
+    carregarTrocas();
   }
 
   async function marcarEntregue(itemIds: string | string[]) {
@@ -1233,7 +1260,10 @@ export default function NotasPage() {
                         </span>
                       )}
                     </span>
-                    {item.status_entrega && (
+                    {item.trocado && (
+                      <span className="text-xs px-2 py-0.5 rounded font-medium bg-blue-50 text-blue-700 shrink-0">↩ DEVOLVIDO NA TROCA</span>
+                    )}
+                    {item.status_entrega && !item.trocado && (
                       <span className="flex items-center gap-2 shrink-0">
                         {v.cancelada ? (
                           <span className="text-xs px-2 py-0.5 rounded font-medium bg-red-50 text-red-700">
@@ -1275,6 +1305,39 @@ export default function NotasPage() {
                     )}
                   </li>
                 ))}
+                {!v.cancelada &&
+                  novosDaTrocaDe(v).map((n) => (
+                    <li key={n.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 mr-1">🔁 TROCA</span>
+                        {n.quantidade}x {n.produto_nome}
+                        {n.tipo_entrega === "encomenda" && <span className="tag-encomenda ml-1">ENCOMENDA</span>}
+                        {n.variante ? ` — ${n.variante}` : ""}
+                        {n.observacao && (
+                          <span className="block text-xs text-madeira-700">
+                            Obs: <strong>{n.observacao}</strong>
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded font-medium ${
+                            n.status_entrega === "entregue" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {n.status_entrega === "entregue" ? "✓ ENTREGUE" : n.tipo_entrega === "encomenda" ? "ENCOMENDA" : "AGUARDANDO ENTREGA"}
+                        </span>
+                        {n.status_entrega === "entregue" && n.data_entregue && (
+                          <span className="text-xs text-madeira-500">em {new Date(n.data_entregue).toLocaleDateString("pt-BR")}</span>
+                        )}
+                        {n.status_entrega !== "entregue" && (
+                          <button className="btn-secundario text-xs px-2 py-1" onClick={() => marcarNovoEntregue(n.id)}>
+                            ENTREGUE
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
               </ul>
             </div>
           ))}
