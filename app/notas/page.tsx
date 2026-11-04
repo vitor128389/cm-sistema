@@ -449,7 +449,8 @@ export default function NotasPage() {
       if (filtroDesconto === "sem" && temDesconto(v)) return false;
       if (filtroRota !== "todas" && v.rota_id !== filtroRota) return false;
       if (busca.trim()) return bateComBusca(v, busca);
-      return dentroDoPeriodo(v.criado_em);
+      // pedido antigo que teve troca no período também aparece (a troca foi feita agora)
+      return dentroDoPeriodo(v.criado_em) || trocas.some((t) => t.venda_original_id === v.id && !t.cancelada && dentroDoPeriodo(t.criado_em));
     })
     .sort((a, b) => {
       if (!ordenarPorPrazo) return 0;
