@@ -201,7 +201,7 @@ export default function NotasPage() {
     cliente: string;
     pagId: string;
     valor: number;
-    forma: "Dinheiro" | "Pix" | "Débito" | "Crédito";
+    partes: { forma: "Dinheiro" | "Pix" | "Débito" | "Crédito"; valor: string }[];
   } | null>(null);
   const [recebendo, setRecebendo] = useState(false);
   const [erroEnd, setErroEnd] = useState("");
@@ -558,9 +558,17 @@ export default function NotasPage() {
         setRecebendo(false);
         return;
       }
+      const partes = r.partes.map((x) => ({ forma: x.forma, valor: Math.round((parseFloat(x.valor.replace(",", ".")) || 0) * 100) / 100 }));
+      const soma = Math.round(partes.reduce((t, x) => t + x.valor, 0) * 100) / 100;
+      if (partes.some((x) => x.valor <= 0) || Math.abs(soma - r.valor) > 0.009) {
+        alert(`A soma das formas (${formatarMoeda(soma)}) precisa ser igual ao valor a receber (${formatarMoeda(r.valor)}).`);
+        setRecebendo(false);
+        return;
+      }
+      // a 1ª parte aproveita a linha "Na entrega"; as demais viram linhas novas
       const { data: atualizado, error } = await supabase
         .from("venda_pagamentos")
-        .update({ forma_pagamento: r.forma, parcelas: 1 })
+        .update({ forma_pagamento: partes[0].forma, parcelas: 1, valor: partes[0].valor })
         .eq("id", r.pagId)
         .eq("forma_pagamento", "Na entrega")
         .select("id");
@@ -570,13 +578,19 @@ export default function NotasPage() {
         setRecebendo(false);
         return;
       }
-      const campo =
-        r.forma === "Dinheiro" ? "total_dinheiro" : r.forma === "Pix" ? "total_pix" : r.forma === "Débito" ? "total_debito" : "total_credito";
+      if (partes.length > 1) {
+        const { error: erroIns } = await supabase
+          .from("venda_pagamentos")
+          .insert(partes.slice(1).map((x) => ({ venda_id: r.vendaId, forma_pagamento: x.forma, parcelas: 1, valor: x.valor })));
+        if (erroIns) throw erroIns;
+      }
       const t = turno as unknown as Record<string, number>;
-      const { error: erroCaixa } = await supabase
-        .from("turnos_caixa")
-        .update({ total_vendido: (t.total_vendido || 0) + r.valor, [campo]: (t[campo] || 0) + r.valor })
-        .eq("id", turno.id);
+      const novoTurno: Record<string, number> = { total_vendido: (t.total_vendido || 0) + r.valor };
+      for (const x of partes) {
+        const campo = x.forma === "Dinheiro" ? "total_dinheiro" : x.forma === "Pix" ? "total_pix" : x.forma === "Débito" ? "total_debito" : "total_credito";
+        novoTurno[campo] = (novoTurno[campo] ?? (t[campo] || 0)) + x.valor;
+      }
+      const { error: erroCaixa } = await supabase.from("turnos_caixa").update(novoTurno).eq("id", turno.id);
       if (erroCaixa) throw erroCaixa;
       registrarAuditoria({
         lojaId: r.lojaId,
@@ -586,7 +600,7 @@ export default function NotasPage() {
         registroId: r.vendaId,
         registroNome: r.cliente,
         numeroPedido: r.numeroPedido,
-        descricao: `Pedido #${r.numeroPedido}: recebido na entrega ${formatarMoeda(r.valor)} (${r.forma})`,
+        descricao: `Pedido #${r.numeroPedido}: recebido na entrega ${formatarMoeda(r.valor)} (${partes.map((x) => `${x.forma} ${formatarMoeda(x.valor)}`).join(" + ")})`,
       });
       setReceberEntrega(null);
       carregar();
@@ -1021,7 +1035,7 @@ export default function NotasPage() {
                               cliente: v.clientes?.nome || "Cliente",
                               pagId: (pend as unknown as { id: string }).id,
                               valor: pend.valor,
-                              forma: "Dinheiro",
+                              partes: [{ forma: "Dinheiro", valor: String(pend.valor).replace(".", ",") }],
                             })
                           }
                         >
@@ -1441,19 +1455,71 @@ export default function NotasPage() {
               <br />
               Valor a receber: <strong>{formatarMoeda(receberEntrega.valor)}</strong>
             </p>
-            <label className="block mb-3">
-              <span className="text-xs text-madeira-600 block mb-0.5">O cliente pagou em</span>
-              <select
-                className="input-base"
-                value={receberEntrega.forma}
-                onChange={(e) => setReceberEntrega({ ...receberEntrega, forma: e.target.value as typeof receberEntrega.forma })}
-              >
-                <option value="Dinheiro">Dinheiro</option>
-                <option value="Pix">Pix</option>
-                <option value="Débito">Débito</option>
-                <option value="Crédito">Crédito (à vista)</option>
-              </select>
-            </label>
+            <div className="mb-3 space-y-2">
+              <span className="text-xs text-madeira-600 block">O cliente pagou em</span>
+              {receberEntrega.partes.map((pt, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <select
+                    className="input-base flex-1"
+                    value={pt.forma}
+                    onChange={(e) =>
+                      setReceberEntrega({
+                        ...receberEntrega,
+                        partes: receberEntrega.partes.map((x, j) => (j === i ? { ...x, forma: e.target.value as typeof pt.forma } : x)),
+                      })
+                    }
+                  >
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Débito">Débito</option>
+                    <option value="Crédito">Crédito (à vista)</option>
+                  </select>
+                  <input
+                    className="input-base w-28"
+                    inputMode="decimal"
+                    value={pt.valor}
+                    onChange={(e) =>
+                      setReceberEntrega({
+                        ...receberEntrega,
+                        partes: receberEntrega.partes.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)),
+                      })
+                    }
+                  />
+                  {receberEntrega.partes.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-red-600 text-lg px-1"
+                      onClick={() => setReceberEntrega({ ...receberEntrega, partes: receberEntrega.partes.filter((_, j) => j !== i) })}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+              {(() => {
+                const soma = receberEntrega.partes.reduce((t, x) => t + (parseFloat(x.valor.replace(",", ".")) || 0), 0);
+                const falta = Math.round((receberEntrega.valor - soma) * 100) / 100;
+                return (
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="text-xs underline text-madeira-700"
+                      onClick={() =>
+                        setReceberEntrega({
+                          ...receberEntrega,
+                          partes: [...receberEntrega.partes, { forma: "Pix", valor: falta > 0 ? String(falta).replace(".", ",") : "" }],
+                        })
+                      }
+                    >
+                      + Dividir em outra forma
+                    </button>
+                    <span className={`text-xs ${falta === 0 ? "text-green-700" : "text-amber-700"}`}>
+                      {falta === 0 ? "Valor fechado" : falta > 0 ? `Falta ${formatarMoeda(falta)}` : `Passou ${formatarMoeda(-falta)}`}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
             <p className="text-xs text-madeira-500 mb-3">O valor entra no caixa aberto agora.</p>
             <div className="flex gap-2 justify-end">
               <button className="btn-secundario text-sm px-3 py-1.5" onClick={() => setReceberEntrega(null)}>
