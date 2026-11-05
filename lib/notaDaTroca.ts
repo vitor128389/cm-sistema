@@ -53,6 +53,9 @@ export function montarNotaDaTroca(venda: Venda, troca: TrocaGrupo): Venda {
     ...venda,
     numero_pedido: troca.numero_troca,
     criado_em: troca.criado_em,
+    // depois da troca vale o novo prazo, se foi definido
+    prazo_entrega_maximo: troca.prazo_entrega_maximo ?? venda.prazo_entrega_maximo,
+    prazo_dias_uteis: troca.prazo_entrega_maximo ? troca.prazo_dias_uteis ?? null : venda.prazo_dias_uteis,
     total,
     forma_pagamento: pagamentos.length > 1 ? "Dividido" : venda.forma_pagamento,
     venda_pagamentos: pagamentos,

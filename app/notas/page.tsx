@@ -664,7 +664,7 @@ export default function NotasPage() {
         cidade: c.cidade || "",
         povoado: c.povoado || "",
       },
-      prazo: v.prazo_entrega_maximo || "",
+      prazo: (troca ? troca.prazo_entrega_maximo : null) || v.prazo_entrega_maximo || "",
       rotaId: v.rota_id || "",
       itens: (() => {
         const lista = itensEdicao;
@@ -734,10 +734,12 @@ export default function NotasPage() {
       }
       if (editEnd.prazo !== orig.prazo) {
         const { error } = await supabase
-          .from("vendas")
-          .update({ prazo_entrega_maximo: editEnd.prazo || null })
-          .eq("id", editEnd.vendaId);
+          .from(editEnd.numeroTroca ? "trocas_grupo" : "vendas")
+          .update({ prazo_entrega_maximo: editEnd.prazo || null, ...(editEnd.numeroTroca ? { prazo_dias_uteis: null } : {}) })
+          .eq(editEnd.numeroTroca ? "numero_troca" : "id", editEnd.numeroTroca ?? editEnd.vendaId)
+          .eq(editEnd.numeroTroca ? "loja_id" : "id", editEnd.numeroTroca ? lojaAtual || "" : editEnd.vendaId);
         if (error) throw error;
+        if (editEnd.numeroTroca) carregarTrocas();
       }
       if (editEnd.campos.povoado.trim() && editEnd.rotaId && (editEnd.rotaId !== orig.rotaId || editEnd.campos.povoado !== orig.campos.povoado)) {
         // aprende: esse povoado passa a cair sempre nessa rota
@@ -1106,6 +1108,24 @@ export default function NotasPage() {
                             : dias === 0
                             ? "Prazo vence hoje"
                             : `Faltam ${dias} dia(s) para o prazo`}
+                        </span>
+                      );
+                    })()}
+                  {!v.cancelada &&
+                    (() => {
+                      const t = trocas.find((x) => x.venda_original_id === v.id && !x.cancelada);
+                      if (!t?.prazo_entrega_maximo) return null;
+                      const pend = (t.trocas_novos || []).some((n) => n.status_entrega !== "entregue");
+                      const dias = diasRestantes(t.prazo_entrega_maximo);
+                      const critico = dias <= 3;
+                      return (
+                        <span
+                          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded mt-1 ml-1 ${
+                            !pend ? "bg-gray-100 text-gray-600" : critico ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
+                          }`}
+                        >
+                          🔁 Novo prazo (troca #{t.numero_troca}): {new Date(`${t.prazo_entrega_maximo}T00:00:00`).toLocaleDateString("pt-BR")}
+                          {pend ? (dias < 0 ? ` — vencido há ${Math.abs(dias)} dia(s)` : dias === 0 ? " — vence hoje" : ` — faltam ${dias} dia(s)`) : " — entregue"}
                         </span>
                       );
                     })()}

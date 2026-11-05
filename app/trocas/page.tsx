@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
+import { somarDiasUteis } from "@/lib/diasUteis";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
 import { definirTamanhoPagina } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
@@ -147,6 +148,9 @@ export default function TrocasPage() {
   // quantidade devolvida de cada item (ex: comprou 2 camas e devolve só 1); sem valor = devolve tudo
   const [devolvidosQtd, setDevolvidosQtd] = useState<Record<string, number>>({});
   const [novasLinhas, setNovasLinhas] = useState<LinhaNova[]>([]);
+  // novo prazo de entrega depois da troca (só quando tem produto novo sob encomenda)
+  const [prazoTroca, setPrazoTroca] = useState("");
+  const [prazoTrocaDias, setPrazoTrocaDias] = useState<number | null>(null);
   const [tecidosCores, setTecidosCores] = useState<TecidoCor[]>([]);
   const [proxChave, setProxChave] = useState(1);
   const [tipoPreco, setTipoPreco] = useState<"avista" | "aprazo">("avista");
@@ -195,6 +199,8 @@ export default function TrocasPage() {
     setVendaEncontrada(null);
     setDevolvidosSelecionados({});
     setNovasLinhas([]);
+    setPrazoTroca("");
+    setPrazoTrocaDias(null);
     setConcluida(null);
     let query = supabase
       .from("vendas")
@@ -569,6 +575,8 @@ export default function TrocasPage() {
           // não uma nova rota
           rota_nome: vendaEncontrada.rota_nome || null,
           rota_cor: vendaEncontrada.rota_cor || null,
+          prazo_entrega_maximo: prazoTroca || null,
+          prazo_dias_uteis: prazoTroca ? prazoTrocaDias : null,
         })
         .select("id, numero_troca")
         .single();
@@ -791,6 +799,8 @@ export default function TrocasPage() {
     setVendaEncontrada(null);
     setDevolvidosSelecionados({});
     setNovasLinhas([]);
+    setPrazoTroca("");
+    setPrazoTrocaDias(null);
     setFormaPagDiferenca("");
     setParcelasDiferenca(1);
     setConcluida(null);
@@ -1320,6 +1330,37 @@ export default function TrocasPage() {
                   </button>
                 </div>
 
+                {novasLinhas.some((l) => l.produto && l.tipoEntrega === "encomenda") && (
+                  <div className="mb-4">
+                    <span className="text-xs text-madeira-600 mb-1 block">Novo prazo máximo de entrega (produto novo sob encomenda)</span>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {[6, 10, 15].map((dias) => (
+                        <button
+                          key={dias}
+                          type="button"
+                          className={`text-xs px-3 py-1.5 rounded-full border ${
+                            prazoTrocaDias === dias ? "bg-madeira-700 text-white border-madeira-700" : "border-madeira-300 text-madeira-600"
+                          }`}
+                          onClick={() => {
+                            setPrazoTrocaDias(dias);
+                            setPrazoTroca(somarDiasUteis(dias));
+                          }}
+                        >
+                          {dias} dias úteis
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      className="input-base"
+                      type="date"
+                      value={prazoTroca}
+                      onChange={(e) => {
+                        setPrazoTroca(e.target.value);
+                        setPrazoTrocaDias(null);
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2 text-sm bg-madeira-50 rounded p-4 mb-4">
                   <div className="flex justify-between">
                     <span className="text-madeira-600">Valor dos produtos devolvidos</span>

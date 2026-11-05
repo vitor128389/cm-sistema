@@ -259,6 +259,8 @@ export interface TrocaItemNovo {
 export interface TrocaGrupo {
   id: string;
   numero_troca: number;
+  prazo_entrega_maximo?: string | null;
+  prazo_dias_uteis?: number | null;
   venda_original_id: string;
   tipo_preco: "avista" | "aprazo";
   valor_devolvido_total: number;
