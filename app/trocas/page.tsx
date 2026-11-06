@@ -36,6 +36,10 @@ const PRODUTOS_COM_BRACOS_ALMOFADA = [
 const MODELOS = ["Capitonê", "Quadrado", "Vertical", "V", "3D"];
 const PRODUTOS_COM_MODELO = ["POLTRONA BENNY", "NAMORADEIRA BENNY"];
 
+function ehCategoriaSofa(categoria?: string | null): boolean {
+  return (categoria || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "sofas";
+}
+
 function precisaModeloLinha(linha: LinhaNova): boolean {
   return (
     !!linha.produto &&
@@ -443,7 +447,7 @@ export default function TrocasPage() {
   // preço nem estoque.
   function mostrarCorCabeceira(linha: LinhaNova): boolean {
     // igual à tela de Vender: produto por tecido (ex: Sofá Paris 3 Lugares) também escolhe a cor
-    return linha.produto?.categoria === "Cabeceiras e Baús" || linha.produto?.tipo_precificacao === "tecido";
+    return linha.produto?.categoria === "Cabeceiras e Baús" || linha.produto?.tipo_precificacao === "tecido" || ehCategoriaSofa(linha.produto?.categoria);
   }
 
   function varianteNomeLinha(linha: LinhaNova): string | null {

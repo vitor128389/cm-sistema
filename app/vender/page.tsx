@@ -47,6 +47,11 @@ function normalizarDataParaIso(data: string): string | null {
 
 // Ordem fixa pra sempre mostrar Suede, depois Linho, depois Veludo — outros
 // tecidos (Napa, Atoalhado, etc.) ficam depois, na ordem que vierem.
+// categoria "Sofás" (com ou sem acento): sempre mostra tecido e cor, mesmo sem variantes cadastradas
+function ehCategoriaSofa(categoria?: string | null): boolean {
+  return (categoria || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "sofas";
+}
+
 function ordemTecido(nome: string): number {
   const ordem: Record<string, number> = { Suede: 0, Linho: 1, Veludo: 2 };
   return ordem[nome] ?? 99;
@@ -866,7 +871,7 @@ function VenderPageConteudo() {
       atualizarValorPelaVariante(p, temBracos ? `${primeira} — Sem Braços` : primeira);
     } else {
       setValorUnitario(Math.round(p.preco_venda * 1.1 * 100) / 100);
-      if (p.categoria === "Cabeceiras e Baús") setTecidoSel("Suede"); // só pra filtrar a cor, não muda o preço
+      if (p.categoria === "Cabeceiras e Baús" || ehCategoriaSofa(p.categoria)) setTecidoSel("Suede"); // só pra filtrar a cor, não muda o preço
     }
   }
 
@@ -989,7 +994,8 @@ function VenderPageConteudo() {
     return (
       produtoSelecionado.tipo_precificacao === "tecido" ||
       produtoSelecionado.tipo_precificacao === "tecido_peca" ||
-      produtoSelecionado.categoria === "Cabeceiras e Baús"
+      produtoSelecionado.categoria === "Cabeceiras e Baús" ||
+      ehCategoriaSofa(produtoSelecionado.categoria)
     );
   }
 
