@@ -1794,7 +1794,8 @@ function VenderPageConteudo() {
 
   const produtosFiltrados = produtos.filter((p) => {
     if (buscaProduto && !normalizarBusca(p.nome).includes(normalizarBusca(buscaProduto))) return false;
-    if (categoriaAberta && p.categoria !== categoriaAberta) return false;
+    // digitando, a busca vale pra todas as categorias
+    if (!buscaProduto.trim() && categoriaAberta && p.categoria !== categoriaAberta) return false;
     return true;
   });
 
@@ -2122,6 +2123,7 @@ function VenderPageConteudo() {
               />
               {dropdownAberto && (
                 <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-madeira-200 rounded shadow-lg max-h-72 overflow-y-auto">
+                  {!buscaProduto.trim() && (
                   <div className="flex flex-wrap gap-1 p-2 border-b border-estofado-100">
                     <button
                       type="button"
@@ -2145,6 +2147,7 @@ function VenderPageConteudo() {
                       </button>
                     ))}
                   </div>
+                  )}
                   {produtosFiltrados.length === 0 ? (
                     <p className="text-xs text-madeira-400 p-4 text-center">Nenhum produto encontrado.</p>
                   ) : (
