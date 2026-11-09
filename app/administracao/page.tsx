@@ -114,6 +114,8 @@ const FORM_VAZIO = {
   // uma linha por espessura que o produto realmente tiver, em vez de campos
   // fixos só pra 5/7/14.
   espessuraLinhas: [] as { label: string; preco: string; custo: string; estoque: string }[],
+  // true quando o usuário tirou todas as espessuras: o produto vira simples (só preço e estoque)
+  semEspessura: false,
 };
 
 export default function AdministracaoPage() {
@@ -1087,15 +1089,12 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
       : form.categoria === "__nova__"
       ? tipoCategoriaNova
       : tipoDaCategoria(categoriaFinal);
-    const ehCamas = tipoReal === "espessura";
+    const linhas = form.espessuraLinhas.filter((l) => l.label.trim() && parseFloat(l.preco) > 0);
+    // espessura não é obrigatória: sem nenhuma preenchida, o produto é salvo como simples (preço + estoque)
+    const ehCamas = tipoReal === "espessura" && !form.semEspessura && linhas.length > 0;
     const custoNum = parseFloat(form.custo) || 0;
 
     if (ehCamas) {
-      const linhas = form.espessuraLinhas.filter((l) => l.label.trim() && parseFloat(l.preco) > 0);
-      if (linhas.length === 0) {
-        alert("Preencha o nome e o preço de pelo menos uma espessura.");
-        return;
-      }
       const precoBase = parseFloat(linhas[0].preco);
 
       let produtoId = editandoId;
@@ -1382,7 +1381,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
               ? tipoCategoriaNova
               : tipoDaCategoria(categoriaAtual);
             const modoCampos: "camas" | "tecido" | "simples" =
-              tipoReal === "espessura" ? "camas" : tipoReal === "tecido" ? "tecido" : "simples";
+              tipoReal === "espessura" && !form.semEspessura ? "camas" : tipoReal === "tecido" ? "tecido" : "simples";
 
             if (modoCampos === "camas") {
               const linhas =
@@ -1406,16 +1405,17 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {linhas.map((linha, i) => (
                       <div key={i} className="relative rounded border border-madeira-100 p-2">
-                        {linhas.length > 1 && (
-                          <button
-                            type="button"
-                            title="Tirar essa espessura só deste produto (a categoria continua igual)"
-                            className="absolute top-1 right-1 text-xs text-red-600 hover:text-red-800 font-semibold"
-                            onClick={() => setForm({ ...form, espessuraLinhas: linhas.filter((_, idx) => idx !== i) })}
-                          >
-                            ✕ Excluir
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          title="Tirar essa espessura só deste produto (a categoria continua igual)"
+                          className="absolute top-1 right-1 text-xs text-red-600 hover:text-red-800 font-semibold"
+                          onClick={() => {
+                            const restantes = linhas.filter((_, idx) => idx !== i);
+                            setForm({ ...form, espessuraLinhas: restantes, semEspessura: restantes.length === 0 });
+                          }}
+                        >
+                          ✕ Excluir
+                        </button>
                         <label className="block mb-2 mt-4">
                           <span className="text-xs text-madeira-600 mb-1 block">Espessura (ex: 10cm)</span>
                           <input
@@ -1461,6 +1461,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                       setForm({
                         ...form,
                         espessuraLinhas: [...linhas, { label: "", preco: "", custo: "0", estoque: "0" }],
+                        semEspessura: false,
                       })
                     }
                   >
@@ -1469,7 +1470,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                   <p className="text-xs text-madeira-400 mt-1">
                     Use "✕ Excluir" pra tirar uma espessura que esse produto não tem (ex: colchões
                     normalmente só usam 2 — 10cm e 20cm). Isso vale só pra este produto — a categoria
-                    continua com todas as espessuras nos próximos produtos.
+                    continua com todas as espessuras nos próximos produtos. Nenhuma espessura é obrigatória.
                   </p>
                 </div>
               );
@@ -1558,6 +1559,19 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
             // não mostram opção de tecido, mas ainda precisam de preço de
             // venda e estoque.
             return (
+              <>
+              {tipoReal === "espessura" && form.semEspessura && (
+                <p className="text-xs text-madeira-500 mb-2">
+                  Sem espessura: este produto será salvo só com preço e estoque.{" "}
+                  <button
+                    type="button"
+                    className="underline text-madeira-700"
+                    onClick={() => setForm({ ...form, semEspessura: false, espessuraLinhas: [] })}
+                  >
+                    Voltar a usar espessuras
+                  </button>
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3 mb-3 max-w-md">
                 <label className="block">
                   <span className="text-xs text-madeira-600 mb-1 block">Preço de venda (R$)</span>
@@ -1578,6 +1592,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                   />
                 </label>
               </div>
+              </>
             );
           })()}
 
