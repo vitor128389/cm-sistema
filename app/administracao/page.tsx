@@ -1405,8 +1405,18 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                 <div className="mb-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {linhas.map((linha, i) => (
-                      <div key={i}>
-                        <label className="block mb-2">
+                      <div key={i} className="relative rounded border border-madeira-100 p-2">
+                        {linhas.length > 1 && (
+                          <button
+                            type="button"
+                            title="Tirar essa espessura só deste produto (a categoria continua igual)"
+                            className="absolute top-1 right-1 text-xs text-red-600 hover:text-red-800 font-semibold"
+                            onClick={() => setForm({ ...form, espessuraLinhas: linhas.filter((_, idx) => idx !== i) })}
+                          >
+                            ✕ Excluir
+                          </button>
+                        )}
+                        <label className="block mb-2 mt-4">
                           <span className="text-xs text-madeira-600 mb-1 block">Espessura (ex: 10cm)</span>
                           <input
                             className="input-base"
@@ -1457,8 +1467,9 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
                     + adicionar espessura
                   </button>
                   <p className="text-xs text-madeira-400 mt-1">
-                    Deixe o nome em branco pra pular uma espessura que esse produto não tem (ex: colchões
-                    normalmente só usam 2 — 10cm e 20cm).
+                    Use "✕ Excluir" pra tirar uma espessura que esse produto não tem (ex: colchões
+                    normalmente só usam 2 — 10cm e 20cm). Isso vale só pra este produto — a categoria
+                    continua com todas as espessuras nos próximos produtos.
                   </p>
                 </div>
               );
