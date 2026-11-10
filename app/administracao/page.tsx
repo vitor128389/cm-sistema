@@ -14,6 +14,7 @@ import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
 import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import EntradaNota from "@/components/EntradaNota";
+import AdicionarPorFoto from "@/components/AdicionarPorFoto";
 import ComprovanteCancelamento88mm, { type DadosCancelamento } from "@/components/ComprovanteCancelamento88mm";
 import { definirTamanhoPagina } from "@/lib/imprimir";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
@@ -608,6 +609,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
     []
   );
   const [mostrarDesativados, setMostrarDesativados] = useState(false);
+  const [mostrarFoto, setMostrarFoto] = useState(false);
 
   async function carregarDesativados() {
     const { data } = await supabase.from("produtos").select("id, nome, categoria").eq("ativo", false).order("nome");
@@ -1295,6 +1297,11 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
           <p className="text-sm font-semibold text-madeira-700">Alterar estoque dos produtos</p>
           <p className="text-xs text-madeira-500">Edite a quantidade e clique em salvar.</p>
         </div>
+        {!modoDeposito && (
+          <button className="btn-secundario" onClick={() => setMostrarFoto(true)}>
+            📷 Adicionar por foto
+          </button>
+        )}
         <button
           className="btn-primario"
           onClick={() => {
@@ -1308,6 +1315,8 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
           {mostrarForm ? "Cancelar" : "+ Novo produto"}
         </button>
       </div>
+
+      {mostrarFoto && <AdicionarPorFoto aoFechar={() => setMostrarFoto(false)} aoAlterar={carregar} />}
 
       {mostrarForm && (
         <div id="form-editar-produto" className="card p-5 mb-6">
