@@ -107,6 +107,7 @@ function NovaEntrada() {
     await processar(async () => {
       const ehXml = /\.xml$/i.test(file.name) || file.type.includes("xml");
       if (ehXml) return lerNotaXml(await file.text());
+      if (file.type.startsWith("image/")) return lerFotoDaNota(file);
       const linhasPdf = await lerPdfComoLinhas(await file.arrayBuffer());
       if (linhasPdf.join("").trim().length < 30) {
         throw new Error(
@@ -308,12 +309,12 @@ function NovaEntrada() {
       <div className="bg-white border border-estofado-100 rounded-xl p-4">
         <h2 className="font-display text-xl text-madeira-900">Entrada de nota fiscal</h2>
         <p className="text-sm text-madeira-600 mt-1">
-          Envie o <b>XML</b> da nota (o mais certinho) ou o PDF (DANFE). Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
+          Envie o <b>XML</b> da nota (o mais certinho), o PDF (DANFE) ou uma <b>foto</b> da nota (a IA lê; confira os itens antes de lançar). Os produtos entram no estoque do <b>Depósito</b>. A categoria é escolhida sozinha pelo tipo do móvel (Roupeiro, Rack, Painel…) e criada se ainda não existir. Custo = valor unitário da nota
           (sem IPI); preço de venda = custo × fator, e você pode ajustar cada um.
         </p>
         <input
           type="file"
-          accept=".xml,application/xml,text/xml,application/pdf"
+          accept=".xml,application/xml,text/xml,application/pdf,image/*"
           className="mt-3 text-sm"
           disabled={lendo || salvando}
           onChange={(e) => aoEscolherArquivo(e.target.files?.[0])}
@@ -586,6 +587,62 @@ function HistoricoNotas() {
       )}
     </div>
   );
+}
+
+// Foto da nota → manda pra IA transcrever → vira o mesmo formato do XML/PDF.
+async function reduzirImagem(file: File, max = 1800): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("Não consegui abrir a foto."));
+      i.src = url;
+    });
+    const esc = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * esc);
+    c.height = Math.round(img.height * esc);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function lerFotoDaNota(file: File): Promise<NotaLida> {
+  const imagem = await reduzirImagem(file);
+  const resp = await fetch("/api/ia/foto-nota", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imagem }),
+  });
+  const d = await resp.json();
+  if (!resp.ok) throw new Error(d.error || "Erro ao ler a foto.");
+  const itens = ((d.itens || []) as { codigo: string; descricao: string; unidade: string; quantidade: number; valor_unitario: number; valor_total: number }[])
+    .filter((i) => i.descricao && i.quantidade > 0)
+    .map((i) => ({
+      codigo: i.codigo,
+      descricao: i.descricao.trim(),
+      acabamento: "",
+      unidade: (i.unidade || "UN").toUpperCase(),
+      quantidade: i.quantidade,
+      valorUnitario: i.valor_unitario,
+      valorTotal: i.valor_total,
+    }));
+  const soma = Math.round(itens.reduce((s, i) => s + i.valorTotal, 0) * 100) / 100;
+  if (d.total_produtos > 0 && Math.abs(soma - d.total_produtos) > 0.05) {
+    throw new Error(
+      `A foto foi lida, mas a soma dos itens (${soma.toFixed(2)}) não bate com o total da nota (${Number(d.total_produtos).toFixed(2)}). ` +
+        "Tire a foto de novo, mais de perto e sem reflexo."
+    );
+  }
+  const num = String(d.numero || "").replace(/\D/g, "").replace(/^0+/, "");
+  const chaveLimpa = String(d.chave || "").replace(/\D/g, "");
+  // só confia na chave se tiver 44 dígitos e bater com o número da nota
+  const chave =
+    chaveLimpa.length === 44 && num && chaveLimpa.slice(25, 34).replace(/^0+/, "") === num ? chaveLimpa : null;
+  return { numero: num || null, chave, fornecedor: d.fornecedor || null, itens, totalItens: soma };
 }
 
 export default function EntradaNota() {
