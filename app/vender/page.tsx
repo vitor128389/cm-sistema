@@ -352,13 +352,18 @@ function VenderPageConteudo() {
   // Troca de qual loja vem o estoque mostrado na busca de produtos — épra
   // ser escolhido ANTES de procurar o produto, mas também atualiza o
   // produto já selecionado (se tiver) pros números da loja nova.
+  // evita que uma carga antiga (de outra loja) chegue depois e sobrescreva o estoque da loja escolhida agora
+  const cargaProdutosId = useRef(0);
+
   async function trocarLojaBusca(novaLojaId: string) {
     setCarregandoEstoqueOutraLoja(true);
+    const minhaCarga = ++cargaProdutosId.current;
     try {
       setLojaBuscaProdutos(novaLojaId);
       setOrigemDepositoAtiva(novaLojaId === depositoLojaId);
       if (produtoSelecionado) {
         const produtosDaLoja = await carregarProdutosComEstoque(supabase, novaLojaId);
+        if (minhaCarga !== cargaProdutosId.current) return;
         const produtoAtualizado = produtosDaLoja.find((p) => p.id === produtoSelecionado.id);
         if (produtoAtualizado) {
           setProdutoSelecionado(produtoAtualizado);
@@ -392,7 +397,9 @@ function VenderPageConteudo() {
   async function carregarProdutos() {
     const lojaParaBuscar = lojaBuscaProdutos || lojaAtual;
     if (!lojaParaBuscar) return;
+    const minhaCarga = ++cargaProdutosId.current;
     const data = await carregarProdutosComEstoque(supabase, lojaParaBuscar);
+    if (minhaCarga !== cargaProdutosId.current) return; // chegou uma carga mais nova: descarta esta
     const normalizado = data.map((p) => ({
       ...p,
       tipo_precificacao: (p.tipo_precificacao || "simples").trim() as ProdutoComVariantes["tipo_precificacao"],
