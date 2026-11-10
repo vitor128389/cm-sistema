@@ -44,6 +44,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
   const [foto, setFoto] = useState("");
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [categoriaSugerida, setCategoriaSugerida] = useState("");
+  const [nomeSugerido, setNomeSugerido] = useState("");
   const [escolhido, setEscolhido] = useState<Candidato | null>(null);
   const [lojas, setLojas] = useState<LojaSimples[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
@@ -98,6 +99,8 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
       setCandidatos(dados.candidatos || []);
       setCategoriaSugerida(dados.categoria_sugerida || "");
       setCategoriaNova(dados.categoria_sugerida || "");
+      setNomeSugerido(dados.nome_sugerido || "");
+      setNomeNovo(dados.nome_sugerido || "");
       setEtapa("opcoes");
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao analisar a foto.");
@@ -373,7 +376,9 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
           <div className="space-y-3">
             <p className="text-sm font-semibold text-neutral-900">Produto novo</p>
             <div>
-              <label className="text-xs text-neutral-600">Nome</label>
+              <label className="text-xs text-neutral-600">
+                Nome{nomeSugerido ? " (a IA sugeriu — pode mudar)" : ""}
+              </label>
               <div className="flex gap-2">
                 <input
                   className="input flex-1 !bg-white !text-neutral-900 !border-neutral-300"

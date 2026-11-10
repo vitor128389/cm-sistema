@@ -55,6 +55,7 @@ export async function POST(request: Request) {
         "Você ajuda uma loja de móveis a identificar o produto de uma foto. Compare a foto com o catálogo (formato: índice|nome|categoria). " +
         "Devolva até 5 índices do catálogo que mais parecem com o móvel da foto, do mais provável ao menos provável. " +
         "Se a foto tiver etiqueta ou texto com nome/modelo, dê preferência a isso. Se nada parecer, devolva lista vazia. " +
+        "Em 'nome_sugerido' proponha um nome para cadastrar o produto novo, em MAIÚSCULAS, no mesmo estilo do catálogo (tipo do móvel + modelo, ex.: ROUPEIRO TORINO, PAINEL NORONHA 1600): se houver etiqueta ou texto legível com o modelo, use-o; senão use o tipo do móvel e uma característica visível (ex.: ROUPEIRO 3 PORTAS BRANCO), sem inventar modelo. " +
         "Em 'tipo_sugerido' diga em poucas palavras que móvel é (ex.: roupeiro, painel de TV, sofá) e em 'categoria_sugerida' a categoria mais adequada entre as do catálogo.",
       input: [
         {
@@ -74,10 +75,11 @@ export async function POST(request: Request) {
             type: "object",
             properties: {
               indices: { type: "array", items: { type: "integer" } },
+              nome_sugerido: { type: "string" },
               tipo_sugerido: { type: "string" },
               categoria_sugerida: { type: "string" },
             },
-            required: ["indices", "tipo_sugerido", "categoria_sugerida"],
+            required: ["indices", "nome_sugerido", "tipo_sugerido", "categoria_sugerida"],
             additionalProperties: false,
           },
         },
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
 
     const bruto = JSON.parse(resposta.output_text || "{}") as {
       indices?: number[];
+      nome_sugerido?: string;
       tipo_sugerido?: string;
       categoria_sugerida?: string;
     };
@@ -97,6 +100,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       candidatos,
+      nome_sugerido: (bruto.nome_sugerido || "").toUpperCase(),
       tipo_sugerido: bruto.tipo_sugerido || "",
       categoria_sugerida: bruto.categoria_sugerida || "",
     });
