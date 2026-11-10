@@ -244,8 +244,8 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
 
   const seletorLoja = (
     <div>
-      <label className="text-xs text-madeira-500">Adicionar em qual loja?</label>
-      <select className="input w-full" value={lojaDestino} onChange={(e) => setLojaDestino(e.target.value)}>
+      <label className="text-xs text-neutral-600">Adicionar em qual loja?</label>
+      <select className="input w-full !bg-white !text-neutral-900 !border-neutral-300" value={lojaDestino} onChange={(e) => setLojaDestino(e.target.value)}>
         <option value="">Escolha…</option>
         {lojas.map((l) => (
           <option key={l.id} value={l.id}>
@@ -257,10 +257,10 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white dark:bg-neutral-900 w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-4 space-y-3">
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white text-neutral-900 w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-4 space-y-3">
         <div className="flex justify-between items-center">
-          <h2 className="font-bold text-madeira-800">📷 Adicionar por foto</h2>
+          <h2 className="font-bold text-neutral-900">📷 Adicionar por foto</h2>
           <button className="text-2xl leading-none px-2" onClick={aoFechar} aria-label="Fechar">
             ×
           </button>
@@ -282,14 +282,14 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
 
         {etapa === "inicio" && (
           <div className="space-y-3 text-center">
-            <p className="text-sm text-madeira-600">Tire uma foto do produto que chegou. A IA tenta achar qual é.</p>
+            <p className="text-sm text-neutral-700">Tire uma foto do produto que chegou. A IA tenta achar qual é.</p>
             <button className="btn-primario w-full py-4 text-lg" onClick={() => inputFoto.current?.click()}>
               📷 Tirar foto
             </button>
           </div>
         )}
 
-        {etapa === "analisando" && <p className="text-center py-8 text-madeira-600">🔎 Olhando a foto…</p>}
+        {etapa === "analisando" && <p className="text-center py-8 text-neutral-700">🔎 Olhando a foto…</p>}
 
         {(etapa === "opcoes" || etapa === "produto" || etapa === "novo") && foto && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -298,23 +298,23 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
 
         {etapa === "opcoes" && (
           <div className="space-y-2">
-            <p className="text-sm font-semibold">
+            <p className="text-sm font-semibold text-neutral-900">
               {candidatos.length > 0 ? "Parece ser algum desses. Toque no certo:" : "Não achei nada parecido."}
             </p>
             {candidatos.map((c) => (
               <button
                 key={c.id}
-                className="w-full text-left border rounded-lg p-3 hover:bg-madeira-50 active:bg-madeira-100"
+                className="w-full text-left border rounded-lg p-3 bg-white text-neutral-900 border-neutral-300 hover:bg-neutral-100 active:bg-neutral-200"
                 onClick={() => escolherProduto(c)}
               >
                 <div className="font-semibold text-sm">{c.nome}</div>
-                <div className="text-xs text-madeira-500">{c.categoria}</div>
+                <div className="text-xs text-neutral-600">{c.categoria}</div>
               </button>
             ))}
-            <button className="btn-secundario w-full" onClick={() => setEtapa("novo")}>
+            <button className="btn-secundario w-full !bg-white !text-neutral-900 !border-neutral-400" onClick={() => setEtapa("novo")}>
               + Produto novo (não é nenhum desses)
             </button>
-            <button className="text-sm underline w-full" onClick={() => inputFoto.current?.click()}>
+            <button className="text-sm underline w-full text-neutral-800" onClick={() => inputFoto.current?.click()}>
               Tirar outra foto
             </button>
           </div>
@@ -323,10 +323,10 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
         {etapa === "produto" && escolhido && (
           <div className="space-y-3">
             <div>
-              <div className="font-bold">{escolhido.nome}</div>
-              <div className="text-xs text-madeira-500">{escolhido.categoria}</div>
+              <div className="font-bold text-neutral-900">{escolhido.nome}</div>
+              <div className="text-xs text-neutral-600">{escolhido.categoria}</div>
             </div>
-            <div className="border rounded-lg divide-y text-sm">
+            <div className="border border-neutral-300 rounded-lg divide-y divide-neutral-200 text-sm text-neutral-900">
               {lojas.map((l) => (
                 <div key={l.id} className="flex justify-between px-3 py-2">
                   <span>{l.nome}</span>
@@ -336,8 +336,8 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             </div>
             {variantes.length > 0 && (
               <div>
-                <label className="text-xs text-madeira-500">Qual cor/variação?</label>
-                <select className="input w-full" value={varianteId} onChange={(e) => setVarianteId(e.target.value)}>
+                <label className="text-xs text-neutral-600">Qual cor/variação?</label>
+                <select className="input w-full !bg-white !text-neutral-900 !border-neutral-300" value={varianteId} onChange={(e) => setVarianteId(e.target.value)}>
                   <option value="">Escolha…</option>
                   {variantes.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -350,9 +350,9 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             )}
             {seletorLoja}
             <div>
-              <label className="text-xs text-madeira-500">Quantas unidades chegaram?</label>
+              <label className="text-xs text-neutral-600">Quantas unidades chegaram?</label>
               <input
-                className="input w-full text-lg"
+                className="input w-full !bg-white !text-neutral-900 !border-neutral-300 text-lg"
                 type="number"
                 inputMode="numeric"
                 min={1}
@@ -363,7 +363,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             <button className="btn-primario w-full py-3" disabled={salvando} onClick={adicionar}>
               {salvando ? "Salvando…" : "Adicionar ao estoque"}
             </button>
-            <button className="text-sm underline w-full" onClick={() => setEtapa("opcoes")}>
+            <button className="text-sm underline w-full text-neutral-800" onClick={() => setEtapa("opcoes")}>
               ← Voltar
             </button>
           </div>
@@ -371,26 +371,26 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
 
         {etapa === "novo" && (
           <div className="space-y-3">
-            <p className="text-sm font-semibold">Produto novo</p>
+            <p className="text-sm font-semibold text-neutral-900">Produto novo</p>
             <div>
-              <label className="text-xs text-madeira-500">Nome</label>
+              <label className="text-xs text-neutral-600">Nome</label>
               <div className="flex gap-2">
                 <input
-                  className="input flex-1"
+                  className="input flex-1 !bg-white !text-neutral-900 !border-neutral-300"
                   value={nomeNovo}
                   onChange={(e) => setNomeNovo(e.target.value)}
                   placeholder="Ex.: ROUPEIRO TORINO"
                 />
-                <button className="btn-secundario" onClick={ouvirNome} type="button">
+                <button className="btn-secundario !bg-white !text-neutral-900 !border-neutral-400" onClick={ouvirNome} type="button">
                   {ouvindo ? "🎙️ …" : "🎤"}
                 </button>
               </div>
             </div>
             <div>
-              <label className="text-xs text-madeira-500">
+              <label className="text-xs text-neutral-600">
                 Categoria{categoriaSugerida ? ` (IA sugeriu: ${categoriaSugerida})` : ""}
               </label>
-              <select className="input w-full" value={categoriaNova} onChange={(e) => setCategoriaNova(e.target.value)}>
+              <select className="input w-full !bg-white !text-neutral-900 !border-neutral-300" value={categoriaNova} onChange={(e) => setCategoriaNova(e.target.value)}>
                 <option value="">Escolha…</option>
                 {categorias.map((c) => (
                   <option key={c} value={c}>
@@ -400,9 +400,9 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
               </select>
             </div>
             <div>
-              <label className="text-xs text-madeira-500">Preço de venda (pode deixar pra depois)</label>
+              <label className="text-xs text-neutral-600">Preço de venda (pode deixar pra depois)</label>
               <input
-                className="input w-full"
+                className="input w-full !bg-white !text-neutral-900 !border-neutral-300"
                 inputMode="decimal"
                 value={precoNovo}
                 onChange={(e) => setPrecoNovo(e.target.value)}
@@ -411,9 +411,9 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             </div>
             {seletorLoja}
             <div>
-              <label className="text-xs text-madeira-500">Quantas unidades?</label>
+              <label className="text-xs text-neutral-600">Quantas unidades?</label>
               <input
-                className="input w-full text-lg"
+                className="input w-full !bg-white !text-neutral-900 !border-neutral-300 text-lg"
                 type="number"
                 inputMode="numeric"
                 min={1}
@@ -424,7 +424,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             <button className="btn-primario w-full py-3" disabled={salvando} onClick={criarNovo}>
               {salvando ? "Salvando…" : "Criar produto e adicionar"}
             </button>
-            <button className="text-sm underline w-full" onClick={() => setEtapa(candidatos.length ? "opcoes" : "inicio")}>
+            <button className="text-sm underline w-full text-neutral-800" onClick={() => setEtapa(candidatos.length ? "opcoes" : "inicio")}>
               ← Voltar
             </button>
           </div>
@@ -432,7 +432,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
 
         {etapa === "pronto" && (
           <div className="space-y-3 text-center">
-            <p className="font-semibold">{mensagemFinal}</p>
+            <p className="font-semibold text-neutral-900">{mensagemFinal}</p>
             <button
               className="btn-primario w-full py-3"
               onClick={() => {
@@ -448,7 +448,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
             >
               📷 Adicionar outro
             </button>
-            <button className="text-sm underline w-full" onClick={aoFechar}>
+            <button className="text-sm underline w-full text-neutral-800" onClick={aoFechar}>
               Fechar
             </button>
           </div>
