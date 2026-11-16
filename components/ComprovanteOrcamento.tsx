@@ -87,7 +87,7 @@ export default function ComprovanteOrcamento(d: DadosOrcamentoImpressao) {
                 <td style={{ padding: "6px 8px" }}>
                   {fotoDe(i) && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={fotoDe(i)!} alt="" style={{ height: "9mm", width: "auto", maxWidth: "16mm", objectFit: "contain", verticalAlign: "middle", marginRight: "2mm" }} />
+                    <img src={fotoDe(i)!} alt="" style={{ width: "13mm", height: "13mm", objectFit: "contain", verticalAlign: "middle", marginRight: "2mm" }} />
                   )}{nome}
                 </td>
                 <td style={{ padding: "6px 8px", textAlign: "center" }}>{i.quantidade}</td>

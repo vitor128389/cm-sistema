@@ -177,17 +177,66 @@ function linhaItem(
     situacaoCor = COR_VERDE_ESCURO;
   }
 
+  const selo: React.CSSProperties = {
+    display: "inline-block",
+    marginLeft: 4,
+    color: COR_VERDE_ESCURO,
+    fontWeight: 700,
+    backgroundColor: COR_VERDE_FUNDO,
+    border: `1px solid ${COR_VERDE_ESCURO}`,
+    borderRadius: 4,
+    padding: "1px 5px",
+  };
+
   return (
     <tr key={item.id + "-" + qtd}>
       <td style={{ color: COR_TEXTO }}>
-        {fotoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={fotoUrl}
-            alt=""
-            style={{ height: "8mm", width: "auto", maxWidth: "14mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }}
-          />
-        )}
+        {fotoUrl ? (
+          // com foto: miniatura (13mm) à esquerda; descrição à direita, com a variação na linha de baixo
+          <div style={{ display: "flex", alignItems: "center", gap: "2mm" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fotoUrl}
+              alt=""
+              style={{
+                // 13mm no pedido normal; em pedido grande acompanha a redução da notinha (--escala-impressao)
+                // pra tudo continuar cabendo numa folha só
+                width: "calc(13mm * var(--escala-impressao, 1))",
+                height: "calc(13mm * var(--escala-impressao, 1))",
+                objectFit: "contain",
+                flexShrink: 0,
+                display: "block",
+                printColorAdjust: "exact",
+                WebkitPrintColorAdjust: "exact",
+              }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div>
+                {item.nome_produto}{" "}
+                <span style={{ color: ehViaLoja ? situacaoCor : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
+                  ({situacaoTexto})
+                </span>
+              </div>
+              {(varianteSemBracos || temBracosAlmofada || item.observacao || (!!item.desconto && item.desconto > 0)) && (
+                <div>
+                  {varianteSemBracos}
+                  {temBracosAlmofada && <span style={selo}>BRAÇOS DE ALMOFADA</span>}
+                  {item.observacao && <span style={selo}>OBS: {item.observacao}</span>}
+                  {!!item.desconto && item.desconto > 0 && (
+                    <>
+                      {" — Desconto: "}
+                      <strong>
+                        {formatarMoeda(item.desconto)}
+                        {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
+                      </strong>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         {item.nome_produto}{" "}
         <span style={{ color: ehViaLoja ? situacaoCor : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
           ({situacaoTexto})
@@ -232,6 +281,8 @@ function linhaItem(
               {formatarMoeda(item.desconto)}
               {item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}
             </strong>
+          </>
+        )}
           </>
         )}
       </td>

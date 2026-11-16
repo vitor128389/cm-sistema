@@ -200,17 +200,26 @@ export default function ComprovanteCupom88mm({
       {itens.map((item, idx) => (
         <div key={item.id} style={{ margin: "5px 0" }}>
           <div style={{ display: "flex", alignItems: "flex-start", fontSize: 14 }}>
-            <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
+            <span
+              style={{
+                flex: 1,
+                textTransform: "uppercase",
+                paddingRight: 4,
+                ...(item.produto_id && fotos.get(item.produto_id) ? { display: "flex", alignItems: "center", gap: "1.5mm" } : {}),
+              }}
+            >
               {item.produto_id && fotos.get(item.produto_id) && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={fotos.get(item.produto_id)!}
                   alt=""
-                  style={{ height: "9mm", width: "auto", maxWidth: "14mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }}
+                  style={{ width: "12mm", height: "12mm", objectFit: "contain", flexShrink: 0, display: "block" }}
                 />
               )}
-              {idx + 1} {String(idx + 1).padStart(3, "0")} {item.nome_produto}
-              {item.variante ? ` — ${item.variante}` : ""}
+              <span>
+                {idx + 1} {String(idx + 1).padStart(3, "0")} {item.nome_produto}
+                {item.variante ? ` — ${item.variante}` : ""}
+              </span>
             </span>
             <span style={{ width: "13mm", textAlign: "right", whiteSpace: "nowrap" }}>UN {item.quantidade}</span>
             <span style={{ width: "22mm", textAlign: "right", whiteSpace: "nowrap" }}>{formatarMoeda(item.total)}</span>

@@ -148,3 +148,54 @@ export function useFotosProdutos(produtoIds: (string | null | undefined)[]): {
 
   return { fotos: cacheFotos, carregando };
 }
+
+// ---- PDF (jsPDF) -------------------------------------------------------------
+
+export type FotoParaPdf = { dataUrl: string; largura: number; altura: number };
+
+// Baixa as fotos dos produtos e devolve prontas pro jsPDF (data URL + tamanho).
+// Qualquer falha numa foto só deixa aquele produto sem foto — nunca trava o PDF.
+export async function carregarFotosParaPdf(
+  produtoIds: (string | null | undefined)[]
+): Promise<Map<string, FotoParaPdf>> {
+  const resultado = new Map<string, FotoParaPdf>();
+  const ids = Array.from(new Set(produtoIds.filter((x): x is string => !!x)));
+  if (ids.length === 0) return resultado;
+  try {
+    const faltam = ids.filter((id) => !cacheFotos.has(id));
+    if (faltam.length > 0) {
+      const { data } = await supabase.from("produtos").select("id, foto_url").in("id", faltam);
+      const achadas = new Map((data || []).map((p) => [p.id as string, (p.foto_url as string | null) || null]));
+      faltam.forEach((id) => cacheFotos.set(id, achadas.get(id) || null));
+    }
+  } catch {
+    return resultado;
+  }
+  await Promise.all(
+    ids.map(async (id) => {
+      const url = cacheFotos.get(id);
+      if (!url) return;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        const blob = await resp.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(String(r.result));
+          r.onerror = () => reject(new Error("leitura"));
+          r.readAsDataURL(blob);
+        });
+        const dim = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve({ w: i.naturalWidth, h: i.naturalHeight });
+          i.onerror = () => reject(new Error("imagem"));
+          i.src = dataUrl;
+        });
+        if (dim.w > 0 && dim.h > 0) resultado.set(id, { dataUrl, largura: dim.w, altura: dim.h });
+      } catch {
+        /* sem foto nesse produto */
+      }
+    })
+  );
+  return resultado;
+}

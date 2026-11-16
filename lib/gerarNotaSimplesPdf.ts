@@ -1,4 +1,5 @@
 import { formatarMoeda } from "@/lib/format";
+import { carregarFotosParaPdf } from "@/lib/fotoProduto";
 import type { Venda, LojaCompleta, VendaItem } from "@/types";
 
 // Sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas no carrinho
@@ -204,6 +205,10 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   const colProd = margem + 14;
   const colValor = larguraPagina - margem - 3;
   const larguraProd = colValor - colProd - 24;
+  // miniatura do produto (13mm) à esquerda da descrição — só nos produtos que têm foto cadastrada
+  const TAM_FOTO = 13;
+  const RECUO_FOTO = TAM_FOTO + 2;
+  const fotosPdf = await carregarFotosParaPdf(itensVenda.map((i) => i.produto_id));
 
   function cabecalhoTabela() {
     preencher(VERDE);
@@ -219,21 +224,26 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   cabecalhoTabela();
 
   itensVenda.forEach((item, idx) => {
+    const foto = item.produto_id ? fotosPdf.get(item.produto_id) : undefined;
+    const xTexto = foto ? colProd + RECUO_FOTO : colProd;
+    const lTexto = foto ? larguraProd - RECUO_FOTO : larguraProd;
     fonte(true, 10);
-    const nomeLinhas = doc.splitTextToSize(item.nome_produto, larguraProd) as string[];
+    const nomeLinhas = doc.splitTextToSize(item.nome_produto, lTexto) as string[];
     fonte(false, 8.5);
-    const varLinhas = item.variante ? (doc.splitTextToSize(item.variante, larguraProd) as string[]) : [];
+    const varLinhas = item.variante ? (doc.splitTextToSize(item.variante, lTexto) as string[]) : [];
     fonte(false, 8.5, true);
-    const obsLinhas = item.observacao ? (doc.splitTextToSize(`Obs: ${item.observacao}`, larguraProd - 4) as string[]) : [];
+    const obsLinhas = item.observacao ? (doc.splitTextToSize(`Obs: ${item.observacao}`, lTexto - 4) as string[]) : [];
     const temDesconto = !!(item.desconto && item.desconto > 0);
 
-    const altura =
+    const alturaTexto =
       3 +
       nomeLinhas.length * altLinha(10) * 1.15 +
       varLinhas.length * 3.8 +
       (obsLinhas.length ? obsLinhas.length * 3.7 + 3 : 0) +
       (temDesconto ? 4 : 0) +
       3;
+    // com foto, a linha tem no mínimo a altura da miniatura (+ folga)
+    const altura = foto ? Math.max(alturaTexto, TAM_FOTO + 2) : alturaTexto;
 
     if (y + altura > alturaPagina - rodapeAltura - 3) {
       doc.addPage();
@@ -246,32 +256,45 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
       doc.rect(margem, y - 1, largura, altura, "F");
     }
 
-    let yy = y + 3.5;
+    // miniatura centralizada na altura da linha, sem distorcer (cabe num quadrado de TAM_FOTO)
+    if (foto) {
+      const escala = Math.min(TAM_FOTO / foto.largura, TAM_FOTO / foto.altura);
+      const fw = foto.largura * escala;
+      const fh = foto.altura * escala;
+      try {
+        doc.addImage(foto.dataUrl, "PNG", colProd + (TAM_FOTO - fw) / 2, y - 1 + (altura - fh) / 2, fw, fh);
+      } catch {
+        /* foto ruim: segue sem ela */
+      }
+    }
+
+    // sem foto o texto começa no topo; com foto fica centralizado na altura da linha
+    let yy = y + 3.5 + (foto ? Math.max(0, (altura - alturaTexto) / 2) : 0);
     fonte(true, 10);
     cor(VERDE);
     doc.text(`${item.quantidade}x`, colQtd, yy);
     cor(TEXTO);
     nomeLinhas.forEach((l) => {
-      doc.text(l, colProd, yy);
+      doc.text(l, xTexto, yy);
       yy += altLinha(10) * 1.15;
     });
     fonte(false, 8.5);
     cor(CINZA);
     varLinhas.forEach((l) => {
-      doc.text(l, colProd, yy + 0.3);
+      doc.text(l, xTexto, yy + 0.3);
       yy += 3.8;
     });
     if (obsLinhas.length) {
       yy += 1;
       const hObs = obsLinhas.length * 3.7 + 1.6;
       preencher([253, 246, 224]);
-      doc.rect(colProd, yy - 2.8, larguraProd, hObs, "F");
+      doc.rect(xTexto, yy - 2.8, lTexto, hObs, "F");
       preencher(DOURADO);
-      doc.rect(colProd, yy - 2.8, 0.9, hObs, "F");
+      doc.rect(xTexto, yy - 2.8, 0.9, hObs, "F");
       fonte(false, 8.5, true);
       cor([105, 76, 10]);
       obsLinhas.forEach((l) => {
-        doc.text(l, colProd + 2.5, yy);
+        doc.text(l, xTexto + 2.5, yy);
         yy += 3.7;
       });
       yy += 0.8;
@@ -281,7 +304,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
       cor([180, 60, 40]);
       doc.text(
         `Desconto: ${formatarMoeda(item.desconto!)}${item.motivo_desconto ? ` (${item.motivo_desconto})` : ""}`,
-        colProd,
+        xTexto,
         yy + 0.8
       );
     }

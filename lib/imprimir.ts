@@ -62,12 +62,16 @@ export async function ajustarEscalaImpressaoA4(): Promise<void> {
     document.body.removeChild(referencia);
 
     const vias = Array.from(area.querySelectorAll<HTMLElement>(".imp-via"));
-    let piorRazao = 1; // 1 = coube perfeitamente; >1 = precisa encolher nessa proporção
-    for (const via of vias) {
-      if (alturaAlvoPx > 0 && via.scrollHeight > alturaAlvoPx) {
-        piorRazao = Math.max(piorRazao, via.scrollHeight / alturaAlvoPx);
+    const medirPiorRazao = () => {
+      let pior = 1; // 1 = coube perfeitamente; >1 = precisa encolher nessa proporção
+      for (const via of vias) {
+        if (alturaAlvoPx > 0 && via.scrollHeight > alturaAlvoPx) {
+          pior = Math.max(pior, via.scrollHeight / alturaAlvoPx);
+        }
       }
-    }
+      return pior;
+    };
+    let piorRazao = medirPiorRazao();
 
     let fatorFinal = "1";
     if (piorRazao > 1) {
@@ -75,7 +79,16 @@ export async function ajustarEscalaImpressaoA4(): Promise<void> {
       // tamanho normal, pra não virar um ponto ilegível em pedidos
       // absurdamente grandes — mas segura o suficiente pra praticamente
       // qualquer pedido do dia a dia caber numa folha só
-      const fator = Math.max((1 / piorRazao) * 0.97, 0.4);
+      let fator = Math.max((1 / piorRazao) * 0.97, 0.4);
+      // nem tudo na notinha encolhe na mesma proporção (ex.: fotinhas dos
+      // produtos, linhas fixas) — então confere de novo com a escala já
+      // aplicada e aperta mais um pouco se ainda estiver passando.
+      for (let tentativa = 0; tentativa < 6; tentativa++) {
+        area.style.setProperty("--escala-impressao", String(fator));
+        piorRazao = medirPiorRazao();
+        if (piorRazao <= 1 || fator <= 0.4) break;
+        fator = Math.max(fator / piorRazao - 0.005, 0.4);
+      }
       fatorFinal = String(fator);
     }
 
