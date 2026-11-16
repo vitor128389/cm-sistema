@@ -1,3 +1,4 @@
+import { useFotosProdutos } from "@/lib/fotoProduto";
 import { formatarMoeda } from "@/lib/format";
 import { calcularTotais, dataBrCurta, valorPrazo } from "@/lib/orcamento";
 import type { DadosOrcamentoImpressao } from "@/components/ComprovanteOrcamento";
@@ -12,6 +13,8 @@ function Divisor() {
 // outros cupons: preto puro, negrito, sem serifa).
 export default function ComprovanteOrcamento88mm(d: DadosOrcamentoImpressao) {
   const t = calcularTotais(d.itens, d.desconto, d.frete);
+  const { fotos, carregando: carregandoFotos } = useFotosProdutos(d.itens.map((i) => i.produto_id));
+  const fotoDe = (i: { produto_id?: string | null }) => (i.produto_id ? fotos.get(i.produto_id) || null : null);
   const mostraAvista = d.forma !== "prazo";
   const mostraPrazo = d.forma !== "avista";
   const loja = d.loja;
@@ -30,6 +33,7 @@ export default function ComprovanteOrcamento88mm(d: DadosOrcamentoImpressao) {
 
   return (
     <div
+      data-fotos-carregando={carregandoFotos ? "1" : undefined}
       style={{
         width: "100%",
         boxSizing: "border-box",
@@ -63,7 +67,13 @@ export default function ComprovanteOrcamento88mm(d: DadosOrcamentoImpressao) {
         const un = mostraAvista ? i.valor_avista : valorPrazo(i.valor_avista);
         return (
           <div key={idx} style={{ margin: "5px 0" }}>
-            <p style={p({ textTransform: "uppercase" })}>{i.quantidade}x {nome}</p>
+            <p style={p({ textTransform: "uppercase" })}>
+              {fotoDe(i) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fotoDe(i)!} alt="" style={{ height: "9mm", width: "auto", maxWidth: "14mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }} />
+              )}
+              {i.quantidade}x {nome}
+            </p>
             {linha(`${i.quantidade} x ${formatarMoeda(un)}`, formatarMoeda(un * i.quantidade), { fontSize: 13 })}
             {mostraAvista && mostraPrazo && (
               <p style={p({ fontSize: 12, textAlign: "right" })}>a prazo: {formatarMoeda(valorPrazo(i.valor_avista) * i.quantidade)}</p>

@@ -12,7 +12,7 @@ import ComprovanteTrocaCupom88mm from "@/components/ComprovanteTrocaCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { gerarNotaSimplesPdf } from "@/lib/gerarNotaSimplesPdf";
 import { montarNotaDaTroca } from "@/lib/notaDaTroca";
-import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
+import { definirTamanhoPagina, ajustarEscalaImpressaoA4, aguardarFotosDaImpressao } from "@/lib/imprimir";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { imprimirDanfe, preaquecerDanfe } from "@/lib/fiscalCliente";
 import type { Venda, LojaCompleta, TrocaGrupo } from "@/types";
@@ -482,6 +482,7 @@ export default function NotasPage() {
     definirTamanhoPagina(formato);
     setTimeout(async () => {
       if (formato === "a4") await ajustarEscalaImpressaoA4();
+      else await aguardarFotosDaImpressao();
       window.print();
     }, 100);
   }
@@ -506,6 +507,7 @@ export default function NotasPage() {
     definirTamanhoPagina(formato);
     setTimeout(async () => {
       if (formato === "a4") await ajustarEscalaImpressaoA4();
+      else await aguardarFotosDaImpressao();
       window.print();
     }, 100);
   }

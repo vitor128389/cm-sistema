@@ -27,7 +27,8 @@ export function definirTamanhoPagina(formato: "a4" | "cupom88") {
 // escala nova na tela — chamar window.print() antes disso é o que causava
 // bug de "calculou certo mas imprimiu do tamanho errado" nas tentativas
 // anteriores.
-export function ajustarEscalaImpressaoA4(): Promise<void> {
+export async function ajustarEscalaImpressaoA4(): Promise<void> {
+  await aguardarFotosDaImpressao();
   return new Promise((resolve) => {
     const area = document.getElementById("area-impressao");
     if (!area) {
@@ -90,4 +91,20 @@ export function ajustarEscalaImpressaoA4(): Promise<void> {
       requestAnimationFrame(() => resolve());
     });
   });
+}
+
+// Espera as fotinhas dos produtos (buscadas no banco na hora de montar o
+// comprovante) ficarem prontas antes de mandar imprimir — senão sai a notinha
+// sem a foto. Espera no máximo ~4 segundos pra nunca travar a impressão.
+export async function aguardarFotosDaImpressao(): Promise<void> {
+  const limite = Date.now() + 4000;
+  const pronto = () => {
+    const area = document.getElementById("area-impressao");
+    if (!area) return true;
+    if (area.querySelector('[data-fotos-carregando="1"]')) return false;
+    return Array.from(area.querySelectorAll("img")).every((i) => i.complete);
+  };
+  while (!pronto() && Date.now() < limite) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
 }

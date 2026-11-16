@@ -6,6 +6,7 @@ import { useLoja } from "@/contexts/LojaContext";
 import { ajustarEstoqueLoja } from "@/lib/produtos";
 import { avisarProdutosMudaram } from "@/lib/produtosAoVivo";
 import { registrarAuditoria } from "@/lib/auditoria";
+import { removerFundoDaFoto, salvarFotoDoProduto } from "@/lib/fotoProduto";
 
 type Candidato = { id: string; nome: string; categoria: string };
 type Variante = { id: string; nome_variante: string };
@@ -63,6 +64,8 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
   const [categorias, setCategorias] = useState<string[]>([]);
   const [ouvindo, setOuvindo] = useState(false);
   const inputFoto = useRef<HTMLInputElement>(null);
+  // foto do produto sem fundo: a IA no aparelho já começa a tirar o fundo enquanto você escolhe/preenche
+  const fotoSemFundo = useRef<Promise<Blob | null> | null>(null);
 
   useEffect(() => {
     supabase
@@ -90,6 +93,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
     try {
       const imagem = await reduzirFoto(arquivo);
       setFoto(imagem);
+      fotoSemFundo.current = removerFundoDaFoto(arquivo).catch(() => null);
       const resp = await fetch("/api/ia/foto-produto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -139,6 +143,18 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
     return qtdNaLoja(lojaId, null);
   }
 
+  // Salva a foto sem fundo no produto. Nunca derruba o cadastro/entrada: se algo falhar, só avisa.
+  async function guardarFotoSemFundo(produtoId: string): Promise<string> {
+    try {
+      const png = await fotoSemFundo.current;
+      if (!png) return " (Não consegui tirar o fundo da foto — dá pra adicionar depois em Administração → Estoque → editar.)";
+      await salvarFotoDoProduto(produtoId, png);
+      return " 📷 Foto sem fundo salva no produto.";
+    } catch {
+      return " (A foto não foi salva — dá pra adicionar depois em Administração → Estoque → editar.)";
+    }
+  }
+
   async function adicionar() {
     if (!escolhido) return;
     const qtd = parseInt(quantidade, 10);
@@ -164,9 +180,13 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
         dadosAntes: { estoque: antes },
         dadosDepois: { estoque: antes + qtd },
       });
+      // se o produto ainda não tem foto, já guarda essa (sem fundo)
+      let avisoFoto = "";
+      const { data: pf } = await supabase.from("produtos").select("foto_url").eq("id", escolhido.id).maybeSingle();
+      if (!pf?.foto_url) avisoFoto = await guardarFotoSemFundo(escolhido.id);
       avisarProdutosMudaram();
       aoAlterar();
-      setMensagemFinal(`✅ +${qtd} de ${nomeCompleto} em ${nomeLoja}. Agora tem ${antes + qtd}.`);
+      setMensagemFinal(`✅ +${qtd} de ${nomeCompleto} em ${nomeLoja}. Agora tem ${antes + qtd}.${avisoFoto}`);
       setEtapa("pronto");
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro ao adicionar.");
@@ -233,12 +253,14 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
         descricao: `Produto "${novo.nome}" criado por foto com ${qtd} un. em ${nomeLoja}`,
         dadosDepois: { categoria: categoriaNova, preco_venda: preco, custo, estoque: qtd },
       });
+      const avisoFoto = await guardarFotoSemFundo(novo.id);
       avisarProdutosMudaram();
       aoAlterar();
       setMensagemFinal(
         `✅ Produto novo "${novo.nome}" criado com ${qtd} un. em ${nomeLoja}.` +
           (preco ? "" : " Falta colocar o preço de venda (Administração → Estoque → editar).") +
-          (custo ? "" : " Falta colocar o custo (Administração → Estoque → editar).")
+          (custo ? "" : " Falta colocar o custo (Administração → Estoque → editar).") +
+          avisoFoto
       );
       setEtapa("pronto");
     } catch (e) {

@@ -1,3 +1,4 @@
+import { useFotosProdutos } from "@/lib/fotoProduto";
 import { formatarMoeda } from "@/lib/format";
 import type { VendaItem, LojaCompleta } from "@/types";
 
@@ -123,6 +124,7 @@ export default function ComprovanteCupom88mm({
   descricaoCustoAdicional,
 }: Props) {
   itens = mesclarConjuntosSofa(itens);
+  const { fotos, carregando: carregandoFotos } = useFotosProdutos(itens.map((i) => i.produto_id));
   const todosRetirada =
     itens.length > 0 &&
     itens.every((i) => (i.quantidade_retirada ?? (i.retirada ? i.quantidade : 0)) >= i.quantidade);
@@ -143,6 +145,7 @@ export default function ComprovanteCupom88mm({
 
   return (
     <div
+      data-fotos-carregando={carregandoFotos ? "1" : undefined}
       style={{
         width: "100%",
         boxSizing: "border-box",
@@ -198,6 +201,14 @@ export default function ComprovanteCupom88mm({
         <div key={item.id} style={{ margin: "5px 0" }}>
           <div style={{ display: "flex", alignItems: "flex-start", fontSize: 14 }}>
             <span style={{ flex: 1, textTransform: "uppercase", paddingRight: 4 }}>
+              {item.produto_id && fotos.get(item.produto_id) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={fotos.get(item.produto_id)!}
+                  alt=""
+                  style={{ height: "9mm", width: "auto", maxWidth: "14mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }}
+                />
+              )}
               {idx + 1} {String(idx + 1).padStart(3, "0")} {item.nome_produto}
               {item.variante ? ` — ${item.variante}` : ""}
             </span>

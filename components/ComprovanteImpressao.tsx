@@ -1,3 +1,4 @@
+import { useFotosProdutos } from "@/lib/fotoProduto";
 import { formatarMoeda } from "@/lib/format";
 import type { VendaItem, LojaCompleta } from "@/types";
 
@@ -138,8 +139,10 @@ function linhaItem(
   qtd: number,
   ehViaLoja: boolean,
   lojasPorId: Record<string, string> | undefined,
-  mostrarColunaVU: boolean
+  mostrarColunaVU: boolean,
+  fotos?: Map<string, string | null>
 ) {
+  const fotoUrl = item.produto_id ? fotos?.get(item.produto_id) : null;
   // O valor de cada linha é sempre o valor real do item, do jeito que foi
   // vendido — nunca redistribuído proporcionalmente pelo total pago (isso
   // causava números estranhos quando o pagamento era dividido em mais de
@@ -177,6 +180,14 @@ function linhaItem(
   return (
     <tr key={item.id + "-" + qtd}>
       <td style={{ color: COR_TEXTO }}>
+        {fotoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={fotoUrl}
+            alt=""
+            style={{ height: "8mm", width: "auto", maxWidth: "14mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }}
+          />
+        )}
         {item.nome_produto}{" "}
         <span style={{ color: ehViaLoja ? situacaoCor : COR_TEXTO, fontWeight: ehViaLoja ? 700 : 400 }}>
           ({situacaoTexto})
@@ -257,6 +268,7 @@ function ViaComprovante({
 }: Props & { rotulo: string }) {
   const ehViaLoja = rotulo === "Via da loja";
   itens = mesclarConjuntosSofa(itens);
+  const { fotos, carregando: carregandoFotos } = useFotosProdutos(itens.map((i) => i.produto_id));
   // a coluna de valor unitário só aparece quando o pedido tem mais de um
   // produto — com um produto só, o valor unitário não ajuda muito, já dá
   // pra ver óbvio no total.
@@ -279,7 +291,7 @@ function ViaComprovante({
   const ehMisto = itensRetirada.length > 0 && itensEntrega.length > 0;
 
   return (
-    <div className="imp-via">
+    <div className="imp-via" data-fotos-carregando={carregandoFotos ? "1" : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3 }}>
         <div>
           <h2
@@ -382,7 +394,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensRetirada.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU)
+                linhaItem(item, itens, total, item.quantidade_retirada ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU, fotos)
               )}
             </tbody>
           </table>
@@ -421,7 +433,7 @@ function ViaComprovante({
             </thead>
             <tbody>
               {itensEntrega.map((item) =>
-                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU)
+                linhaItem(item, itens, total, item.quantidade_entrega ?? item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU, fotos)
               )}
             </tbody>
           </table>
@@ -467,7 +479,7 @@ function ViaComprovante({
                 </th>
               </tr>
             </thead>
-            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU))}</tbody>
+            <tbody>{itens.map((item) => linhaItem(item, itens, total, item.quantidade, ehViaLoja, lojasPorId, mostrarColunaVU, fotos))}</tbody>
           </table>
         </>
       )}

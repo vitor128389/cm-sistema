@@ -14,6 +14,7 @@ import { gerarRelatorioCaixaPdf } from "@/lib/gerarRelatorioCaixaPdf";
 import { gerarRelatorioDetalhadoCaixaPdf, type VendaDetalhadaRelatorio } from "@/lib/gerarRelatorioDetalhadoCaixaPdf";
 import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import EntradaNota from "@/components/EntradaNota";
+import FotoDoProduto from "@/components/FotoDoProduto";
 import AdicionarPorFoto from "@/components/AdicionarPorFoto";
 import ComprovanteCancelamento88mm, { type DadosCancelamento } from "@/components/ComprovanteCancelamento88mm";
 import { definirTamanhoPagina } from "@/lib/imprimir";
@@ -1320,6 +1321,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
 
       {mostrarForm && (
         <div id="form-editar-produto" className="card p-5 mb-6">
+          {editandoId && <FotoDoProduto produtoId={editandoId} nome={form.nome} />}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <label className="block">
               <span className="text-xs text-madeira-600 mb-1 block">Nome do produto</span>

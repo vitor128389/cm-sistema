@@ -1,3 +1,4 @@
+import { useFotosProdutos } from "@/lib/fotoProduto";
 import { formatarMoeda } from "@/lib/format";
 import { calcularTotais, dataBrCurta, valorPrazo, type FormaExibicao } from "@/lib/orcamento";
 import type { LojaCompleta } from "@/types";
@@ -13,7 +14,7 @@ export interface DadosOrcamentoImpressao {
   clienteNome: string;
   clienteTelefone: string | null;
   clienteEndereco: string | null;
-  itens: { nome: string; variante: string | null; quantidade: number; valor_avista: number }[];
+  itens: { produto_id?: string | null; nome: string; variante: string | null; quantidade: number; valor_avista: number }[];
   desconto: number;
   frete: number;
   forma: FormaExibicao;
@@ -24,6 +25,8 @@ export interface DadosOrcamentoImpressao {
 // Proposta em A4 pra entregar/mandar ao cliente (sem dados fiscais, sem estoque).
 export default function ComprovanteOrcamento(d: DadosOrcamentoImpressao) {
   const t = calcularTotais(d.itens, d.desconto, d.frete);
+  const { fotos, carregando: carregandoFotos } = useFotosProdutos(d.itens.map((i) => i.produto_id));
+  const fotoDe = (i: { produto_id?: string | null }) => (i.produto_id ? fotos.get(i.produto_id) || null : null);
   const mostraAvista = d.forma !== "prazo";
   const mostraPrazo = d.forma !== "avista";
   const loja = d.loja;
@@ -37,7 +40,7 @@ export default function ComprovanteOrcamento(d: DadosOrcamentoImpressao) {
   const dir = { textAlign: "right" as const };
 
   return (
-    <div style={{ padding: "4mm 2mm", fontFamily: "Arial, Helvetica, sans-serif", color: "#222" }}>
+    <div data-fotos-carregando={carregandoFotos ? "1" : undefined} style={{ padding: "4mm 2mm", fontFamily: "Arial, Helvetica, sans-serif", color: "#222" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: `3px solid ${VERDE}`, paddingBottom: 8 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: VERDE, textTransform: "uppercase" }}>{loja?.nome || "Caruaru Móveis"}</div>
@@ -81,7 +84,12 @@ export default function ComprovanteOrcamento(d: DadosOrcamentoImpressao) {
             const unidade = mostraAvista ? i.valor_avista : valorPrazo(i.valor_avista);
             return (
               <tr key={idx} style={{ borderBottom: "1px solid #ddd" }}>
-                <td style={{ padding: "6px 8px" }}>{nome}</td>
+                <td style={{ padding: "6px 8px" }}>
+                  {fotoDe(i) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={fotoDe(i)!} alt="" style={{ height: "9mm", width: "auto", maxWidth: "16mm", objectFit: "contain", verticalAlign: "middle", marginRight: "2mm" }} />
+                  )}{nome}
+                </td>
                 <td style={{ padding: "6px 8px", textAlign: "center" }}>{i.quantidade}</td>
                 {mostraAvista && <td style={{ padding: "6px 8px", ...dir }}>{formatarMoeda(i.valor_avista)}</td>}
                 {mostraPrazo && <td style={{ padding: "6px 8px", ...dir }}>{formatarMoeda(valorPrazo(i.valor_avista))}</td>}

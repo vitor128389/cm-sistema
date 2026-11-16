@@ -14,7 +14,7 @@ import ComprovanteImpressao from "@/components/ComprovanteImpressao";
 import ComprovanteCupom88mm from "@/components/ComprovanteCupom88mm";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque, ajustarEstoqueLoja } from "@/lib/produtos";
-import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
+import { definirTamanhoPagina, ajustarEscalaImpressaoA4, aguardarFotosDaImpressao } from "@/lib/imprimir";
 import { registrarAuditoria, apenasCamposAlterados } from "@/lib/auditoria";
 import type {
   ProdutoComVariantes,
@@ -3012,7 +3012,10 @@ function VenderPageConteudo() {
               onClick={() => {
                 setFormatoImpressao("cupom88");
                 definirTamanhoPagina("cupom88");
-                setTimeout(() => window.print(), 50);
+                setTimeout(async () => {
+                  await aguardarFotosDaImpressao();
+                  window.print();
+                }, 50);
               }}
               title="Imprimir cupom para impressora térmica 88mm"
             >

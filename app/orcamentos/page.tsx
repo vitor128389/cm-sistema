@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
 import { carregarProdutosComEstoque } from "@/lib/produtos";
-import { definirTamanhoPagina, ajustarEscalaImpressaoA4 } from "@/lib/imprimir";
+import { definirTamanhoPagina, ajustarEscalaImpressaoA4, aguardarFotosDaImpressao } from "@/lib/imprimir";
 import { abrirWhatsAppComTexto } from "@/lib/whatsapp";
 import ComprovanteOrcamento, { type DadosOrcamentoImpressao } from "@/components/ComprovanteOrcamento";
 import ComprovanteOrcamento88mm from "@/components/ComprovanteOrcamento88mm";
@@ -299,7 +299,7 @@ export default function OrcamentosPage() {
       clienteNome: clienteNome.trim(),
       clienteTelefone: clienteTelefone.trim() || null,
       clienteEndereco: clienteEndereco.trim() || null,
-      itens: itens.map((i) => ({ nome: i.nome, variante: i.variante, quantidade: i.quantidade, valor_avista: i.valor_avista })),
+      itens: itens.map((i) => ({ produto_id: i.produto_id, nome: i.nome, variante: i.variante, quantidade: i.quantidade, valor_avista: i.valor_avista })),
       desconto: totais.desconto,
       frete: totais.frete,
       forma,
@@ -393,6 +393,7 @@ export default function OrcamentosPage() {
     definirTamanhoPagina(formato);
     setTimeout(async () => {
       if (formato === "a4") await ajustarEscalaImpressaoA4();
+      else await aguardarFotosDaImpressao();
       window.print();
     }, 150);
   }
@@ -492,7 +493,7 @@ export default function OrcamentosPage() {
       clienteNome: o.cliente_nome,
       clienteTelefone: o.cliente_telefone,
       clienteEndereco: o.cliente_endereco,
-      itens: [...o.orcamento_itens].sort((a, b) => a.ordem - b.ordem).map((i) => ({ nome: i.nome, variante: i.variante, quantidade: i.quantidade, valor_avista: Number(i.valor_avista) })),
+      itens: [...o.orcamento_itens].sort((a, b) => a.ordem - b.ordem).map((i) => ({ produto_id: i.produto_id, nome: i.nome, variante: i.variante, quantidade: i.quantidade, valor_avista: Number(i.valor_avista) })),
       desconto: o.desconto,
       frete: o.frete,
       forma: o.forma_exibicao,
