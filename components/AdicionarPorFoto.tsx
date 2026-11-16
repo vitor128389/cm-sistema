@@ -59,6 +59,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
   const [nomeNovo, setNomeNovo] = useState("");
   const [categoriaNova, setCategoriaNova] = useState("");
   const [precoNovo, setPrecoNovo] = useState("");
+  const [custoNovo, setCustoNovo] = useState("");
   const [categorias, setCategorias] = useState<string[]>([]);
   const [ouvindo, setOuvindo] = useState(false);
   const inputFoto = useRef<HTMLInputElement>(null);
@@ -204,12 +205,13 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
         throw new Error("Já existe um produto com esse nome — volte e escolha ele na lista.");
       }
       const preco = parseFloat(precoNovo.replace(",", ".")) || 0;
+      const custo = parseFloat(custoNovo.replace(",", ".")) || 0;
       const { data: novo, error } = await supabase
         .from("produtos")
         .insert({
           nome,
           categoria: categoriaNova.trim(),
-          custo: 0,
+          custo,
           preco_venda: preco,
           tipo_estoque: "pronta_entrega",
           tipo_precificacao: "simples",
@@ -229,13 +231,14 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
         registroId: novo.id,
         registroNome: novo.nome,
         descricao: `Produto "${novo.nome}" criado por foto com ${qtd} un. em ${nomeLoja}`,
-        dadosDepois: { categoria: categoriaNova, preco_venda: preco, estoque: qtd },
+        dadosDepois: { categoria: categoriaNova, preco_venda: preco, custo, estoque: qtd },
       });
       avisarProdutosMudaram();
       aoAlterar();
       setMensagemFinal(
         `✅ Produto novo "${novo.nome}" criado com ${qtd} un. em ${nomeLoja}.` +
-          (preco ? "" : " Falta colocar o preço de venda (Administração → Estoque → editar).")
+          (preco ? "" : " Falta colocar o preço de venda (Administração → Estoque → editar).") +
+          (custo ? "" : " Falta colocar o custo (Administração → Estoque → editar).")
       );
       setEtapa("pronto");
     } catch (e) {
@@ -414,6 +417,16 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
                 placeholder="0,00"
               />
             </div>
+            <div>
+              <label className="text-xs text-neutral-600">Custo (pode deixar pra depois)</label>
+              <input
+                className="input w-full !bg-white !text-neutral-900 !border-neutral-300"
+                inputMode="decimal"
+                value={custoNovo}
+                onChange={(e) => setCustoNovo(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
             {seletorLoja}
             <div>
               <label className="text-xs text-neutral-600">Quantas unidades?</label>
@@ -447,6 +460,7 @@ export default function AdicionarPorFoto({ aoFechar, aoAlterar }: { aoFechar: ()
                 setEscolhido(null);
                 setNomeNovo("");
                 setPrecoNovo("");
+                setCustoNovo("");
                 setQuantidade("1");
                 setTimeout(() => inputFoto.current?.click(), 50);
               }}
