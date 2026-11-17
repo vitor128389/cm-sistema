@@ -60,6 +60,7 @@ export default function EncomendasPage() {
   const [busca, setBusca] = useState("");
   const [lojasRelatorio, setLojasRelatorio] = useState<string[]>([]);
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [progressoPdf, setProgressoPdf] = useState("");
   const [trocas, setTrocas] = useState<TrocaGrupo[]>([]);
   const [verOriginal, setVerOriginal] = useState<Record<string, boolean>>({});
   const [tiposPdf, setTiposPdf] = useState<TipoPdf[]>([]);
@@ -161,123 +162,189 @@ export default function EncomendasPage() {
     return "Todos os períodos";
   }
 
-  async function gerarPdf() {
+  type ItemPdf = { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string };
+
+  // Busca (uma vez) tudo que o relatório precisa: vendas das lojas escolhidas, dentro do período,
+  // e os produtos novos das trocas. Serve pro PDF único e pro "um PDF por tipo".
+  async function buscarDadosRelatorio(idsLojas: string[]) {
+    // o Supabase devolve no máximo 1000 linhas por consulta — busca em páginas
+    // pra não cortar as vendas mais novas/de outras lojas
+    const data: unknown[] = [];
+    for (let ini = 0; ; ini += 1000) {
+      const { data: pagina, error } = await supabase
+        .from("vendas")
+        .select("id, loja_id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
+        .eq("cancelada", false)
+        .in("loja_id", idsLojas)
+        .order("criado_em", { ascending: false })
+        .order("id")
+        .range(ini, ini + 999);
+      if (error) throw error;
+      data.push(...(pagina || []));
+      if (!pagina || pagina.length < 1000) break;
+    }
+    // trocas: o item devolvido sai do relatório e os produtos novos da troca entram
+    const { data: trocasData } = await supabase
+      .from("trocas_grupo")
+      .select("venda_original_id, trocas_novos(produto_nome, variante, quantidade, tipo_entrega)")
+      .eq("cancelada", false)
+      .in("loja_id", idsLojas);
+    const novosPorVenda = new Map<string, ItemPdf[]>();
+    for (const t of (trocasData || []) as unknown as {
+      venda_original_id: string;
+      trocas_novos: { produto_nome: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
+    }[]) {
+      const lista = novosPorVenda.get(t.venda_original_id) || [];
+      for (const n of t.trocas_novos || []) lista.push({ nome_produto: n.produto_nome, variante: n.variante, quantidade: n.quantidade, tipo_entrega: n.tipo_entrega });
+      novosPorVenda.set(t.venda_original_id, lista);
+    }
+    const vendasNoPeriodo = ((data || []) as unknown as Venda[]).filter((v) => dentroDoPeriodo(v.criado_em));
+    return { vendasNoPeriodo, novosPorVenda };
+  }
+
+  // uma lista consolidada POR LOJA (a nota sai separada: Lagarto, depois Glória...),
+  // só com os tipos de produto pedidos (lista vazia = tudo)
+  function montarGrupos(
+    dados: { vendasNoPeriodo: Venda[]; novosPorVenda: Map<string, ItemPdf[]> },
+    idsLojas: string[],
+    tipos: TipoPdf[]
+  ) {
+    const porLoja = new Map<string, Map<string, number>>();
+    for (const v of dados.vendasNoPeriodo) {
+      const consolidado = porLoja.get((v as { loja_id: string }).loja_id) || new Map<string, number>();
+      porLoja.set((v as { loja_id: string }).loja_id, consolidado);
+      const itensAtuais = [
+        ...(v.venda_itens || []).filter((i) => !(i as { trocado?: boolean }).trocado),
+        ...(dados.novosPorVenda.get(v.id) || []),
+      ] as ItemPdf[];
+      // sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas (peça de 2 + peça de 3):
+      // dentro do mesmo pedido, cada par 2+3 conta como 1 conjunto; o que sobrar
+      // sem par é peça avulsa ("SOFÁ NOBRE 2 LUGARES" ou "... 3 LUGARES").
+      const pecas = new Map<string, { nome: string; base: string | null; q2: number; q3: number }>();
+      const somar = (chave: string, qtd: number) => consolidado.set(chave, (consolidado.get(chave) || 0) + qtd);
+      for (const item of itensAtuais) {
+        if (item.tipo_entrega !== "encomenda") continue;
+        if (tipos.length > 0 && !tipos.includes(tipoDoProduto(item.nome_produto))) continue;
+        const m = item.variante ? /^(.*) — (2|3) Lugares(.*)$/.exec(item.variante) : null;
+        if (m) {
+          const base = `${m[1]}${m[3]}`;
+          const k = `${item.nome_produto}|${base}`;
+          const reg = pecas.get(k) || { nome: item.nome_produto, base, q2: 0, q3: 0 };
+          if (m[2] === "2") reg.q2 += item.quantidade;
+          else reg.q3 += item.quantidade;
+          pecas.set(k, reg);
+          continue;
+        }
+        somar(item.variante ? `${item.nome_produto} — ${item.variante}` : item.nome_produto, item.quantidade);
+      }
+      pecas.forEach(({ nome, base, q2, q3 }) => {
+        const conjuntos = Math.min(q2, q3);
+        const nomeSem = nome.replace(/\s*2\s*E\s*3\s*LUGARES\s*/i, " ").replace(/\s+/g, " ").trim();
+        const jaTem = /2\s*E\s*3\s*LUGARES/i.test(nome);
+        const comCor = (n: string) => (base ? `${n} — ${base}` : n);
+        if (conjuntos > 0) somar(comCor(jaTem ? nome : `${nome} 2 E 3 LUGARES`), conjuntos);
+        if (q2 - conjuntos > 0) somar(comCor(`${nomeSem} 2 LUGARES`), q2 - conjuntos);
+        if (q3 - conjuntos > 0) somar(comCor(`${nomeSem} 3 LUGARES`), q3 - conjuntos);
+      });
+    }
+    const nomesLojas = idsLojas.map((id) => lojas.find((l) => l.id === id)?.nome || "Loja");
+    const grupos = idsLojas.map((id, idx) => ({
+      loja: nomesLojas[idx],
+      itens: Array.from((porLoja.get(id) || new Map<string, number>()).entries())
+        .map(([nome, quantidade]) => ({ nome, quantidade }))
+        .sort((a, b) => a.nome.localeCompare(b.nome)),
+    }));
+    return { grupos, nomesLojas };
+  }
+
+  function nomeDoArquivo(tipos: TipoPdf[], nomesLojas: string[]): string {
+    const slug = (t: string) =>
+      t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const fmt = (d: Date) => d.toLocaleDateString("pt-BR").replace(/\//g, "-");
+    let dataArquivo = "todos-os-periodos";
+    const hojeD = new Date();
+    if (periodo === "hoje") dataArquivo = fmt(hojeD);
+    else if (periodo === "ontem") dataArquivo = fmt(new Date(hojeD.getTime() - 24 * 60 * 60 * 1000));
+    else if (periodo === "personalizado") {
+      const a = de ? fmt(new Date(de + "T00:00:00")) : "inicio";
+      const b = ate ? fmt(new Date(ate + "T00:00:00")) : "hoje";
+      dataArquivo = a === b ? a : `${a}-ate-${b}`;
+    }
+    const tiposArquivo = tipos.length > 0 ? tipos.map(slug).join("-e-") : "todas";
+    return `encomendas-${tiposArquivo}-${nomesLojas.map(slug).join("-")}-${dataArquivo}.pdf`;
+  }
+
+  function baixarArquivo(blob: Blob, nomeArquivo: string) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = nomeArquivo;
+    link.click();
+    // dá tempo do navegador começar o download antes de soltar o arquivo da memória
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  function lojasDoRelatorio(): string[] | null {
     const idsLojas = lojasRelatorio.length > 0 ? lojasRelatorio : lojaAtual ? [lojaAtual] : [];
     if (idsLojas.length === 0) {
       alert("Escolha pelo menos uma loja pra gerar o relatório.");
-      return;
+      return null;
     }
+    return idsLojas;
+  }
+
+  async function gerarPdf() {
+    const idsLojas = lojasDoRelatorio();
+    if (!idsLojas) return;
     setGerandoPdf(true);
     try {
-      // o Supabase devolve no máximo 1000 linhas por consulta — busca em páginas
-      // pra não cortar as vendas mais novas/de outras lojas
-      const data: unknown[] = [];
-      for (let ini = 0; ; ini += 1000) {
-        const { data: pagina, error } = await supabase
-          .from("vendas")
-          .select("id, loja_id, criado_em, venda_itens(nome_produto, variante, quantidade, tipo_entrega, trocado)")
-          .eq("cancelada", false)
-          .in("loja_id", idsLojas)
-          .order("criado_em", { ascending: false })
-          .order("id")
-          .range(ini, ini + 999);
-        if (error) throw error;
-        data.push(...(pagina || []));
-        if (!pagina || pagina.length < 1000) break;
-      }
-      // trocas: o item devolvido sai do relatório e os produtos novos da troca entram
-      const { data: trocasData } = await supabase
-        .from("trocas_grupo")
-        .select("venda_original_id, trocas_novos(produto_nome, variante, quantidade, tipo_entrega)")
-        .eq("cancelada", false)
-        .in("loja_id", idsLojas);
-      const novosPorVenda = new Map<string, { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string }[]>();
-      for (const t of (trocasData || []) as unknown as {
-        venda_original_id: string;
-        trocas_novos: { produto_nome: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
-      }[]) {
-        const lista = novosPorVenda.get(t.venda_original_id) || [];
-        for (const n of t.trocas_novos || []) lista.push({ nome_produto: n.produto_nome, variante: n.variante, quantidade: n.quantidade, tipo_entrega: n.tipo_entrega });
-        novosPorVenda.set(t.venda_original_id, lista);
-      }
-
-      const todasVendas = (data || []) as unknown as Venda[];
-      const vendasNoPeriodo = todasVendas.filter((v) => dentroDoPeriodo(v.criado_em));
-
-      // uma lista consolidada POR LOJA (a nota sai separada: Lagarto, depois Glória...)
-      const porLoja = new Map<string, Map<string, number>>();
-      for (const v of vendasNoPeriodo) {
-        const consolidado = porLoja.get((v as { loja_id: string }).loja_id) || new Map<string, number>();
-        porLoja.set((v as { loja_id: string }).loja_id, consolidado);
-        const itensAtuais = [
-          ...(v.venda_itens || []).filter((i) => !(i as { trocado?: boolean }).trocado),
-          ...(novosPorVenda.get(v.id) || []),
-        ] as { nome_produto: string; variante: string | null; quantidade: number; tipo_entrega: string }[];
-        // sofá "2 e 3 lugares" vendido como conjunto vira 2 linhas (peça de 2 + peça de 3):
-        // dentro do mesmo pedido, cada par 2+3 conta como 1 conjunto; o que sobrar
-        // sem par é peça avulsa ("SOFÁ NOBRE 2 LUGARES" ou "... 3 LUGARES").
-        const pecas = new Map<string, { nome: string; base: string | null; q2: number; q3: number }>();
-        const somar = (chave: string, qtd: number) => consolidado.set(chave, (consolidado.get(chave) || 0) + qtd);
-        for (const item of itensAtuais) {
-          if (item.tipo_entrega !== "encomenda") continue;
-          if (tiposPdf.length > 0 && !tiposPdf.includes(tipoDoProduto(item.nome_produto))) continue;
-          const m = item.variante ? /^(.*) — (2|3) Lugares(.*)$/.exec(item.variante) : null;
-          if (m) {
-            const base = `${m[1]}${m[3]}`;
-            const k = `${item.nome_produto}|${base}`;
-            const reg = pecas.get(k) || { nome: item.nome_produto, base, q2: 0, q3: 0 };
-            if (m[2] === "2") reg.q2 += item.quantidade;
-            else reg.q3 += item.quantidade;
-            pecas.set(k, reg);
-            continue;
-          }
-          somar(item.variante ? `${item.nome_produto} — ${item.variante}` : item.nome_produto, item.quantidade);
-        }
-        pecas.forEach(({ nome, base, q2, q3 }) => {
-          const conjuntos = Math.min(q2, q3);
-          const nomeSem = nome.replace(/\s*2\s*E\s*3\s*LUGARES\s*/i, " ").replace(/\s+/g, " ").trim();
-          const jaTem = /2\s*E\s*3\s*LUGARES/i.test(nome);
-          const comCor = (n: string) => (base ? `${n} — ${base}` : n);
-          if (conjuntos > 0) somar(comCor(jaTem ? nome : `${nome} 2 E 3 LUGARES`), conjuntos);
-          if (q2 - conjuntos > 0) somar(comCor(`${nomeSem} 2 LUGARES`), q2 - conjuntos);
-          if (q3 - conjuntos > 0) somar(comCor(`${nomeSem} 3 LUGARES`), q3 - conjuntos);
-        });
-      }
-      const nomesLojas = idsLojas.map((id) => lojas.find((l) => l.id === id)?.nome || "Loja");
-      const grupos = idsLojas.map((id, idx) => ({
-        loja: nomesLojas[idx],
-        itens: Array.from((porLoja.get(id) || new Map<string, number>()).entries())
-          .map(([nome, quantidade]) => ({ nome, quantidade }))
-          .sort((a, b) => a.nome.localeCompare(b.nome)),
-      }));
+      const dados = await buscarDadosRelatorio(idsLojas);
+      const { grupos, nomesLojas } = montarGrupos(dados, idsLojas, tiposPdf);
       const blob = await gerarRelatorioEncomendasPdf(
         grupos,
         nomesLojas,
         periodoParaTexto(),
         tiposPdf.length > 0 ? tiposPdf.join(", ") : undefined
       );
-      const slug = (t: string) =>
-        t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      const fmt = (d: Date) => d.toLocaleDateString("pt-BR").replace(/\//g, "-");
-      let dataArquivo = "todos-os-periodos";
-      const hojeD = new Date();
-      if (periodo === "hoje") dataArquivo = fmt(hojeD);
-      else if (periodo === "ontem") dataArquivo = fmt(new Date(hojeD.getTime() - 24 * 60 * 60 * 1000));
-      else if (periodo === "personalizado") {
-        const a = de ? fmt(new Date(de + "T00:00:00")) : "inicio";
-        const b = ate ? fmt(new Date(ate + "T00:00:00")) : "hoje";
-        dataArquivo = a === b ? a : `${a}-ate-${b}`;
-      }
-      const tiposArquivo = tiposPdf.length > 0 ? tiposPdf.map(slug).join("-e-") : "todas";
-      const nomeArquivo = `encomendas-${tiposArquivo}-${nomesLojas.map(slug).join("-")}-${dataArquivo}.pdf`;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = nomeArquivo;
-      link.click();
-      URL.revokeObjectURL(url);
+      baixarArquivo(blob, nomeDoArquivo(tiposPdf, nomesLojas));
     } catch (e) {
       alert("Erro ao gerar o PDF: " + (e instanceof Error ? e.message : "erro desconhecido"));
+    } finally {
+      setGerandoPdf(false);
+    }
+  }
+
+  // Baixa um PDF por tipo (sofá com sofá, poltrona com poltrona...) de uma vez, com as mesmas
+  // lojas e o mesmo período escolhidos. Só gera o tipo que tem encomenda — não sai PDF vazio.
+  // Se marcou tipos nas caixinhas, baixa só esses (cada um separado).
+  async function gerarPdfsPorTipo() {
+    const idsLojas = lojasDoRelatorio();
+    if (!idsLojas) return;
+    setGerandoPdf(true);
+    setProgressoPdf("");
+    try {
+      const dados = await buscarDadosRelatorio(idsLojas);
+      const candidatos = tiposPdf.length > 0 ? TIPOS_PDF.filter((t) => tiposPdf.includes(t)) : [...TIPOS_PDF];
+      const feitos: string[] = [];
+      for (const tipo of candidatos) {
+        const { grupos, nomesLojas } = montarGrupos(dados, idsLojas, [tipo]);
+        if (!grupos.some((g) => g.itens.length > 0)) continue;
+        setProgressoPdf(`Gerando ${tipo}...`);
+        const blob = await gerarRelatorioEncomendasPdf(grupos, nomesLojas, periodoParaTexto(), tipo);
+        baixarArquivo(blob, nomeDoArquivo([tipo], nomesLojas));
+        feitos.push(tipo);
+        // pausa curta entre os downloads (o navegador pode bloquear vários de uma vez)
+        await new Promise((r) => setTimeout(r, 600));
+      }
+      if (feitos.length === 0) {
+        alert("Nenhuma encomenda encontrada nesse período e nessas lojas.");
+        setProgressoPdf("");
+      } else {
+        setProgressoPdf(`✅ ${feitos.length} PDF${feitos.length > 1 ? "s" : ""} baixado${feitos.length > 1 ? "s" : ""}: ${feitos.join(", ")}`);
+      }
+    } catch (e) {
+      alert("Erro ao gerar os PDFs: " + (e instanceof Error ? e.message : "erro desconhecido"));
+      setProgressoPdf("");
     } finally {
       setGerandoPdf(false);
     }
@@ -397,9 +464,25 @@ export default function EncomendasPage() {
               </label>
             ))}
           </div>
-          <button className="btn-primario" onClick={gerarPdf} disabled={gerandoPdf}>
-            {gerandoPdf ? "Gerando..." : "Baixar PDF"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="btn-primario" onClick={gerarPdf} disabled={gerandoPdf}>
+              {gerandoPdf ? "Gerando..." : "Baixar PDF"}
+            </button>
+            <button
+              className="btn-secundario"
+              onClick={gerarPdfsPorTipo}
+              disabled={gerandoPdf}
+              title="Baixa de uma vez um PDF separado por tipo: sofás, poltronas, namoradeiras, cabeceiras..."
+            >
+              {gerandoPdf ? "Gerando..." : "📥 Baixar todos separados por tipo"}
+            </button>
+            {progressoPdf && <span className="text-xs text-madeira-600">{progressoPdf}</span>}
+          </div>
+          <p className="text-xs text-madeira-500 mt-2">
+            “Baixar todos separados por tipo” gera um PDF de cada categoria que tiver encomenda (sofás com sofás,
+            poltronas com poltronas...), com as mesmas lojas e o mesmo período. Se o navegador perguntar, permita
+            baixar vários arquivos.
+          </p>
         </div>
       )}
 
