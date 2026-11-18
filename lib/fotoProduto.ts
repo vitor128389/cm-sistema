@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { useLoja } from "@/contexts/LojaContext";
 
-// A foto do produto só sai na notinha impressa da loja de Glória.
-export const LOJA_GLORIA_ID = "061b11a6-997b-46d2-972c-982a7f6555b0";
-export const lojaImprimeFoto = (lojaId: string | null | undefined) => lojaId === LOJA_GLORIA_ID;
 
 
 const BUCKET = "produtos-fotos";
@@ -105,9 +101,7 @@ export function useFotosProdutos(produtoIds: (string | null | undefined)[]): {
   fotos: Map<string, string | null>;
   carregando: boolean;
 } {
-  const { lojaAtual } = useLoja();
-  const imprime = lojaImprimeFoto(lojaAtual);
-  const ids = imprime ? Array.from(new Set(produtoIds.filter((x): x is string => !!x))) : [];
+  const ids = Array.from(new Set(produtoIds.filter((x): x is string => !!x)));
   const chave = ids.sort().join(",");
   const [, forcar] = useState(0);
   const [carregando, setCarregando] = useState(() => ids.some((id) => !cacheFotos.has(id)));
@@ -164,11 +158,9 @@ export type FotoParaPdf = { dataUrl: string; largura: number; altura: number };
 // Baixa as fotos dos produtos e devolve prontas pro jsPDF (data URL + tamanho).
 // Qualquer falha numa foto só deixa aquele produto sem foto — nunca trava o PDF.
 export async function carregarFotosParaPdf(
-  produtoIds: (string | null | undefined)[],
-  lojaId: string | null | undefined
+  produtoIds: (string | null | undefined)[]
 ): Promise<Map<string, FotoParaPdf>> {
   const resultado = new Map<string, FotoParaPdf>();
-  if (!lojaImprimeFoto(lojaId)) return resultado;
   const ids = Array.from(new Set(produtoIds.filter((x): x is string => !!x)));
   if (ids.length === 0) return resultado;
   try {

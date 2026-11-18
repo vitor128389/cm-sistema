@@ -208,7 +208,7 @@ export async function gerarNotaSimplesPdf(venda: Venda, loja: LojaCompleta | nul
   // miniatura do produto (13mm) à esquerda da descrição — só nos produtos que têm foto cadastrada
   const TAM_FOTO = 7;
   const RECUO_FOTO = TAM_FOTO + 2;
-  const fotosPdf = await carregarFotosParaPdf(itensVenda.map((i) => i.produto_id), (loja as { id?: string } | null)?.id);
+  const fotosPdf = await carregarFotosParaPdf(itensVenda.map((i) => i.produto_id));
 
   function cabecalhoTabela() {
     preencher(VERDE);
