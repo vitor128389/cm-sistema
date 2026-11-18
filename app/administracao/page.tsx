@@ -1170,17 +1170,24 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
       const precoSimplesNum = parseFloat(form.precoSimples) || 0;
       const precoVendaBase = temTecido ? parseFloat(linhasTecido[0].preco) : precoSimplesNum;
 
+      // Sofá 2 e 3 lugares (tecido_peca) tem preço/estoque por tecido+peça, que não são editados
+      // neste formulário: ao salvar, mantém o tipo e os preços dele (antes virava "simples" e bagunçava a venda).
+      const ehTecidoPeca = !!editandoId && tipoReal === "tecido_peca";
       let produtoId = editandoId;
       if (produtoId) {
         const { error: erroUpdate } = await supabase
           .from("produtos")
-          .update({
-            nome: form.nome,
-            categoria: categoriaFinal,
-            custo: custoNum,
-            preco_venda: precoVendaBase,
-            tipo_precificacao: temTecido ? "tecido" : "simples",
-          })
+          .update(
+            ehTecidoPeca
+              ? { nome: form.nome, categoria: categoriaFinal, custo: custoNum }
+              : {
+                  nome: form.nome,
+                  categoria: categoriaFinal,
+                  custo: custoNum,
+                  preco_venda: precoVendaBase,
+                  tipo_precificacao: temTecido ? "tecido" : "simples",
+                }
+          )
           .eq("id", produtoId);
         if (erroUpdate) {
           alert("Erro ao salvar o produto: " + erroUpdate.message);
@@ -1239,7 +1246,7 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
             }
           }
         }
-      } else {
+      } else if (!ehTecidoPeca) {
         const { error: erroEstoque } = await salvarEstoqueLoja(
           supabase,
           lojaEstoqueEfetiva,
