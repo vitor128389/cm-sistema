@@ -210,7 +210,7 @@ export default function ComprovanteCupom88mm({
             >
               {item.produto_id && fotos.get(item.produto_id) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img className="foto-produto-impressao"
                   src={fotos.get(item.produto_id)!}
                   alt=""
                   style={{ width: "12mm", height: "12mm", objectFit: "contain", flexShrink: 0, display: "block" }}

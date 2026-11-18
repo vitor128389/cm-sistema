@@ -201,11 +201,42 @@ export async function carregarFotosParaPdf(
           i.onerror = () => reject(new Error("imagem"));
           i.src = dataUrl;
         });
-        if (dim.w > 0 && dim.h > 0) resultado.set(id, { dataUrl, largura: dim.w, altura: dim.h });
+        if (dim.w > 0 && dim.h > 0) {
+          // PDF da notinha: foto em preto e branco (mesmo efeito da impressão); se falhar, segue colorida
+          const cinza = await converterParaCinza(dataUrl, dim.w, dim.h).catch(() => dataUrl);
+          resultado.set(id, { dataUrl: cinza, largura: dim.w, altura: dim.h });
+        }
       } catch {
         /* sem foto nesse produto */
       }
     })
   );
   return resultado;
+}
+
+// Escala de cinza com um pouco mais de contraste (contornos nítidos na térmica), sobre fundo branco.
+async function converterParaCinza(dataUrl: string, w: number, h: number): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("imagem"));
+    i.src = dataUrl;
+  });
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const im = ctx.getImageData(0, 0, w, h);
+  const d = im.data;
+  for (let k = 0; k < d.length; k += 4) {
+    let g = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+    g = (g * 1.08 - 128) * 1.25 + 128; // brilho +8%, contraste +25% (igual ao CSS da impressão)
+    g = Math.max(0, Math.min(255, g));
+    d[k] = d[k + 1] = d[k + 2] = g;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c.toDataURL("image/png");
 }

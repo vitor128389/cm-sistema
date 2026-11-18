@@ -195,7 +195,7 @@ function linhaItem(
           // com foto: miniatura (13mm) à esquerda; descrição à direita, com a variação na linha de baixo
           <div style={{ display: "flex", alignItems: "center", gap: "2mm" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <img className="foto-produto-impressao"
               src={fotoUrl}
               alt=""
               style={{

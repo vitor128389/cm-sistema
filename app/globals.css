@@ -145,6 +145,15 @@ body {
 }
 
 @media print {
+  /* Foto do produto na notinha: só na impressão vai em preto e branco (escala de cinza),
+     com contraste um pouco maior pra manter os contornos nítidos na térmica.
+     Na tela (seleção de produtos, cadastro) continua colorida. */
+  img.foto-produto-impressao {
+    -webkit-filter: grayscale(1) contrast(1.25) brightness(1.08);
+    filter: grayscale(1) contrast(1.25) brightness(1.08);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   body * {
     visibility: hidden;
   }
