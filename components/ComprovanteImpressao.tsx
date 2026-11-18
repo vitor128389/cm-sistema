@@ -201,8 +201,8 @@ function linhaItem(
               style={{
                 // 13mm no pedido normal; em pedido grande acompanha a redução da notinha (--escala-impressao)
                 // pra tudo continuar cabendo numa folha só
-                width: "calc(13mm * var(--escala-impressao, 1))",
-                height: "calc(13mm * var(--escala-impressao, 1))",
+                width: "calc(7mm * var(--escala-impressao, 1))",
+                height: "calc(7mm * var(--escala-impressao, 1))",
                 objectFit: "contain",
                 flexShrink: 0,
                 display: "block",

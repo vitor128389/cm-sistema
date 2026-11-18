@@ -213,7 +213,7 @@ export default function ComprovanteCupom88mm({
                 <img className="foto-produto-impressao"
                   src={fotos.get(item.produto_id)!}
                   alt=""
-                  style={{ width: "12mm", height: "12mm", objectFit: "contain", flexShrink: 0, display: "block" }}
+                  style={{ width: "7mm", height: "7mm", objectFit: "contain", flexShrink: 0, display: "block" }}
                 />
               )}
               <span>

@@ -70,7 +70,7 @@ export default function ComprovanteOrcamento88mm(d: DadosOrcamentoImpressao) {
             <p style={p({ textTransform: "uppercase" })}>
               {fotoDe(i) && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="foto-produto-impressao" src={fotoDe(i)!} alt="" style={{ width: "12mm", height: "12mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }} />
+                <img className="foto-produto-impressao" src={fotoDe(i)!} alt="" style={{ width: "7mm", height: "7mm", objectFit: "contain", verticalAlign: "middle", marginRight: "1.5mm" }} />
               )}
               {i.quantidade}x {nome}
             </p>
