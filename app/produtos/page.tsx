@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import FotoMini from "@/components/FotoMini";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -107,7 +108,12 @@ export default function ProdutosPage() {
             <tbody>
               {produtosFiltrados.map((p) => (
                 <tr key={p.id} className="border-t border-estofado-100 align-top">
-                  <td className="px-4 py-3 text-madeira-900">{p.nome}</td>
+                  <td className="px-4 py-3 text-madeira-900">
+                    <span className="flex items-center gap-3">
+                      <FotoMini url={p.foto_url} nome={p.nome} />
+                      <span>{p.nome}</span>
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-madeira-600">{p.categoria}</td>
                   <td className="px-4 py-3 text-madeira-600">
                     {p.produto_variantes.length > 0 ? (

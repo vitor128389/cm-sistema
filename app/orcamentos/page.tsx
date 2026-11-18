@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import FotoMini from "@/components/FotoMini";
 import { supabase } from "@/lib/supabase";
 import { formatarMoeda, normalizarBusca } from "@/lib/format";
 import { useLoja } from "@/contexts/LojaContext";
@@ -655,7 +656,10 @@ export default function OrcamentosPage() {
                       {resultadosProduto.map((o, idx) => (
                         <li key={o.produtoId + idx}>
                           <button type="button" className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm flex justify-between gap-3" onClick={() => adicionarOpcao(o)}>
-                            <span>{o.nome}{o.variante ? ` — ${o.variante}` : ""}</span>
+                            <span className="flex items-center gap-2">
+                              <FotoMini url={produtos.find((x) => x.id === o.produtoId)?.foto_url} nome={o.nome} tamanho={36} />
+                              <span>{o.nome}{o.variante ? ` — ${o.variante}` : ""}</span>
+                            </span>
                             <span className="font-semibold whitespace-nowrap">{o.sofaConjunto ? `a partir de ${formatarMoeda(o.preco)}` : formatarMoeda(o.preco)}</span>
                           </button>
                         </li>

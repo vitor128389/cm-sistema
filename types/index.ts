@@ -102,6 +102,7 @@ export interface ProdutoComVariantes {
   id: string;
   nome: string;
   categoria: string;
+  foto_url?: string | null; // foto sem fundo salva no cadastro
   custo: number;
   preco_venda: number; // preço à vista "base", usado quando tipo_precificacao = simples
   quantidade_estoque: number | null; // estoque simples

@@ -1,6 +1,7 @@
 "use client";
 
 import CustosDeposito from "@/components/CustosDeposito";
+import FotoMini from "@/components/FotoMini";
 import CamposFiscaisProduto from "@/components/CamposFiscaisProduto";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -1783,7 +1784,12 @@ function AbaEstoque({ modoDeposito = false }: { modoDeposito?: boolean }) {
           <tbody>
             {produtosFiltrados.map((p) => (
               <tr key={p.id} className="border-t border-estofado-100 align-top">
-                <td className="px-4 py-2">{p.nome}</td>
+                <td className="px-4 py-2">
+                  <span className="flex items-center gap-3">
+                    <FotoMini url={p.foto_url} nome={p.nome} />
+                    <span>{p.nome}</span>
+                  </span>
+                </td>
                 <td className="px-4 py-2">{usandoDeposito ? tipoMovelDeposito(p.nome) : p.categoria}</td>
                 {(() => {
                   // Monta uma linha por tecido/espessura (mesma ordem usada

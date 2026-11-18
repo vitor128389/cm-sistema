@@ -1,6 +1,7 @@
 "use client";
 
 import { somarDiasUteis } from "@/lib/diasUteis";
+import FotoMini from "@/components/FotoMini";
 import { Suspense } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -2169,9 +2170,12 @@ function VenderPageConteudo() {
                           className="flex justify-between px-3 py-2 text-sm hover:bg-madeira-50 cursor-pointer border-b border-estofado-100 last:border-0"
                           onClick={() => selecionarProduto(p)}
                         >
-                          <span>{p.nome}</span>
+                          <span className="flex items-center gap-2">
+                            <FotoMini url={p.foto_url} nome={p.nome} tamanho={36} />
+                            <span>{p.nome}</span>
+                          </span>
                           <span
-                            className={`text-xs font-semibold ${
+                            className={`text-xs font-semibold self-center ${
                               estoqueTotal > 0 ? "text-latao-500" : "text-red-600"
                             }`}
                           >

@@ -15,7 +15,7 @@ export async function carregarProdutosComEstoque(
 ): Promise<ProdutoComVariantes[]> {
   const { data: produtosData } = await supabase
     .from("produtos")
-    .select("id, nome, categoria, custo, preco_venda, tipo_precificacao, produto_variantes(*)")
+    .select("id, nome, categoria, foto_url, custo, preco_venda, tipo_precificacao, produto_variantes(*)")
     .eq("ativo", true)
     .order("nome");
 
