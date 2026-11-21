@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabase";
 import { useLoja } from "@/contexts/LojaContext";
 import { formatarMoeda } from "@/lib/format";
 import { registrarAuditoria } from "@/lib/auditoria";
+import { definirTamanhoPagina } from "@/lib/imprimir";
+import ComprovanteVale from "@/components/ComprovanteVale";
+import type { LojaCompleta } from "@/types";
 
 type Vale = {
   id: string;
@@ -38,6 +41,19 @@ export default function AbaValeCredito() {
   const [filtro, setFiltro] = useState<"ativo" | "todos">("ativo");
   const [baixaId, setBaixaId] = useState<string | null>(null);
   const [baixaValor, setBaixaValor] = useState("");
+  const [imprimindo, setImprimindo] = useState<Vale | null>(null);
+  const [lojaInfo, setLojaInfo] = useState<LojaCompleta | null>(null);
+
+  // Mesma impressão das notinhas: A4 com Via da loja + Via do cliente na mesma folha
+  async function imprimir(vale: Vale) {
+    if (lojaAtual) {
+      const { data } = await supabase.from("lojas").select("*").eq("id", lojaAtual).maybeSingle();
+      setLojaInfo((data as LojaCompleta | null) || null);
+    }
+    setImprimindo(vale);
+    definirTamanhoPagina("a4");
+    setTimeout(() => window.print(), 150);
+  }
 
   const carregar = useCallback(async () => {
     const { data } = await supabase
@@ -222,6 +238,11 @@ export default function AbaValeCredito() {
                     </span>
                   </td>
                   <td className="py-2">
+                    {v.status !== "ativo" && (
+                      <button className="text-madeira-700 underline" onClick={() => imprimir(v)}>
+                        🖨 Imprimir
+                      </button>
+                    )}
                     {v.status === "ativo" &&
                       (baixaId === v.id ? (
                         <span className="flex items-center gap-2">
@@ -238,6 +259,9 @@ export default function AbaValeCredito() {
                         </span>
                       ) : (
                         <span className="flex items-center gap-3 whitespace-nowrap">
+                          <button className="text-madeira-700 underline" onClick={() => imprimir(v)}>
+                            🖨 Imprimir
+                          </button>
                           <button
                             className="text-madeira-700 underline"
                             onClick={() => {
@@ -257,6 +281,9 @@ export default function AbaValeCredito() {
           </table>
         </div>
       )}
+      <div id="area-impressao">
+        {imprimindo && <ComprovanteVale vale={imprimindo} loja={lojaInfo} />}
+      </div>
     </div>
   );
 }
