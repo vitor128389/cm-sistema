@@ -1,6 +1,7 @@
 "use client";
 
 import CustosDeposito from "@/components/CustosDeposito";
+import AbaValeCredito from "@/components/AbaValeCredito";
 import FotoMini from "@/components/FotoMini";
 import CamposFiscaisProduto from "@/components/CamposFiscaisProduto";
 import { useEffect, useState } from "react";
@@ -22,6 +23,7 @@ import { definirTamanhoPagina } from "@/lib/imprimir";
 import type { Caixa, ProdutoComVariantes, TecidoCor, Usuario, Permissao, LojaCompleta, TrocaGrupo, TrocaItemDevolvido, TrocaItemNovo, TurnoCaixa, Sangria, Venda } from "@/types";
 
 type Aba =
+  | "vale-credito"
   | "lojas"
   | "caixas"
   | "estoque"
@@ -149,6 +151,7 @@ export default function AdministracaoPage() {
             ["rotas", "Rotas de Entrega"],
             ["promocao", "Promoção"],
             ["recursos", "Recursos"],
+            ["vale-credito", "Vale crédito"],
             ["cancelar", "Cancelar nota"],
           ] as [Aba, string][]
         ).map(([valor, label]) => (
@@ -177,6 +180,7 @@ export default function AdministracaoPage() {
       {aba === "rotas" && <AbaRotas />}
       {aba === "promocao" && <AbaPromocao />}
       {aba === "recursos" && <AbaRecursos />}
+      {aba === "vale-credito" && <AbaValeCredito />}
       {aba === "cancelar" && (
         <>
           <AbaCancelarNota />
