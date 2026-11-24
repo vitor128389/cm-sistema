@@ -57,7 +57,8 @@ function pedidoPendente(v: Venda): boolean {
   return (
     !v.cancelada &&
     !!v.prazo_entrega_maximo &&
-    (v.venda_itens || []).some((i) => i.status_entrega === "encomenda")
+    // item que foi trocado saiu do pedido: não conta como "ainda a entregar"
+    (v.venda_itens || []).some((i) => !i.trocado && i.status_entrega === "encomenda")
   );
 }
 
@@ -66,7 +67,7 @@ function temItemRetirada(v: Venda): boolean {
 }
 
 function pedidoEntregue(v: Venda): boolean {
-  const rastreados = (v.venda_itens || []).filter((i) => i.status_entrega !== null);
+  const rastreados = (v.venda_itens || []).filter((i) => !i.trocado && i.status_entrega !== null);
   return rastreados.length > 0 && rastreados.every((i) => i.status_entrega === "entregue");
 }
 
