@@ -19,3 +19,9 @@ drop policy if exists vales_credito_admin on public.vales_credito;
 create policy vales_credito_admin on public.vales_credito for all to authenticated
   using (exists (select 1 from public.usuarios u where u.id = auth.uid() and u.funcao = 'admin'))
   with check (exists (select 1 from public.usuarios u where u.id = auth.uid() and u.funcao = 'admin'));
+
+-- Qualquer usuário logado pode gravar a "última data do corte de tecido" (Encomendas) — só essa chave.
+drop policy if exists configuracoes_ultimo_corte_ins on public.configuracoes;
+create policy configuracoes_ultimo_corte_ins on public.configuracoes for insert to authenticated with check (chave = 'encomendas_ultimo_corte');
+drop policy if exists configuracoes_ultimo_corte_upd on public.configuracoes;
+create policy configuracoes_ultimo_corte_upd on public.configuracoes for update to authenticated using (chave = 'encomendas_ultimo_corte') with check (chave = 'encomendas_ultimo_corte');

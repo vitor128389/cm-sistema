@@ -57,6 +57,8 @@ export default function EncomendasPage() {
   const [periodo, setPeriodo] = useState<"todos" | "hoje" | "ontem" | "personalizado">("todos");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
+  // última data do corte de tecido (período do último PDF baixado) — fica salva no banco
+  const [ultimoCorte, setUltimoCorte] = useState<{ de: string; ate: string } | null>(null);
   const [busca, setBusca] = useState("");
   const [lojasRelatorio, setLojasRelatorio] = useState<string[]>([]);
   const [gerandoPdf, setGerandoPdf] = useState(false);
@@ -148,6 +150,47 @@ export default function EncomendasPage() {
       return data >= inicio && data <= fim;
     }
     return true;
+  }
+
+  const CHAVE_ULTIMO_CORTE = "encomendas_ultimo_corte";
+  const isoLocal = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const dataBR = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("pt-BR");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("configuracoes").select("valor").eq("chave", CHAVE_ULTIMO_CORTE).maybeSingle();
+      try {
+        const j = data?.valor ? JSON.parse(data.valor) : null;
+        if (j?.de && j?.ate) setUltimoCorte({ de: j.de, ate: j.ate });
+      } catch {
+        /* sem corte salvo */
+      }
+    })();
+  }, []);
+
+  // guarda o período do PDF que acabou de ser baixado (só período personalizado, que é o corte de tecido)
+  async function salvarUltimoCorte() {
+    if (periodo !== "personalizado" || !de) return;
+    const fim = ate || isoLocal(new Date());
+    const novo = { de, ate: fim };
+    setUltimoCorte(novo);
+    await supabase
+      .from("configuracoes")
+      .upsert({ chave: CHAVE_ULTIMO_CORTE, valor: JSON.stringify(novo), atualizado_em: new Date().toISOString() }, { onConflict: "chave" });
+  }
+
+  // próximo corte: do dia seguinte ao último corte até ontem (hoje ainda não acabou)
+  function usarProximoCorte() {
+    if (!ultimoCorte) return;
+    const inicio = new Date(ultimoCorte.ate + "T00:00:00");
+    inicio.setDate(inicio.getDate() + 1);
+    const ontem = new Date();
+    ontem.setHours(0, 0, 0, 0);
+    ontem.setDate(ontem.getDate() - 1);
+    setPeriodo("personalizado");
+    setDe(isoLocal(inicio));
+    setAte(isoLocal(ontem));
   }
 
   function periodoParaTexto(): string {
@@ -307,6 +350,7 @@ export default function EncomendasPage() {
         tiposPdf.length > 0 ? tiposPdf.join(", ") : undefined
       );
       baixarArquivo(blob, nomeDoArquivo(tiposPdf, nomesLojas));
+      await salvarUltimoCorte();
     } catch (e) {
       alert("Erro ao gerar o PDF: " + (e instanceof Error ? e.message : "erro desconhecido"));
     } finally {
@@ -336,6 +380,7 @@ export default function EncomendasPage() {
         // pausa curta entre os downloads (o navegador pode bloquear vários de uma vez)
         await new Promise((r) => setTimeout(r, 600));
       }
+      if (feitos.length > 0) await salvarUltimoCorte();
       if (feitos.length === 0) {
         alert("Nenhuma encomenda encontrada nesse período e nessas lojas.");
         setProgressoPdf("");
@@ -429,6 +474,16 @@ export default function EncomendasPage() {
               </>
             )}
           </>
+        )}
+        {ultimoCorte && (
+          <div className="basis-full text-sm text-madeira-700 flex flex-wrap items-center gap-3">
+            <span>
+              ✂️ Último corte de tecido: <strong>{dataBR(ultimoCorte.de)}</strong> até <strong>{dataBR(ultimoCorte.ate)}</strong>
+            </span>
+            <button type="button" className="btn-secundario" onClick={usarProximoCorte}>
+              Usar o próximo corte (do dia seguinte até ontem)
+            </button>
+          </div>
         )}
       </div>
 
