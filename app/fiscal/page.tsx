@@ -24,6 +24,7 @@ interface VendaFiscal {
     complemento: string | null;
     bairro: string | null;
     cidade: string | null;
+    povoado: string | null;
   } | null;
   venda_itens: { id: string; nome_produto: string; variante: string | null; quantidade: number; total: number; trocado?: boolean }[];
 }
@@ -137,7 +138,7 @@ export default function FiscalPage() {
     setNfeAberta(false);
     const { data } = await supabase
       .from("vendas")
-      .select("id, numero_pedido, loja_id, total, forma_pagamento, cancelada, criado_em, clientes(nome, cpf, telefone, endereco, numero, complemento, bairro, cidade), venda_itens(id, nome_produto, variante, quantidade, total, trocado)")
+      .select("id, numero_pedido, loja_id, total, forma_pagamento, cancelada, criado_em, clientes(nome, cpf, telefone, endereco, numero, complemento, bairro, cidade, povoado), venda_itens(id, nome_produto, variante, quantidade, total, trocado)")
       .eq("numero_pedido", n)
       .eq("loja_id", lojaAtual)
       .maybeSingle();
@@ -293,6 +294,13 @@ export default function FiscalPage() {
     } finally {
       setOcupado(false);
     }
+  }
+
+  // endereço que pegamos na venda pra entrega (cadastro do cliente do pedido)
+  function enderecoEntregaDaVenda() {
+    const c = venda?.clientes;
+    if (!c?.endereco) return undefined;
+    return { ...enderecoVazio(), logradouro: c.endereco || "", numero: c.numero || "", complemento: c.complemento || "", bairro: c.bairro || c.povoado || "", municipio: c.cidade || "" };
   }
 
   function dadosIniciaisNfe(): DadosNfe {
@@ -469,7 +477,7 @@ export default function FiscalPage() {
           </div>
         )}
         {tipo === "nfe" && !vigente && nfeAberta && (
-          <FormNfe inicial={dadosIniciaisNfe()} ocupado={ocupado} real={real} onEmitir={emitirNfe} onCancelar={() => setNfeAberta(false)} />
+          <FormNfe inicial={dadosIniciaisNfe()} enderecoDaVenda={enderecoEntregaDaVenda()} ocupado={ocupado} real={real} onEmitir={emitirNfe} onCancelar={() => setNfeAberta(false)} />
         )}
         {vigente?.status === "autorizada" && (
           <p className="text-xs text-madeira-500 mt-2">

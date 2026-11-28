@@ -123,7 +123,10 @@ export default function FormNfe({
   real,
   onEmitir,
   onCancelar,
+  enderecoDaVenda,
 }: {
+  // endereço de entrega que foi pego na venda (cadastro do cliente do pedido)
+  enderecoDaVenda?: EnderecoForm;
   inicial: DadosNfe;
   ocupado: boolean;
   real: boolean;
@@ -134,6 +137,19 @@ export default function FormNfe({
   const set = (c: Partial<DadosNfe>) => setD((a) => ({ ...a, ...c }));
   const [msgCnpj, setMsgCnpj] = useState("");
   const [buscandoCnpj, setBuscandoCnpj] = useState(false);
+
+  // Ao marcar "entregar em outro endereço", já traz o endereço de entrega da venda
+  // (só se o campo de entrega ainda estiver vazio — não apaga o que a pessoa digitou).
+  async function marcarEntregaDiferente(marcado: boolean) {
+    set({ entregaDiferente: marcado });
+    const vazio = !d.entrega.logradouro && !d.entrega.cep && !d.entrega.municipio;
+    if (!marcado || !enderecoDaVenda || !vazio || !enderecoDaVenda.logradouro) return;
+    const base = { ...enderecoDaVenda };
+    setD((a) => ({ ...a, entregaDiferente: true, entrega: base }));
+    // confirma a cidade (código IBGE) pelo nome, pra já poder emitir sem clicar em Buscar
+    const mun = await buscarCodigoMunicipio(base.municipio, base.uf);
+    if (mun) setD((a) => (a.entrega.logradouro === base.logradouro ? { ...a, entrega: { ...a.entrega, municipio: mun.municipio, codigoMunicipio: mun.codigoMunicipio } } : a));
+  }
 
   async function procurarCnpj() {
     setMsgCnpj("");
@@ -205,7 +221,7 @@ export default function FormNfe({
       <BlocoEndereco titulo="Endereço do cliente" v={d.endereco} onChange={(endereco) => set({ endereco })} />
 
       <label className="flex items-center gap-2 text-sm text-madeira-700">
-        <input type="checkbox" checked={d.entregaDiferente} onChange={(e) => set({ entregaDiferente: e.target.checked })} />
+        <input type="checkbox" checked={d.entregaDiferente} onChange={(e) => marcarEntregaDiferente(e.target.checked)} />
         Entregar em outro endereço (sai na nota como local de entrega)
       </label>
       {d.entregaDiferente && <BlocoEndereco titulo="Endereço de entrega" v={d.entrega} onChange={(entrega) => set({ entrega })} />}
