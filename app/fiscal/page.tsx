@@ -315,6 +315,7 @@ export default function FiscalPage() {
       telefone: c?.telefone || "",
       endereco: { ...enderecoVazio(), logradouro: c?.endereco || "", numero: c?.numero || "", complemento: c?.complemento || "", bairro: c?.bairro || "", municipio: c?.cidade || "" },
       entregaDiferente: false,
+      ieEntrega: "",
       entrega: enderecoVazio(),
     };
   }
@@ -347,7 +348,7 @@ export default function FiscalPage() {
         telefone: d.telefone,
         ...tira(d.endereco),
       },
-      entrega: d.entregaDiferente ? { ...tira(d.entrega), nome: d.nome } : null,
+      entrega: d.entregaDiferente ? { ...tira(d.entrega), nome: d.nome, inscricaoEstadual: d.ieEntrega || d.inscricaoEstadual } : null,
     });
   }
 

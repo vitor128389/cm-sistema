@@ -23,6 +23,7 @@ export interface DadosNfe {
   telefone: string;
   endereco: EnderecoForm;
   entregaDiferente: boolean;
+  ieEntrega: string;
   entrega: EnderecoForm;
 }
 
@@ -141,7 +142,7 @@ export default function FormNfe({
   // Ao marcar "entregar em outro endereço", já traz o endereço de entrega da venda
   // (só se o campo de entrega ainda estiver vazio — não apaga o que a pessoa digitou).
   async function marcarEntregaDiferente(marcado: boolean) {
-    set({ entregaDiferente: marcado });
+    setD((a) => ({ ...a, entregaDiferente: marcado, ieEntrega: a.ieEntrega || a.inscricaoEstadual }));
     const vazio = !d.entrega.logradouro && !d.entrega.cep && !d.entrega.municipio;
     if (!marcado || !enderecoDaVenda || !vazio || !enderecoDaVenda.logradouro) return;
     const base = { ...enderecoDaVenda };
@@ -225,6 +226,18 @@ export default function FormNfe({
         Entregar em outro endereço (sai na nota como local de entrega)
       </label>
       {d.entregaDiferente && <BlocoEndereco titulo="Endereço de entrega" v={d.entrega} onChange={(entrega) => set({ entrega })} />}
+      {d.entregaDiferente && d.situacaoIe === "contribuinte" && (
+        <label className="block">
+          <span className="text-xs font-medium">Inscrição estadual do local de entrega</span>
+          <input
+            className="input-base"
+            placeholder="Inscrição estadual do local de entrega"
+            value={d.ieEntrega ?? ""}
+            onChange={(e) => set({ ieEntrega: e.target.value })}
+          />
+          <span className="text-[11px] text-gray-500">Se o local de entrega for do próprio cliente, é a mesma inscrição estadual dele (já vem preenchida).</span>
+        </label>
+      )}
 
       <div className="flex gap-2">
         <button
