@@ -171,6 +171,10 @@ export async function POST(request: Request) {
     payload.municipio_entrega = entrega.municipio.trim();
     payload.uf_entrega = entrega.uf.toUpperCase();
     payload.cep_entrega = apenasDigitos(entrega.cep);
+    // A SEFAZ exige a IE do local de entrega quando o destinatário é contribuinte do ICMS
+    // (rejeição "IE do local de entrega não informada"). O local de entrega vai com o mesmo CNPJ
+    // do destinatário, então a IE é a mesma dele.
+    if (indicadorIe === 1 && ie) payload.inscricao_estadual_entrega = ie;
   }
 
   const tentativa = todas.filter((n) => n.tipo === "nfe").length + 1;
